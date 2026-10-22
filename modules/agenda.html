@@ -737,7 +737,7 @@ function renderTherapistSelectors(assignments={}){
 function readTherapistAssignments(){
  const out={};document.querySelectorAll('#mTherapists select[data-service]').forEach(s=>{if(s.value)out[s.dataset.service]=s.value});
  const directProfessional=document.getElementById('mResource').value;
- if(professionals.includes(directProfessional))checkedValues('#mServices input').filter(s=>serviceCompetency(s)&&!therapyNeedsManualTherapist(s)).forEach(s=>out[s]=directProfessional);
+ if(professionals.includes(directProfessional))checkedValues('#mServices input').filter(s=>serviceCompetency(s)&&!therapyNeedsManualTherapist(s)).forEach(s=>{if(!out[s])out[s]=directProfessional});
  return out;
 }
 
