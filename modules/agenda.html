@@ -2751,7 +2751,7 @@ authUsers();
  };
  let chargeAppointmentId=null,requestSeq=0,reloadPaymentTimer=null;const paymentPending=new Map();
  const same=(a,b)=>String(a??'')===String(b??'');
- const centralRequest=(action,payload={})=>new Promise((resolve,reject)=>{const requestId='appointment-payment-'+Date.now()+'-'+(++requestSeq),timer=setTimeout(()=>{paymentPending.delete(requestId);reject(new Error('El registro central del cobro no respondió a tiempo.'))},20000);paymentPending.set(requestId,{resolve,reject,timer});parent.postMessage({type:'atlas:central-db-request',requestId,action,payload},'*')}).then(data=>{if(action==='payments:upsert'&&data?.id&&!data.already_exists)setTimeout(()=>window.sendPaymentDocumentsAutomatically(data.id,payload?.metadata?.patient_name||'el paciente'),100);return data});window.atlasCentralRequest=centralRequest;
+ const centralRequest=(action,payload={})=>new Promise((resolve,reject)=>{const requestId='appointment-payment-'+Date.now()+'-'+(++requestSeq),timer=setTimeout(()=>{paymentPending.delete(requestId);reject(new Error('El registro central del cobro no respondió a tiempo.'))},20000);paymentPending.set(requestId,{resolve,reject,timer});parent.postMessage({type:'atlas:central-db-request',requestId,action,payload},'*')}).then(data=>{return data});window.atlasCentralRequest=centralRequest;
  const methodCode=value=>({'Metálico':'cash','Tarjeta':'card','Transferencia':'transfer','Bizum':'bizum','Financiación':'financing'})[value]||'other';
  const methodLabel=value=>({cash:'Metálico',card:'Tarjeta',transfer:'Transferencia',bizum:'Bizum',financing:'Financiación',other:'Otro'})[value]||value||'No indicada';
  const receiptCode=number=>'MUR-'+String(number||'').padStart(7,'0');
@@ -3142,7 +3142,7 @@ merged.push(mapped);const central=toRow(mapped);remoteByRef.set(mapped.centralRe
 </script><script id="atlas-budget-payments-v17">
 (()=>{
  const same=(a,b)=>String(a??'')===String(b??''),pending=new Map();let seq=0;
- function centralRequest(action,payload={}){return new Promise((resolve,reject)=>{const requestId='payment-'+Date.now()+'-'+(++seq),timer=setTimeout(()=>{pending.delete(requestId);reject(new Error('El registro central del cobro no respondió a tiempo.'))},20000);pending.set(requestId,{resolve,reject,timer});parent.postMessage({type:'atlas:central-db-request',requestId,action,payload},'*')}).then(data=>{if(action==='payments:upsert'&&data?.id&&!data.already_exists)setTimeout(()=>window.sendPaymentDocumentsAutomatically(data.id,payload?.metadata?.patient_name||'el paciente'),100);return data})}
+ function centralRequest(action,payload={}){return new Promise((resolve,reject)=>{const requestId='payment-'+Date.now()+'-'+(++seq),timer=setTimeout(()=>{pending.delete(requestId);reject(new Error('El registro central del cobro no respondió a tiempo.'))},20000);pending.set(requestId,{resolve,reject,timer});parent.postMessage({type:'atlas:central-db-request',requestId,action,payload},'*')}).then(data=>{return data})}
  function paymentDate(value){const raw=String(value||'').slice(0,10);return /^\d{4}-\d{2}-\d{2}$/.test(raw)?raw:cashToday()}
  function method(value){return ({'Metálico':'cash','Tarjeta':'card','Transferencia':'transfer','Bizum':'bizum','Financiación':'financing'})[value]||'other'}
  function paymentType(payment){if(payment.type==='Señal')return 'deposit';if(payment.type==='Pago parcial')return 'partial';return payment.installment?'installment':'full'}
