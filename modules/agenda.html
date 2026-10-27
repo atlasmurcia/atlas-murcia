@@ -5476,17 +5476,8 @@ function printInvoice(x,openedWindow){const issuer=x.issuer||{},recipient=x.reci
 </style>
 <script id="atlas-v136-product-catalog">
 (()=>{
- const imported=[
-  {id:'atlas-product-ergy-oseo-k2',barcode:'',reference:'',name:'ERGY OSEO K2',cost:0,price:23,category:'SUPLEMENTOS',stock:-2,minStock:0,supplier:'',minOrder:1,ecommerce:true,ecommerceDetail:'',ecommercePrice:0,internal:false,active:true,vatRate:10},
-  {id:'atlas-product-18',barcode:'',reference:'18',name:'ERGY FLEX SOBRES 30',cost:36.36,price:40,category:'SUPLEMENTOS',stock:0,minStock:0,supplier:'',minOrder:0,ecommerce:true,ecommerceDetail:'',ecommercePrice:0,internal:false,active:true,vatRate:10},
-  {id:'atlas-product-17',barcode:'',reference:'17',name:'ERGY COX 90',cost:35.91,price:39.5,category:'SUPLEMENTOS',stock:1,minStock:0,supplier:'',minOrder:0,ecommerce:true,ecommerceDetail:'',ecommercePrice:0,internal:false,active:true,vatRate:10},
-  {id:'atlas-product-16',barcode:'',reference:'16',name:'ERGY COX 30',cost:14.55,price:16,category:'SUPLEMENTOS',stock:5,minStock:0,supplier:'',minOrder:0,ecommerce:true,ecommerceDetail:'',ecommercePrice:0,internal:false,active:true,vatRate:10},
-  {id:'atlas-product-15',barcode:'',reference:'15',name:'ERGY COL BALANCE 60',cost:18.18,price:20,category:'SUPLEMENTOS',stock:1,minStock:0,supplier:'',minOrder:0,ecommerce:true,ecommerceDetail:'',ecommercePrice:0,internal:false,active:true,vatRate:10},
-  {id:'atlas-product-13',barcode:'',reference:'13',name:'ERGY 3 60 PERLAS',cost:17.27,price:19,category:'SUPLEMENTOS',stock:2,minStock:0,supplier:'',minOrder:0,ecommerce:true,ecommerceDetail:'',ecommercePrice:0,internal:false,active:true,vatRate:10},
-  {id:'atlas-product-12',barcode:'',reference:'12',name:'ERGY 3 180 PERLAS',cost:37.73,price:41.5,category:'SUPLEMENTOS',stock:-1,minStock:0,supplier:'',minOrder:0,ecommerce:true,ecommerceDetail:'',ecommercePrice:0,internal:false,active:true,vatRate:10},
-  {id:'atlas-product-9',barcode:'',reference:'9',name:'BICEBE PLUS 90',cost:25.45,price:28,category:'SUPLEMENTOS',stock:0,minStock:0,supplier:'',minOrder:0,ecommerce:true,ecommerceDetail:'',ecommercePrice:0,internal:false,active:true,vatRate:10},
-  {id:'atlas-product-1',barcode:'',reference:'1',name:'ACEROL C 60 comprimidos',cost:16.36,price:18,category:'SUPLEMENTOS',stock:1,minStock:0,supplier:'',minOrder:0,ecommerce:true,ecommerceDetail:'',ecommercePrice:0,internal:false,active:true,vatRate:10}
- ];
+ // El catálogo de productos vive en el servidor (sales.products, tarifa Nutergia); aquí no se fusiona ninguna lista fija.
+ const imported=[];
  const norm=value=>String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
  const escp=value=>typeof hesc==='function'?hesc(value):String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
  const money2=value=>Number(value||0).toLocaleString('es-ES',{style:'currency',currency:'EUR'});
