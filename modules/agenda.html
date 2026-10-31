@@ -4691,7 +4691,8 @@ function printInvoice(x,openedWindow){const issuer=x.issuer||{},recipient=x.reci
  };
  function normalizeExistingBombaAppointments(){
   let changed=false;
-  appointments.forEach(appointment=>{const kind=bombaKind(appointment);if(!kind)return;const nextResources=[...new Set([...(appointment.resources||[appointment.resource]).filter(resource=>resource&&!isProfessionalResource(resource)),'Bomba Diamagnética'])],nextEnd=timeStr(mins(appointment.time)+45);if(appointment.duration!==45||appointment.endTime!==nextEnd||appointment.resource!=='Bomba Diamagnética'||JSON.stringify(appointment.resources||[])!==JSON.stringify(nextResources)){appointment.duration=45;appointment.endTime=nextEnd;appointment.resource='Bomba Diamagnética';appointment.resources=nextResources;changed=true}if(kind==='static'&&(appointment.professional||Object.keys(appointment.therapists||{}).length)){appointment.professional='';appointment.therapists={};changed=true}});
+  appointments.forEach(appointment=>{if(appointment.historico===true||appointment.metadata?.historico===true)return;// Las citas migradas de Koibox se muestran tal cual.
+const kind=bombaKind(appointment);if(!kind)return;const nextResources=[...new Set([...(appointment.resources||[appointment.resource]).filter(resource=>resource&&!isProfessionalResource(resource)),'Bomba Diamagnética'])],nextEnd=timeStr(mins(appointment.time)+45);if(appointment.duration!==45||appointment.endTime!==nextEnd||appointment.resource!=='Bomba Diamagnética'||JSON.stringify(appointment.resources||[])!==JSON.stringify(nextResources)){appointment.duration=45;appointment.endTime=nextEnd;appointment.resource='Bomba Diamagnética';appointment.resources=nextResources;changed=true}if(kind==='static'&&(appointment.professional||Object.keys(appointment.therapists||{}).length)){appointment.professional='';appointment.therapists={};changed=true}});
   return changed;
  }
  const previousRenderForBomba=render;render=function(){const changed=normalizeExistingBombaAppointments();previousRenderForBomba();if(changed)setTimeout(()=>save(),0)};
@@ -5222,7 +5223,7 @@ function printInvoice(x,openedWindow){const issuer=x.issuer||{},recipient=x.reci
   let changed=false;
   for(const item of appointments){
    const names=(item.services||[item.therapy]).filter(Boolean),hasGeneric=names.some(name=>pumpName(name)==='bomba diamagnetica');
-   if(!hasGeneric)continue;
+   if(!hasGeneric||item.historico===true||item.metadata?.historico===true)continue;// Las citas migradas de Koibox se muestran tal cual.
    item.therapy='Bomba Diamagnética estática';item.services=names.map(name=>pumpName(name)==='bomba diamagnetica'?'Bomba Diamagnética estática':name);item.duration=45;item.endTime=timeStr(mins(item.time)+45);item.resource='Bomba Diamagnética';item.resources=['Bomba Diamagnética'];item.professional='';item.therapists={};changed=true;
   }
   return changed;
