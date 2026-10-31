@@ -662,9 +662,12 @@ function atlasIsNonClinicalContactAppointment(item){
 }
 // Equipos con varias unidades (p. ej. 2 OsteoSpin): solo hay conflicto cuando se superan las unidades disponibles.
 function equipmentUnits(resource){return Math.max(1,Number(alicanteEquipmentConfig[resource]?.quantity||1))}
-function equipmentOverCapacity(a,resource,rows,ignoreId=null){
+// Mira, en el tramo en que «a» y «b» coinciden, si en algún momento hay más citas que unidades del equipo.
+function equipmentOverCapacity(a,resource,rows,ignoreId=null,b=null){
  const units=equipmentUnits(resource);if(units<=1)return true;
- return rows.filter(b=>b!==a&&!(a.id!=null&&String(b.id)===String(a.id))&&!(ignoreId!=null&&String(b.id)===String(ignoreId))&&b.date===a.date&&b.status!=='Cancelada'&&(Array.isArray(b.resources)?b.resources:[b.resource]).includes(resource)&&intervalsOverlap(a.time,Number(a.duration||30),b.time,Number(b.duration||30))).length>=units;
+ const span=x=>[mins(x.time),mins(x.time)+Number(x.duration||30)],[as,ae]=span(a),[from,to]=b?(([bs,be])=>[Math.max(as,bs),Math.min(ae,be)])(span(b)):[as,ae];
+ const others=rows.filter(o=>o!==a&&!(a.id!=null&&String(o.id)===String(a.id))&&!(ignoreId!=null&&String(o.id)===String(ignoreId))&&o.date===a.date&&o.status!=='Cancelada'&&(Array.isArray(o.resources)?o.resources:[o.resource]).includes(resource)).map(span).filter(([s,e])=>s<to&&e>from);
+ return [from,...others.map(([s])=>s).filter(s=>s>from&&s<to)].some(point=>others.filter(([s,e])=>s<=point&&e>point).length>=units);
 }
 function conflictsInSet(a,rows,ignoreId=null){
  return rows.filter(b=>{
@@ -679,7 +682,7 @@ function conflictsInSet(a,rows,ignoreId=null){
    const sharedResources=ar.filter(r=>br.includes(r)&&!professionals.includes(r));
    // Solo existe conflicto visual cuando los tramos se cruzan de verdad. Los
    // márgenes técnicos de un equipo no deben pintar en rojo citas consecutivas.
-   const resourceConflict=sharedResources.some(r=>intervalsOverlap(a.time,Number(a.duration||30),b.time,Number(b.duration||30))&&equipmentOverCapacity(a,r,rows,ignoreId));
+   const resourceConflict=sharedResources.some(r=>intervalsOverlap(a.time,Number(a.duration||30),b.time,Number(b.duration||30))&&equipmentOverCapacity(a,r,rows,ignoreId,b));
 
    // El profesional solo queda ocupado durante el tiempo clínicamente necesario.
    const apd=professionalDuration(a), bpd=professionalDuration(b);
@@ -2648,7 +2651,7 @@ authUsers();
    const or=Array.isArray(other.resources)?other.resources:[other.resource].filter(Boolean);
    const shared=cr.filter(r=>or.includes(r));
    // Las citas contiguas (fin === inicio) no se solapan y no deben mostrarse en rojo.
-   const resourceConflict=shared.some(r=>intervalsOverlap(candidate.time,Number(candidate.duration||30),other.time,Number(other.duration||30))&&equipmentOverCapacity(candidate,r,appointments,ignoreId));
+   const resourceConflict=shared.some(r=>intervalsOverlap(candidate.time,Number(candidate.duration||30),other.time,Number(other.duration||30))&&equipmentOverCapacity(candidate,r,appointments,ignoreId,other));
    const ot=appointmentTherapists(other),cd=professionalDuration(candidate),od=professionalDuration(other);
    const professionalConflict=ct.some(p=>ot.includes(p))&&cd>0&&od>0&&intervalsOverlap(candidate.time,cd,other.time,od);
    const samePatient=(candidate.patientCode&&other.patientCode&&sameId(candidate.patientCode,other.patientCode))||(!candidate.patientCode&&!other.patientCode&&normalizeSearch(candidate.patient)===normalizeSearch(other.patient));
