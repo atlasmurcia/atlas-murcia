@@ -3006,6 +3006,9 @@ window.sendPaymentDocumentsAutomatically=function(paymentId,patientName){central
  // Solo cuenta como edición lo que ocurre dentro de una acción del usuario (clic, tecla, arrastre…).
  // Los ajustes automáticos posteriores (render, normalizaciones) se adoptan como base y no se envían al servidor.
  let userEditing=false;
+ // Última versión local de cada cita histórica: el aviso solo salta si cambia durante una acción del usuario,
+ // no por ajustes automáticos anteriores (historial vacío, normalización de bomba…).
+ const historicLocalFingerprints=new Map();
  for(const type of ['pointerdown','click','dblclick','keydown','change','drop','submit'])document.addEventListener(type,()=>{userEditing=true;setTimeout(()=>{userEditing=false},0)},true);
  function request(action,payload={}){return new Promise((resolve,reject)=>{const requestId='appointment-'+Date.now()+'-'+(++seq),timer=setTimeout(()=>{pending.delete(requestId);reject(new Error('La agenda central no respondió a tiempo.'))},60000);pending.set(requestId,{resolve,reject,timer});parent.postMessage({type:'atlas:central-db-request',requestId,action,payload},'*')})}
  function patientFor(a){return patientMaster.find(p=>p.remoteId&&(a.patientCode&&same(p.code,a.patientCode)))||patientMaster.find(p=>p.remoteId&&norm(p.name)===norm(a.patient))}
@@ -3039,7 +3042,7 @@ window.sendPaymentDocumentsAutomatically=function(paymentId,patientName){central
  function queueSync(){syncRequested=true;clearTimeout(syncTimer);syncTimer=setTimeout(syncNow,550)}
  function requestCentralRefresh(delay=350){remoteRefreshPending=true;clearTimeout(reloadTimer);if(!moduleVisible)return;reloadTimer=setTimeout(()=>{if(!ready||!moduleVisible)return;if(loading||syncing||cancelling||dirtyRefs.size){if(dirtyRefs.size&&!loading&&!syncing&&!cancelling)queueSync();requestCentralRefresh(800);return}remoteRefreshPending=false;loadCentral(currentDate,true)},delay)}
  save=function(){if(!ready||loading){baseSave();return}let historicTouched=false;for(const a of appointments){const row=toRow(a);if(!row)continue;const old=remoteByRef.get(row.client_ref),rowFingerprint=fingerprint(row);if(old&&old._fingerprint===rowFingerprint)continue;
-  if(isHistoric(a)){if(userEditing)historicTouched=true;continue}
+  if(isHistoric(a)){const seen=historicLocalFingerprints.get(row.client_ref);historicLocalFingerprints.set(row.client_ref,rowFingerprint);if(userEditing&&seen!==undefined&&seen!==rowFingerprint)historicTouched=true;continue}
   // Cita nueva (sin copia en el servidor) o editada por el usuario: se envía. Cambio automático: pasa a ser la base.
   if(!old||userEditing||dirtyRefs.has(row.client_ref))dirtyRefs.add(row.client_ref);else old._fingerprint=rowFingerprint}
   baseSave();if(historicTouched){tell('Las citas históricas migradas no se modifican; se restaura la versión del servidor.','warn');remoteRefreshPending=true;lastCentralSignature='';requestCentralRefresh(300)}if(!dirtyRefs.size)return;tell('Guardando cambios en el servidor…');queueSync()};
