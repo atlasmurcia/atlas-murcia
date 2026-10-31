@@ -4697,7 +4697,8 @@ function printInvoice(x,openedWindow){const issuer=x.issuer||{},recipient=x.reci
 <script id="atlas-v136-bomba-professional-15-minutes">
 (()=>{
  const normalize=value=>String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
- const bombaKind=appointment=>{const names=[...(Array.isArray(appointment.services)?appointment.services:[]),appointment.therapy].filter(Boolean).map(normalize);if(names.some(name=>name.includes('bomba')&&name.includes('dinamica')))return'dynamic';if(names.some(name=>name.includes('bomba')&&name.includes('estatica')))return'static';if(names.some(name=>name.includes('bomba')||name.includes('diamagnetica')))return appointmentTherapists(appointment).length||appointment.professional?'dynamic':'static';return''};
+ // «poner bomba» son los 15 min del fisio (en Koibox va aparte de la cita de máquina): no es una cita de bomba que normalizar.
+ const bombaKind=appointment=>{const names=[...(Array.isArray(appointment.services)?appointment.services:[]),appointment.therapy].filter(Boolean).map(normalize).filter(name=>name.trim()!=='poner bomba');if(names.some(name=>name.includes('bomba')&&name.includes('dinamica')))return'dynamic';if(names.some(name=>name.includes('bomba')&&name.includes('estatica')))return'static';if(names.some(name=>name.includes('bomba')||name.includes('diamagnetica')))return appointmentTherapists(appointment).length||appointment.professional?'dynamic':'static';return''};
  const isProfessionalResource=resource=>professionals.some(professional=>normalize(professional)===normalize(resource));
  const previousProfessionalDuration=professionalDuration;
  professionalDuration=function(appointment){const kind=bombaKind(appointment);if(kind==='dynamic')return appointmentTherapists(appointment).length?15:0;if(kind==='static')return 0;return previousProfessionalDuration(appointment)};
