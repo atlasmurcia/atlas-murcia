@@ -100,7 +100,7 @@ header{height:58px!important;background:#fff!important;border-bottom:1px solid #
 </header>
 
 <div class="layout">
-<aside><div class="fisiosport-side-brand"><div class="fisiosport-wordmark"><span>fisio</span>Sport</div><small>ATLAS MURCIA</small></div>
+<aside><div class="fisiosport-side-brand"><div class="fisiosport-wordmark"><span>fisio</span>Sport</div><small>ATLAS MURCIA</small></div><button id="sideToggle" type="button" title="Oculta el menú para ganar espacio en la agenda; vuelve a salir al acercar el ratón al borde izquierdo">« Ocultar menú</button>
   <div class="nav active">▣ Agenda</div><a class="nav" id="patientsNav" href="#patientsBack" onclick="window.atlasOpenPatientList?window.atlasOpenPatientList():openPatients()">👥 Pacientes</a><div class="nav" id="captureNav">🎯 Captación</div><div class="nav" id="administrativeNav">🗂 Área administrativa</div><div class="nav" id="processesNav">⚡ Procesos <span id="processDueBadge">0</span></div>
   <div class="nav" id="cashNav">💶 Caja</div><div class="nav" id="commissionsNav">⭐ Comisiones</div><div class="nav" id="marketingNav" onclick="atlasOpenMarketingV136()">📣 Marketing</div><div class="nav" id="whatsappAutomationNav" hidden>💬 Automatismos WhatsApp</div><div class="nav" id="statsNav">📊 Estadísticas</div><div class="nav" id="configurationNav" onclick="window.atlasOpenConfigurationV136()">⚙ Configuración</div>
 </aside>
@@ -6072,6 +6072,34 @@ window.addEventListener('message',event=>{if(event.data?.type!=='atlas:open-qual
   statisticsExportRows.push([],['CONCILIACIÓN DEL PERIODO','Valor'],['Total servicios realizados',audit.completedServices],['Total servicios cobrados',audit.chargedServices],['Realizados sin cobro vinculado',audit.completedWithoutSale],['Cobros sin servicio identificable',audit.paymentsWithoutService],['Cobros duplicados por justificante',audit.duplicatePayments],['Diferencia realizados menos cobrados',audit.difference]);
  };
  window.atlasStatisticsReconciliationV309={statisticsReconciliation};
+})();
+</script>
+<style id="atlas-side-collapse-style">
+#sideToggle{width:100%;margin:0 0 10px;padding:7px 10px;font-size:12px;font-weight:700;color:#086d98;background:#f2f8fb;border:1px solid #d5e6ee;border-radius:9px;cursor:pointer}
+#sideEdge{display:none;position:fixed;left:0;top:0;bottom:0;width:12px;z-index:59;background:linear-gradient(90deg,#0b7fb033,transparent);cursor:e-resize}
+#sideEdge::after{content:'›';position:absolute;top:50%;left:1px;transform:translateY(-50%);font-size:16px;font-weight:900;color:#0b7fb0}
+body.side-collapsed .layout{grid-template-columns:1fr!important}
+body.side-collapsed .layout>aside{position:fixed;left:0;top:0;bottom:0;width:224px;z-index:60;overflow:auto;transform:translateX(-100%);transition:transform .18s ease;box-shadow:4px 0 18px #0b2b3a26}
+body.side-collapsed .layout>aside.peek{transform:none}
+body.side-collapsed #sideEdge{display:block}
+</style>
+<div id="sideEdge" aria-hidden="true"></div>
+<script id="atlas-side-collapse">
+// Menú lateral plegable: al ocultarlo la agenda gana ancho; al acercar el ratón al borde izquierdo vuelve a salir por encima.
+(()=>{
+ const aside=document.querySelector('.layout>aside'),button=document.getElementById('sideToggle'),edge=document.getElementById('sideEdge');
+ if(!aside||!button||!edge)return;
+ let hideTimer=null;
+ const apply=collapsed=>{document.body.classList.toggle('side-collapsed',collapsed);aside.classList.remove('peek');button.textContent=collapsed?'📌 Fijar menú':'« Ocultar menú'};
+ const peek=()=>{clearTimeout(hideTimer);aside.classList.add('peek')};
+ const unpeek=()=>{clearTimeout(hideTimer);hideTimer=setTimeout(()=>aside.classList.remove('peek'),350)};
+ let saved=null;try{saved=localStorage.getItem('atlasSideCollapsed')}catch(e){}
+ apply(saved==='1');
+ button.onclick=()=>{const collapsed=!document.body.classList.contains('side-collapsed');apply(collapsed);try{localStorage.setItem('atlasSideCollapsed',collapsed?'1':'0')}catch(e){}};
+ edge.addEventListener('mouseenter',peek);edge.addEventListener('click',peek);
+ aside.addEventListener('mouseenter',()=>{if(document.body.classList.contains('side-collapsed'))peek()});
+ aside.addEventListener('mouseleave',()=>{if(document.body.classList.contains('side-collapsed'))unpeek()});
+ aside.addEventListener('click',event=>{if(document.body.classList.contains('side-collapsed')&&event.target.closest('.nav'))aside.classList.remove('peek')});
 })();
 </script>
 </body></html>
