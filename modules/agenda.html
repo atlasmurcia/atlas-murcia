@@ -913,6 +913,10 @@ function render(){
  const view=document.getElementById('view').value;
  if(view==='professional') shownResources=[...specialColumns,...professionals];
  if(view==='equipment') shownResources=[...specialColumns,...equipment];
+ // Orden pedido por recepción (31/10/2026): primer grupo de fisios, segundo grupo, MBST y después los equipos de más a menos uso (últimos 6 meses).
+ const columnOrder=['Rubén Soler','María Pilar Iniesta Cárceles','Concepción Madrid Taverner','María Visitación Martínez Ruiz','Teresa Echegaray Díaz de Figueroa','David Díaz Huertas','Alejandro Castillo Viudes','Lisardo Esteve Montava','Aitor Inglés Barrena','MBST FLEX','MBST OSTEOSPIN','SIS','Magnetophysio','Bomba Diamagnética','Physicalm','Robot','VACU','Brains Way','Camilla FD','DPA','Onda de choque','iMoove'];
+ const columnRank=r=>{const i=columnOrder.indexOf(r);return i<0?columnOrder.length:i};
+ shownResources=[...shownResources].sort((x,y)=>(specialColumns.includes(y)-specialColumns.includes(x))||columnRank(x)-columnRank(y));
  const cal=document.getElementById('cal');
  // Equipos con varias unidades (2 OsteoSpin): una columna por unidad y cada cita en la primera libre. Solo es visual.
  const columns=shownResources.flatMap(r=>{const units=equipment.includes(r)?equipmentUnits(r):1;return Array.from({length:units},(_,lane)=>({r,lane,units}))});
