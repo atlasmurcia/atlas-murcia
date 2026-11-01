@@ -1,0 +1,83 @@
+<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>ATLAS · Embudo de campañas</title><style>
+:root{--b:#0b7fab;--i:#17313d;--bg:#eef3f5;--l:#d8e3e7;--m:#69808a;--g:#17834c;--r:#b42318;--a:#a65f00}*{box-sizing:border-box}body{margin:0;font:14px Inter,system-ui,Arial;color:var(--i);background:var(--bg)}button,input,select{font:inherit}button{cursor:pointer}
+.top{min-height:62px;display:flex;align-items:center;flex-wrap:wrap;gap:10px;padding:10px 20px;background:#fff;border-bottom:1px solid var(--l);position:sticky;top:0;z-index:4}.top h1{font-size:20px;margin:0}.spacer{flex:1}
+.content{padding:18px;max-width:1600px;margin:auto}.muted{color:var(--m)}.card{background:#fff;border:1px solid var(--l);border-radius:12px;padding:16px;margin-bottom:14px}
+.btn{border:1px solid var(--l);background:#fff;border-radius:8px;padding:7px 11px;font-weight:700}.btn.on{background:#e5f4fa;border-color:#9fd3e8;color:#0879a7}.primary{background:var(--b);border-color:var(--b);color:#fff}
+input[type=date]{border:1px solid #c9d6db;border-radius:7px;padding:6px 8px}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:14px}.kpi{background:#fff;border:1px solid var(--l);border-radius:12px;padding:14px}.kpi small{color:var(--m);display:block}.kpi b{font-size:22px;display:block;margin-top:6px}.kpi span{font-size:12px;color:var(--m)}
+.funnel{display:grid;gap:6px}.frow{display:grid;grid-template-columns:230px 1fr 120px;align-items:center;gap:10px}.fbar{height:24px;background:#edf3f5;border-radius:6px;overflow:hidden}.fbar i{display:block;height:100%;background:var(--b);border-radius:6px}.frow.bad .fbar i{background:#d97757}.frow.good .fbar i{background:var(--g)}.frow b{text-align:right}
+table{width:100%;border-collapse:collapse;font-size:13px}th,td{padding:8px 7px;border-bottom:1px solid #e6eef1;text-align:right;white-space:nowrap}th{color:var(--m);font-weight:700;font-size:12px;position:sticky;top:62px;background:#fff}th:first-child,td:first-child{text-align:left;white-space:normal;min-width:240px}
+tbody tr.camp{cursor:pointer}tbody tr.camp:hover{background:#f5fafc}tbody tr.sel{background:#e5f4fa}tfoot td{font-weight:800;border-top:2px solid var(--l)}
+.pct{display:block;font-size:11px;color:var(--m)}.alias{display:block;font-size:11px;color:var(--m)}.pos{color:var(--g);font-weight:800}.neg{color:var(--r);font-weight:800}
+.tablewrap{overflow-x:auto}.chips{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0}.chip{border:1px solid var(--l);background:#fff;border-radius:999px;padding:4px 10px;font-size:12px;font-weight:700}.chip.on{background:var(--i);color:#fff;border-color:var(--i)}
+.tag{display:inline-block;border-radius:999px;padding:2px 8px;font-size:11px;font-weight:800;background:#edf3f5;color:#38535e}.tag.tratamiento{background:#dff3e7;color:#17834c}.tag.anula_o_no_viene{background:#fbe5dd;color:#a3401d}.tag.sin_contactar{background:#fdf0d5;color:#8a5300}.tag.cita_pendiente,.tag.presupuesto_pendiente{background:#e5f4fa;color:#0879a7}
+.state{font-size:12px;color:var(--m)}.state.err{color:var(--r);font-weight:700}details summary{cursor:pointer;font-weight:700}details ul{margin:8px 0 0;padding-left:18px;color:#38535e;line-height:1.5}
+</style></head><body>
+<header class="top"><h1>Embudo de campañas</h1><span class="spacer"></span>
+<span class="muted">Leads desde</span><input type="date" id="from"><span class="muted">hasta</span><input type="date" id="to">
+<button class="btn" data-range="30">30 días</button><button class="btn" data-range="90">90 días</button><button class="btn" data-range="year">Este año</button><button class="btn on" data-range="all">Todo</button>
+<button class="btn" id="csv">Descargar Excel (CSV)</button><button class="btn primary" id="reload">Actualizar</button>
+<span class="state" id="state"></span></header>
+<main class="content">
+<section class="kpis" id="kpis"></section>
+<section class="card"><h3 style="margin:0 0 12px">Embudo total del periodo</h3><div class="funnel" id="funnel"></div></section>
+<section class="card"><h3 style="margin:0 0 4px">Por campaña</h3><p class="muted" style="margin:0 0 10px">Pulsa una campaña para ver sus leads uno a uno. Los porcentajes son sobre los leads de esa campaña.</p><div class="tablewrap"><table id="camps"></table></div></section>
+<section class="card" id="detail" hidden></section>
+<section class="card"><details><summary>Cómo se calcula cada dato</summary><ul>
+<li><b>Lead</b>: cada persona que deja sus datos en un formulario de campaña (se quitan duplicados y pruebas). La fecha es la de entrada del lead.</li>
+<li><b>Contactado</b>: tiene apuntada al menos una llamada o WhatsApp, o una cita de «LLAMADA CAPTACION».</li>
+<li><b>Con cita</b>: tiene alguna cita de clínica (no llamadas ni avisos) desde que entró como lead.</li>
+<li><b>Anula o no viene</b>: cogió cita pero todas se anularon o no se presentó, y no tiene ninguna pendiente.</li>
+<li><b>Vinieron</b>: al menos una cita realizada. <b>Solo 1.ª consulta</b>: vino pero no hay tratamiento ni presupuesto. <b>Presupuesto pendiente</b>: tiene presupuesto sin aceptar.</li>
+<li><b>En tratamiento</b>: tras venir tiene sesiones de tratamiento (no valoración ni 1.ª consulta) o un presupuesto aceptado.</li>
+<li><b>Ingresos</b>: todo lo cobrado a ese paciente desde que entró como lead. Los leads antiguos sin ficha enlazada se cruzan por teléfono.</li>
+<li><b>Gasto</b>: lo invertido en Meta en esa campaña en las fechas elegidas (se actualiza solo cada día). <b>Retorno</b> = ingresos ÷ gasto.</li>
+<li>Las campañas se agrupan por su código de Meta: si una campaña se renombró, aparece una sola vez con sus nombres anteriores debajo.</li>
+</ul></details></section>
+</main>
+<script>
+(()=>{
+const $=id=>document.getElementById(id);
+const pending=new Map();let seq=0,data=null,selected=null,stageFilter='';
+const STAGES=[['sin_contactar','Sin contactar'],['contactado_sin_cita','Contactado sin cita'],['anula_o_no_viene','Anula o no viene'],['cita_pendiente','Cita pendiente'],['solo_primera_consulta','Solo 1.ª consulta'],['presupuesto_pendiente','Presupuesto pendiente'],['tratamiento','En tratamiento']];
+const stageName=Object.fromEntries(STAGES);
+const eur=n=>n==null||!isFinite(n)?'—':new Intl.NumberFormat('es-ES',{style:'currency',currency:'EUR',maximumFractionDigits:0,useGrouping:'always'}).format(n);
+const num=n=>new Intl.NumberFormat('es-ES',{useGrouping:'always'}).format(n||0);
+const pct=(a,b)=>b?String(Math.round(a*1000/b)/10).replace('.',',')+' %':'—';
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const day=d=>d?new Date(d).toLocaleDateString('es-ES'):'';
+const iso=d=>new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,10);
+function request(action,payload={}){return new Promise((resolve,reject)=>{const requestId='marketing-'+Date.now()+'-'+(++seq),timer=setTimeout(()=>{pending.delete(requestId);reject(new Error('ATLAS no respondió a tiempo.'))},60000);pending.set(requestId,{resolve,reject,timer});parent.postMessage({type:'atlas:central-db-request',requestId,action,payload},'*')})}
+window.addEventListener('message',e=>{const m=e.data||{};if(m.type!=='atlas:central-db-response'||!pending.has(m.requestId))return;const p=pending.get(m.requestId);pending.delete(m.requestId);clearTimeout(p.timer);m.ok?p.resolve(m.data):p.reject(new Error(m.error||'Error al cargar el embudo.'))});
+function state(text,err){$('state').textContent=text;$('state').className='state'+(err?' err':'')}
+function summarize(leads){const s={leads:leads.length,contactados:0,con_cita:0,anulan:0,pendientes:0,vinieron:0,solo_primera:0,presupuesto:0,tratamiento:0,ya_pacientes:0,ingresos:0};for(const l of leads){if(l.contactos>0||l.etapa!=='sin_contactar')s.contactados++;if(l.citas>0)s.con_cita++;if(l.etapa==='anula_o_no_viene')s.anulan++;if(l.etapa==='cita_pendiente')s.pendientes++;if(l.visitas>0)s.vinieron++;if(l.etapa==='solo_primera_consulta')s.solo_primera++;if(l.presupuestos>0)s.presupuesto++;if(l.etapa==='tratamiento')s.tratamiento++;if(l.ya_paciente)s.ya_pacientes++;s.ingresos+=Number(l.ingresos)||0}return s}
+function campaigns(){const spend=new Map((data.spend||[]).map(s=>[String(s.campaign_id),s]));const groups=new Map();for(const l of data.leads){const k=l.campaign_key;if(!groups.has(k))groups.set(k,{key:k,leads:[],names:new Map()});const g=groups.get(k);g.leads.push(l);if(!g.names.has(l.campaign_name))g.names.set(l.campaign_name,l.fecha)}
+ for(const [k,s] of spend)if(!groups.has(k))groups.set(k,{key:k,leads:[],names:new Map()});
+ return [...groups.values()].map(g=>{const sp=spend.get(String(g.key));const byDate=[...g.names.entries()].sort((a,b)=>String(b[1]).localeCompare(String(a[1]))).map(x=>x[0]);const name=sp?.campaign_name||byDate[0]||g.key;return {...g,name,aliases:byDate.filter(n=>n!==name),spend:sp?Number(sp.spend)||0:null,platformLeads:sp?.platform_leads??null,s:summarize(g.leads)}}).sort((a,b)=>b.s.leads-a.s.leads)}
+function render(){if(!data)return;const camps=campaigns();const t=summarize(data.leads);const spendTotal=camps.reduce((a,c)=>a+(c.spend||0),0);const hasSpend=(data.spend||[]).length>0;
+ const k=[['Leads',num(t.leads),''],['Contactados',num(t.contactados),pct(t.contactados,t.leads)+' de los leads'],['Cogieron cita',num(t.con_cita),pct(t.con_cita,t.leads)+' de los leads'],['Vinieron a clínica',num(t.vinieron),pct(t.vinieron,t.con_cita)+' de los que cogieron cita'],['En tratamiento',num(t.tratamiento),pct(t.tratamiento,t.vinieron)+' de los que vinieron'],['Ingresos',eur(t.ingresos),t.tratamiento?eur(t.ingresos/t.tratamiento)+' por paciente en tratamiento':''],['Gasto en Meta',hasSpend?eur(spendTotal):'Pendiente',hasSpend?(data.spend_updated_at?'actualizado '+day(data.spend_updated_at):''):'falta conectar Meta'],['Coste por paciente',hasSpend&&t.tratamiento?eur(spendTotal/t.tratamiento):'—','por paciente en tratamiento'],['Retorno',hasSpend&&spendTotal?(t.ingresos/spendTotal).toFixed(2).replace('.',',')+' €':'—','ingresado por cada 1 € invertido']];
+ $('kpis').innerHTML=k.map(([a,b,c])=>`<div class="kpi"><small>${a}</small><b>${b}</b><span>${esc(c)}</span></div>`).join('');
+ const steps=[['Leads',t.leads],['Contactados',t.contactados],['Cogieron cita',t.con_cita],['Anulan o no vienen',t.anulan,'bad'],['Vinieron a clínica',t.vinieron],['Solo 1.ª consulta',t.solo_primera,'bad'],['En tratamiento',t.tratamiento,'good']];
+ $('funnel').innerHTML=steps.map(([n,v,c])=>`<div class="frow ${c||''}"><span>${n}</span><div class="fbar"><i style="width:${t.leads?Math.max(v?0.6:0,v*100/t.leads):0}%"></i></div><b>${num(v)} <span class="pct">${pct(v,t.leads)}</span></b></div>`).join('');
+ const cell=(v,base)=>`<td>${num(v)}<span class="pct">${pct(v,base)}</span></td>`;
+ const roi=c=>c.spend?((c.s.ingresos/c.spend).toFixed(2).replace('.',',')+' €'):'—';
+ const rows=camps.map(c=>`<tr class="camp${selected===c.key?' sel':''}" data-key="${esc(c.key)}"><td><b>${esc(c.name)}</b>${c.aliases.length?`<span class="alias">También: ${esc(c.aliases.join(' · '))}</span>`:''}${c.s.leads?`<span class="alias">${day(c.leads[c.leads.length-1].fecha)} – ${day(c.leads[0].fecha)}</span>`:''}</td><td>${num(c.s.leads)}</td>${cell(c.s.contactados,c.s.leads)}${cell(c.s.con_cita,c.s.leads)}${cell(c.s.anulan,c.s.con_cita)}${cell(c.s.pendientes,c.s.leads)}${cell(c.s.vinieron,c.s.leads)}${cell(c.s.solo_primera,c.s.vinieron)}${cell(c.s.presupuesto,c.s.vinieron)}${cell(c.s.tratamiento,c.s.leads)}<td>${eur(c.s.ingresos)}</td><td>${c.spend==null?'—':eur(c.spend)}</td><td>${c.spend&&c.s.leads?eur(c.spend/c.s.leads):'—'}</td><td>${c.spend&&c.s.tratamiento?eur(c.spend/c.s.tratamiento):'—'}</td><td class="${c.spend?(c.s.ingresos>=c.spend?'pos':'neg'):''}">${roi(c)}</td></tr>`).join('');
+ $('camps').innerHTML=`<thead><tr><th>Campaña</th><th>Leads</th><th>Contactados</th><th>Con cita</th><th title="% sobre los que cogieron cita">Anulan / no vienen</th><th>Cita pendiente</th><th>Vinieron</th><th title="% sobre los que vinieron">Solo 1.ª consulta</th><th title="% sobre los que vinieron">Con presupuesto</th><th>En tratamiento</th><th>Ingresos</th><th>Gasto</th><th>Coste / lead</th><th>Coste / paciente</th><th>Retorno por 1 €</th></tr></thead><tbody>${rows}</tbody><tfoot><tr><td>Total</td><td>${num(t.leads)}</td>${cell(t.contactados,t.leads)}${cell(t.con_cita,t.leads)}${cell(t.anulan,t.con_cita)}${cell(t.pendientes,t.leads)}${cell(t.vinieron,t.leads)}${cell(t.solo_primera,t.vinieron)}${cell(t.presupuesto,t.vinieron)}${cell(t.tratamiento,t.leads)}<td>${eur(t.ingresos)}</td><td>${hasSpend?eur(spendTotal):'—'}</td><td>${hasSpend&&t.leads?eur(spendTotal/t.leads):'—'}</td><td>${hasSpend&&t.tratamiento?eur(spendTotal/t.tratamiento):'—'}</td><td>${hasSpend&&spendTotal?(t.ingresos/spendTotal).toFixed(2).replace('.',',')+' €':'—'}</td></tr></tfoot>`;
+ $('camps').querySelectorAll('tr.camp').forEach(tr=>tr.onclick=()=>{selected=selected===tr.dataset.key?null:tr.dataset.key;stageFilter='';render()});
+ renderDetail(camps)}
+function renderDetail(camps){const box=$('detail');const c=camps.find(x=>x.key===selected);if(!c){box.hidden=true;return}box.hidden=false;
+ const counts=Object.fromEntries(STAGES.map(([k])=>[k,c.leads.filter(l=>l.etapa===k).length]));
+ const list=c.leads.filter(l=>!stageFilter||l.etapa===stageFilter);
+ box.innerHTML=`<h3 style="margin:0">${esc(c.name)}</h3><div class="chips"><button class="chip${stageFilter?'':' on'}" data-stage="">Todos (${c.leads.length})</button>${STAGES.filter(([k])=>counts[k]).map(([k,n])=>`<button class="chip${stageFilter===k?' on':''}" data-stage="${k}">${n} (${counts[k]})</button>`).join('')}</div><div class="tablewrap"><table><thead><tr><th>Lead</th><th>Entró</th><th>Etapa</th><th>Contactos</th><th>Citas</th><th>Anuladas</th><th>Vino</th><th>1.ª visita</th><th>Sesiones tratamiento</th><th>Presupuestos</th><th>Ingresos</th></tr></thead><tbody>${list.map(l=>`<tr><td>${esc(l.nombre||'(sin nombre)')}${l.ya_paciente?' <span class="tag">ya era paciente</span>':''}${l.patient_id?'':' <span class="alias">sin ficha</span>'}</td><td>${day(l.fecha)}</td><td><span class="tag ${l.etapa}">${stageName[l.etapa]||l.etapa}</span></td><td>${l.contactos}</td><td>${l.citas}</td><td>${l.anuladas}</td><td>${l.visitas}</td><td>${day(l.primera_visita)}</td><td>${l.sesiones_tratamiento}</td><td>${l.presupuestos}${l.presupuestos_aceptados?` (${l.presupuestos_aceptados} aceptado)`:''}</td><td>${eur(Number(l.ingresos))}</td></tr>`).join('')}</tbody></table></div>`;
+ box.querySelectorAll('.chip').forEach(b=>b.onclick=()=>{stageFilter=b.dataset.stage;renderDetail(camps)})}
+async function load(){state('Cargando…');try{data=await request('marketing:funnel',{from:$('from').value||null,to:$('to').value||null});state('Actualizado '+new Date().toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'}));render()}catch(e){state(e.message,true)}}
+document.querySelectorAll('[data-range]').forEach(b=>b.onclick=()=>{document.querySelectorAll('[data-range]').forEach(x=>x.classList.toggle('on',x===b));const r=b.dataset.range,now=new Date();$('to').value=r==='all'?'':iso(now);$('from').value=r==='all'?'':r==='year'?now.getFullYear()+'-01-01':iso(new Date(now.getTime()-Number(r)*864e5));load()});
+['from','to'].forEach(id=>$(id).onchange=()=>{document.querySelectorAll('[data-range]').forEach(x=>x.classList.remove('on'));load()});
+$('reload').onclick=load;
+$('csv').onclick=()=>{if(!data)return;const cols=['fecha','nombre','campaign_name','ad_name','etapa','ya_paciente','contactos','citas','anuladas','visitas','primera_visita','sesiones_tratamiento','presupuestos','presupuestos_aceptados','importe_aceptado','ingresos'];const lines=[cols.join(';'),...data.leads.map(l=>cols.map(k=>{let v=l[k];if(k==='etapa')v=stageName[v]||v;if(k==='fecha'||k==='primera_visita')v=day(v);if(typeof v==='number'||/^-?\d+(\.\d+)?$/.test(String(v??'')))v=String(v??'').replace('.',',');return '"'+String(v??'').replace(/"/g,'""')+'"'}).join(';'))];const blob=new Blob(['﻿'+lines.join('\r\n')],{type:'text/csv;charset=utf-8'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='embudo-campanas-'+iso(new Date())+'.csv';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),2000)};
+let started=false;const start=()=>{if(started)return;started=true;load()};
+window.addEventListener('message',e=>{if((e.data||{}).type==='atlas:central-ready')start()});
+parent.postMessage({type:'atlas:central-module-ready',module:'marketing'},'*');
+setTimeout(start,800);
+})();
+</script></body></html>
