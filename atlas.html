@@ -332,11 +332,16 @@ async function atlasAllRows(make){const rows=[];for(let from=0;from<30000;from+=
       const scoped=q=>q.eq('organization_id',context.organizationId).eq('clinic_id',context.clinicId),p=m.payload||{},taskTypes=['recepcion','seguimiento','llamada','whatsapp','aviso','otro'],taskStatuses=['pending','in_progress','completed','snoozed','cancelled'],taskAreas=['fisio','recepcion','auxiliar'];
       const validateAssigned=async value=>{if(!value)return {data:null,error:null};const member=await db.from('memberships').select('user_id').eq('organization_id',context.organizationId).eq('user_id',value).eq('active',true).or(`clinic_id.is.null,clinic_id.eq.${context.clinicId}`).limit(1).maybeSingle();return member.data?{data:value,error:null}:{data:null,error:{message:'La persona asignada no pertenece a esta clínica.'}}};
       if(m.action==='internalTasks:list'){
-        const tasks=await scoped(db.from('atlas_internal_tasks').select('*')).order('status',{ascending:true}).order('due_at',{ascending:true,nullsFirst:false}).order('created_at',{ascending:false}).limit(1000);
+        // Las abiertas se cargan todas (por páginas de 1000); de las cerradas solo las 500 más recientes, para que nunca desplacen a las pendientes.
+        const taskPages=async build=>{const out=[];for(let from=0;;from+=1000){const page=await build().range(from,from+999);if(page.error)return page;out.push(...(page.data||[]));if((page.data||[]).length<1000)return {data:out,error:null}}};
+        const [openTasks,closedTasks]=await Promise.all([taskPages(()=>scoped(db.from('atlas_internal_tasks').select('*')).not('status','in','(completed,cancelled)').order('due_at',{ascending:true,nullsFirst:false}).order('id',{ascending:true})),scoped(db.from('atlas_internal_tasks').select('*')).in('status',['completed','cancelled']).order('updated_at',{ascending:false}).limit(500)]);
+        const tasks=openTasks.error?openTasks:closedTasks.error?closedTasks:{data:[...openTasks.data,...(closedTasks.data||[])],error:null};
         if(tasks.error)result=tasks;
         else{
           const rows=tasks.data||[],patientIds=[...new Set(rows.map(x=>x.patient_id).filter(Boolean))],leadIds=[...new Set(rows.map(x=>x.lead_id).filter(Boolean))],actorIds=[...new Set(rows.flatMap(x=>[x.assigned_to,x.created_by,x.updated_by]).filter(Boolean))];
-          const [patients,leads,profiles]=await Promise.all([patientIds.length?scoped(db.from('patients').select('id,first_name,last_name_1,last_name_2,patient_number,phone,landline,email')).in('id',patientIds):{data:[],error:null},leadIds.length?scoped(db.from('leads').select('id,first_name,last_name,phone,email')).in('id',leadIds):{data:[],error:null},actorIds.length?db.from('profiles').select('user_id,full_name').in('user_id',actorIds):{data:[],error:null}]);
+          // Los identificadores se piden de 150 en 150 para no superar el tamaño máximo de la dirección de la consulta.
+          const byIds=async(build,column,ids)=>{const out=[];for(let i=0;i<ids.length;i+=150){const page=await build().in(column,ids.slice(i,i+150));if(page.error)return page;out.push(...(page.data||[]))}return {data:out,error:null}};
+          const [patients,leads,profiles]=await Promise.all([byIds(()=>scoped(db.from('patients').select('id,first_name,last_name_1,last_name_2,patient_number,phone,landline,email')),'id',patientIds),byIds(()=>scoped(db.from('leads').select('id,first_name,last_name,phone,email')),'id',leadIds),byIds(()=>db.from('profiles').select('user_id,full_name'),'user_id',actorIds)]);
           const failed=[patients,leads,profiles].find(x=>x.error);
           if(failed)result=failed;
           else{
