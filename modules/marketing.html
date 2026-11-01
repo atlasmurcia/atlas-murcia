@@ -13,7 +13,7 @@ tbody tr.camp{cursor:pointer}tbody tr.camp:hover{background:#f5fafc}tbody tr.sel
 .tag{display:inline-block;border-radius:999px;padding:2px 8px;font-size:11px;font-weight:800;background:#edf3f5;color:#38535e}.tag.tratamiento{background:#dff3e7;color:#17834c}.tag.anula_o_no_viene{background:#fbe5dd;color:#a3401d}.tag.sin_contactar{background:#fdf0d5;color:#8a5300}.tag.cita_pendiente,.tag.presupuesto_pendiente{background:#e5f4fa;color:#0879a7}
 .state{font-size:12px;color:var(--m)}.state.err{color:var(--r);font-weight:700}details summary{cursor:pointer;font-weight:700}details ul{margin:8px 0 0;padding-left:18px;color:#38535e;line-height:1.5}
 </style></head><body>
-<header class="top"><h1>Embudo de campañas</h1><span class="spacer"></span>
+<header class="top"><button class="btn" id="back">← Volver a Agenda</button><h1>Embudo de campañas</h1><span class="spacer"></span>
 <span class="muted">Leads desde</span><input type="date" id="from"><span class="muted">hasta</span><input type="date" id="to">
 <button class="btn" data-range="30">30 días</button><button class="btn" data-range="90">90 días</button><button class="btn" data-range="year">Este año</button><button class="btn on" data-range="all">Todo</button>
 <button class="btn" id="csv">Descargar Excel (CSV)</button><button class="btn primary" id="reload">Actualizar</button>
@@ -73,7 +73,7 @@ function renderDetail(camps){const box=$('detail');const c=camps.find(x=>x.key==
 async function load(){state('Cargando…');try{data=await request('marketing:funnel',{from:$('from').value||null,to:$('to').value||null});state('Actualizado '+new Date().toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'}));render()}catch(e){state(e.message,true)}}
 document.querySelectorAll('[data-range]').forEach(b=>b.onclick=()=>{document.querySelectorAll('[data-range]').forEach(x=>x.classList.toggle('on',x===b));const r=b.dataset.range,now=new Date();$('to').value=r==='all'?'':iso(now);$('from').value=r==='all'?'':r==='year'?now.getFullYear()+'-01-01':iso(new Date(now.getTime()-Number(r)*864e5));load()});
 ['from','to'].forEach(id=>$(id).onchange=()=>{document.querySelectorAll('[data-range]').forEach(x=>x.classList.remove('on'));load()});
-$('reload').onclick=load;
+$('reload').onclick=load;$('back').onclick=()=>parent.postMessage({type:'atlas:open-module',module:'agenda'},'*');
 $('csv').onclick=()=>{if(!data)return;const cols=['fecha','nombre','campaign_name','ad_name','etapa','ya_paciente','contactos','citas','anuladas','visitas','primera_visita','sesiones_tratamiento','presupuestos','presupuestos_aceptados','importe_aceptado','ingresos'];const lines=[cols.join(';'),...data.leads.map(l=>cols.map(k=>{let v=l[k];if(k==='etapa')v=stageName[v]||v;if(k==='fecha'||k==='primera_visita')v=day(v);if(typeof v==='number'||/^-?\d+(\.\d+)?$/.test(String(v??'')))v=String(v??'').replace('.',',');return '"'+String(v??'').replace(/"/g,'""')+'"'}).join(';'))];const blob=new Blob(['﻿'+lines.join('\r\n')],{type:'text/csv;charset=utf-8'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='embudo-campanas-'+iso(new Date())+'.csv';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),2000)};
 let started=false;const start=()=>{if(started)return;started=true;load()};
 window.addEventListener('message',e=>{if((e.data||{}).type==='atlas:central-ready')start()});

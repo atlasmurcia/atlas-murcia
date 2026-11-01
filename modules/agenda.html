@@ -102,7 +102,7 @@ header{height:58px!important;background:#fff!important;border-bottom:1px solid #
 <div class="layout">
 <aside><div class="fisiosport-side-brand"><div class="fisiosport-wordmark"><span>fisio</span>Sport</div><small>ATLAS MURCIA</small></div><button id="sideToggle" type="button" title="Oculta el menú para ganar espacio en la agenda; vuelve a salir al acercar el ratón al borde izquierdo">« Ocultar menú</button>
   <div class="nav active">▣ Agenda</div><a class="nav" id="patientsNav" href="#patientsBack" onclick="window.atlasOpenPatientList?window.atlasOpenPatientList():openPatients()">👥 Pacientes</a><div class="nav" id="captureNav">🎯 Captación</div><div class="nav" id="administrativeNav">🗂 Área administrativa</div><div class="nav" id="processesNav">⚡ Procesos <span id="processDueBadge">0</span></div>
-  <div class="nav" id="cashNav">💶 Caja</div><div class="nav" id="commissionsNav">⭐ Comisiones</div><div class="nav" id="marketingNav" onclick="atlasOpenMarketingV136()">📣 Marketing</div><div class="nav" id="whatsappAutomationNav" hidden>💬 Automatismos WhatsApp</div><div class="nav" id="statsNav">📊 Estadísticas</div><div class="nav" id="configurationNav" onclick="window.atlasOpenConfigurationV136()">⚙ Configuración</div>
+  <div class="nav" id="cashNav">💶 Caja</div><div class="nav" id="commissionsNav">⭐ Comisiones</div><div class="nav" id="marketingNav" onclick="atlasOpenMarketingV136()">📣 Marketing</div><div class="nav" id="campaignFunnelNav" hidden onclick="parent.postMessage({type:'atlas:open-module',module:'marketing'},'*')">📈 Campañas</div><div class="nav" id="whatsappAutomationNav" hidden>💬 Automatismos WhatsApp</div><div class="nav" id="statsNav">📊 Estadísticas</div><div class="nav" id="configurationNav" onclick="window.atlasOpenConfigurationV136()">⚙ Configuración</div>
 </aside>
 
 <main>
@@ -6116,4 +6116,5 @@ body.side-collapsed #sideEdge{display:block}
  aside.addEventListener('click',event=>{if(document.body.classList.contains('side-collapsed')&&event.target.closest('.nav'))aside.classList.remove('peek')});
 })();
 </script>
+<script id="atlas-campaign-funnel-nav-v1">(()=>{const show=ok=>{const n=document.getElementById('campaignFunnelNav');if(n)n.hidden=ok!==true};window.addEventListener('message',e=>{const m=e.data||{};if(m.type==='atlas:central-ready')show(m.managementAccess)});const t=setInterval(()=>{let c=null;try{c=parent.ATLAS_CENTRAL_CONTEXT}catch{}if(c){clearInterval(t);show(c.managementAccess)}},700)})();</script>
 </body></html>
