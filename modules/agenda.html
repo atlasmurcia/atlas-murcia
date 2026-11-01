@@ -6116,5 +6116,5 @@ body.side-collapsed #sideEdge{display:block}
  aside.addEventListener('click',event=>{if(document.body.classList.contains('side-collapsed')&&event.target.closest('.nav'))aside.classList.remove('peek')});
 })();
 </script>
-<script id="atlas-campaign-funnel-nav-v1">window.addEventListener('message',e=>{const m=e.data||{};if(m.type==='atlas:central-ready'){const n=document.getElementById('campaignFunnelNav');if(n)n.hidden=m.managementAccess!==true}});</script>
+<script id="atlas-campaign-funnel-nav-v1">(()=>{const show=ok=>{const n=document.getElementById('campaignFunnelNav');if(n)n.hidden=ok!==true};window.addEventListener('message',e=>{const m=e.data||{};if(m.type==='atlas:central-ready')show(m.managementAccess)});const t=setInterval(()=>{let c=null;try{c=parent.ATLAS_CENTRAL_CONTEXT}catch{}if(c){clearInterval(t);show(c.managementAccess)}},700)})();</script>
 </body></html>
