@@ -1774,4 +1774,17 @@ clinicalRecognition.onend=retry;try{clinicalRecognition.start()}catch(e){retry()
  window.addEventListener('message',e=>{if(e.data?.type==='atlas:central-ready')apply(e.data)});
 })();
 </script>
+<style id="atlas-clinical-readonly-style">html.atlas-clinical-readonly .atlas-clinical-write,html.atlas-clinical-readonly [data-edit-clinical-evolution],html.atlas-clinical-readonly #clinicalDocuments [data-central-delete],html.atlas-clinical-readonly .atlas-clinical-attach{display:none!important}</style>
+<script id="atlas-clinical-readonly-v1">
+// Quien solo tiene lectura clínica (Recepción, decisión de Rubén 2/11/2026) ve la historia, evoluciones, documentos y pruebas,
+// pero no los formularios ni botones para escribir, que el servidor le rechazaría.
+(()=>{
+ const writeCards=['saveClinicalHistory()','saveClinicalConsultation()','saveClinicalEvolution()',"savePatientDocument('clinical')",'saveDiagnosticTest()'];
+ const mark=()=>{writeCards.forEach(call=>document.querySelectorAll('button[onclick="'+call+'"]').forEach(button=>button.closest('.card')?.classList.add('atlas-clinical-write')));document.querySelectorAll('#diagnosticTests button').forEach(button=>{if(button.textContent.trim()==='Adjuntar archivo')button.classList.add('atlas-clinical-attach')})};
+ const apply=c=>{if(!c)return false;const canWrite=c.ownerAccess===true||c.managementAccess===true||c.permissions?.clinical_write===true;document.documentElement.classList.toggle('atlas-clinical-readonly',!canWrite);return true};
+ const poll=setInterval(()=>{let c=null;try{c=parent.ATLAS_CENTRAL_CONTEXT}catch(e){}if(apply(c))clearInterval(poll)},700);
+ window.addEventListener('message',e=>{if(e.data?.type==='atlas:central-ready')apply(e.data)});
+ mark();new MutationObserver(()=>queueMicrotask(mark)).observe(document.getElementById('diagnosticTests')||document.body,{childList:true,subtree:true});
+})();
+</script>
 </body></html>
