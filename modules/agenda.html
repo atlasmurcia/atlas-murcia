@@ -5609,6 +5609,8 @@ const kind=bombaKind(appointment);if(!kind)return;const nextResources=[...new Se
  function apply(context){button.hidden=!(context&&(context.role==='reception'||context.ownerAccess===true||context.managementAccess===true))}
  window.addEventListener('message',event=>{if(event.source===parent&&event.data?.type==='atlas:central-ready')apply(event.data)});
  apply(window.ATLAS_CHILD_CENTRAL_CONTEXT);
+ // Si los datos del usuario llegaron antes de que cargara este script, se leen de ATLAS directamente.
+ const poll=setInterval(()=>{let c=null;try{c=parent.ATLAS_CENTRAL_CONTEXT}catch{}if(c){clearInterval(poll);apply(c)}},700);
 })();
 </script><script id="atlas-v136-capture-calls-in-reception-final">
 (()=>{
