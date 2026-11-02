@@ -6135,4 +6135,14 @@ body.side-collapsed #sideEdge{display:block}
  guard();setInterval(guard,2000);
 })();
 </script>
+<script id="atlas-stats-services-performed-v1">
+// «Servicios realizados» del informe General: la agenda solo tiene cargadas las citas cercanas a hoy, así que el dato
+// se pide al servidor para el periodo elegido (citas realizadas, sin tareas internas de recepción).
+(()=>{
+ let serial=0;
+ const fill=async()=>{if(typeof activeStatisticsReport==='undefined'||activeStatisticsReport!=='General'||typeof window.atlasCentralRequest!=='function')return;const range=salesStatsRange(),token=++serial,cell=()=>[...document.querySelectorAll('#salesStatsBody .stats-kpi')].find(kpi=>kpi.querySelector('span')?.textContent.trim()==='Servicios realizados')?.querySelector('b');const target=cell();if(!target)return;target.textContent='…';try{const data=await window.atlasCentralRequest('statistics:servicesPerformed',{from:range.start,to:range.end});if(token!==serial)return;const current=cell();if(current)current.textContent=Number(data?.services||0).toLocaleString('es-ES')}catch(error){console.warn('No se pudieron contar los servicios realizados',error);const current=cell();if(current&&token===serial)current.textContent='—'}};
+ const base=window.renderActiveSalesReport;if(typeof base!=='function')return;
+ window.renderActiveSalesReport=function(){const result=base.apply(this,arguments);setTimeout(fill,0);return result};
+})();
+</script>
 </body></html>
