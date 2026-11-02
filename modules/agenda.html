@@ -2046,7 +2046,7 @@ document.getElementById('captureNav').onclick=()=>openMarketingDetail('Bandeja d
 document.getElementById('closeDrawer').onclick=()=>document.getElementById('drawer').classList.remove('open');
 document.getElementById('cancelModal').onclick=()=>{reprogrammingAppointment=null;document.getElementById('modalBack').classList.remove('open')};
 ['view','patientFilter','statusFilter'].forEach(id=>document.getElementById(id).onchange=render);
-{const fitButton=document.getElementById('fitView');let saved=null;try{saved=localStorage.getItem('atlasAgendaFit')}catch(e){}fitButton.setAttribute('aria-pressed',saved==='1'?'true':'false');fitButton.onclick=()=>{const on=fitButton.getAttribute('aria-pressed')!=='true';fitButton.setAttribute('aria-pressed',on?'true':'false');try{localStorage.setItem('atlasAgendaFit',on?'1':'0')}catch(e){}render()}}
+{const fitButton=document.getElementById('fitView');let saved=null;try{saved=localStorage.getItem('atlasAgendaFit')}catch(e){}fitButton.setAttribute('aria-pressed',saved==='0'?'false':'true');fitButton.onclick=()=>{const on=fitButton.getAttribute('aria-pressed')!=='true';fitButton.setAttribute('aria-pressed',on?'true':'false');try{localStorage.setItem('atlasAgendaFit',on?'1':'0')}catch(e){}render()}}
 document.getElementById('exportPatientBtn').onclick=()=>{
  const patient=document.getElementById('patientFilter').value;
  if(!patient){alert('Selecciona primero un paciente en el filtro superior.');return}
