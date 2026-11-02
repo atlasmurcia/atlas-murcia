@@ -68,7 +68,7 @@ button{cursor:pointer}.primary{background:var(--blue);color:#fff;border-color:va
 .patient-linked{color:#14803c;font-weight:700}
 .checkgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}.checkgrid label{display:flex;align-items:center;gap:6px;border:1px solid var(--line);border-radius:7px;padding:7px;font-size:12px}.therapist-row{display:grid;grid-template-columns:minmax(180px,1fr) minmax(180px,1fr);gap:8px;align-items:center;padding:7px 0;border-bottom:1px solid #edf0f3}.therapist-row select{width:100%}.mini-calendar{width:100%;border-collapse:collapse;font-size:12px;margin-top:8px}.mini-calendar th,.mini-calendar td{text-align:center;padding:5px}.mini-calendar td{cursor:pointer;border-radius:6px}.mini-calendar td:hover{background:#e8f4fa}.mini-calendar .today{background:var(--blue);color:#fff}.mini-calendar .selected{outline:2px solid var(--blue)}.cancelled-list{max-height:300px;overflow:auto}.history-list{max-height:210px;overflow:auto}.history-row{padding:7px 0;border-bottom:1px solid #edf0f3;font-size:12px}
 .hidden{display:none}.small{font-size:12px}
-@media(max-width:900px){.layout{grid-template-columns:1fr}aside{display:none}.grid2{grid-template-columns:1fr}.checkgrid,.therapist-row{grid-template-columns:1fr}.drawer{width:calc(100vw - 20px);max-height:calc(100vh - 20px);padding:18px 18px 0;border-radius:15px}.drawer>.actions{margin:16px -18px 0;padding:12px 18px 16px}.drawer>.actions button{flex-basis:calc(50% - 9px)}.search{max-width:none;min-width:180px}}
+.mobile-clock-btn{display:none}@media(max-width:900px){.layout{grid-template-columns:1fr}aside{display:none}.mobile-clock-btn{display:inline-block}.grid2{grid-template-columns:1fr}.checkgrid,.therapist-row{grid-template-columns:1fr}.drawer{width:calc(100vw - 20px);max-height:calc(100vh - 20px);padding:18px 18px 0;border-radius:15px}.drawer>.actions{margin:16px -18px 0;padding:12px 18px 16px}.drawer>.actions button{flex-basis:calc(50% - 9px)}.search{max-width:none;min-width:180px}}
 #patientsTableBody tr.patient-record-row{cursor:pointer;transition:background-color .15s ease,box-shadow .15s ease}
 #patientsTableBody tr.patient-record-row:hover,#patientsTableBody tr.patient-record-row:focus{background:#e8f4fa!important;box-shadow:inset 4px 0 #0b7fb0;outline:none}
 #patientsTableBody tr.patient-record-row td:nth-child(2) b{color:#086d98;text-decoration:underline;text-decoration-color:transparent;text-underline-offset:3px}
@@ -109,6 +109,7 @@ header{height:58px!important;background:#fff!important;border-bottom:1px solid #
   <div class="topbar"><button id="koiboxSyncNav" class="koibox-agenda-tab" type="button">🔄 Koibox <span id="koiboxNavBadge" style="display:none">0</span></button>
     <button id="prevDay">‹</button><button id="todayBtn">Hoy</button><button id="nextDay">›</button>
     <strong id="dateLabel"></strong>
+    <button class="primary mobile-clock-btn" id="mobileClockBtn" onclick="const n=document.getElementById('clockNav');if(n)n.click();else alert('Fichar aún no está listo. Espera unos segundos y vuelve a intentarlo.')">🕘 Fichar</button>
     <button class="primary" id="newBtn">+ Nueva cita</button>
     <button class="primary" id="optBtn">✨ Optimizar jornada</button>
     <button id="monthBtn">▦ Calendario</button>
