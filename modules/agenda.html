@@ -6120,4 +6120,16 @@ body.side-collapsed #sideEdge{display:block}
 })();
 </script>
 <script id="atlas-campaign-funnel-nav-v1">(()=>{const show=ok=>{const n=document.getElementById('campaignFunnelNav');if(n)n.hidden=ok!==true};window.addEventListener('message',e=>{const m=e.data||{};if(m.type==='atlas:central-ready')show(m.managementAccess)});const t=setInterval(()=>{let c=null;try{c=parent.ATLAS_CENTRAL_CONTEXT}catch{}if(c){clearInterval(t);show(c.managementAccess)}},700)})();</script>
+<style id="atlas-no-payments-style">html.atlas-no-payments #chargeAppointmentBtn,html.atlas-no-payments #fcCharge,html.atlas-no-payments [data-charge-appointment],html.atlas-no-payments #atlasProductSaleBack,html.atlas-no-payments #atlasDirectSaleBack{display:none!important}</style>
+<script id="atlas-no-payments-v1">
+// Solo cobra quien tiene permiso de cobros (Recepción, Gestión y Gerencia): a los demás se les ocultan los botones de cobrar (decisión de Rubén, 2/11/2026).
+(()=>{
+ let canCharge=true;
+ const apply=c=>{if(!c)return false;canCharge=c.ownerAccess===true||c.managementAccess===true||c.permissions?.payments_write===true;document.documentElement.classList.toggle('atlas-no-payments',!canCharge);return true};
+ const poll=setInterval(()=>{let c=null;try{c=parent.ATLAS_CENTRAL_CONTEXT}catch{}if(apply(c))clearInterval(poll)},700);
+ window.addEventListener('message',e=>{if(e.data?.type==='atlas:central-ready')apply(e.data)});
+ const guard=()=>{const original=window.openAppointmentCharge;if(typeof original!=='function'||original.atlasPaymentsGuard)return;const wrapped=function(){if(!canCharge){alert('Los cobros los registra Recepción.');return}return original.apply(this,arguments)};wrapped.atlasPaymentsGuard=true;window.openAppointmentCharge=wrapped};
+ guard();setInterval(guard,2000);
+})();
+</script>
 </body></html>
