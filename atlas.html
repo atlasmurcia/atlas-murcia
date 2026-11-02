@@ -1089,4 +1089,19 @@ window.addEventListener('message',event=>{
 })();
 </script>
 <script id="atlas-marketing-button-v1">(()=>{const t=setInterval(()=>{const c=window.ATLAS_CENTRAL_CONTEXT;if(!c)return;clearInterval(t);document.getElementById('marketingBtn').hidden=!c.managementAccess},500)})();</script>
+<script id="atlas-session-watchdog-v1">
+// Avisa si la sesión caduca con ATLAS abierto (p. ej. un iPad que se queda dormido). Antes la pantalla seguía
+// diciendo «guardado» mientras el servidor lo rechazaba todo (401) y las firmas se quedaban solo en el aparato.
+(()=>{
+ const db=window.ATLAS_CENTRAL_DB;if(!db)return;
+ const invalid=error=>[401,403].includes(Number(error?.status||0))||error?.name==='AuthSessionMissingError';
+ let checking=false,expired=false;
+ async function expire(){if(expired)return;expired=true;window.ATLAS_CENTRAL_CONTEXT=null;try{await db.auth.signOut({scope:'local'})}catch(e){}document.getElementById('atlasUserBar').hidden=true;document.getElementById('atlasLogin').classList.remove('hidden');const message=document.getElementById('atlasLoginError');if(message)message.textContent='Tu sesión ha caducado. Vuelve a entrar: hasta entonces ATLAS no puede guardar nada en el servidor.'}
+ async function check(){if(checking||expired||!window.ATLAS_CENTRAL_CONTEXT||!navigator.onLine)return;checking=true;try{const {data,error}=await db.auth.getUser();if(data?.user||!invalid(error))return;const refreshed=await db.auth.refreshSession();if(!refreshed.data?.session&&invalid(refreshed.error))await expire()}catch(error){console.warn('No se pudo comprobar la sesión',error)}finally{checking=false}}
+ db.auth.onAuthStateChange(event=>{if(event==='SIGNED_IN'||event==='TOKEN_REFRESHED')expired=false;else if(event==='SIGNED_OUT'&&window.ATLAS_CENTRAL_CONTEXT)expire()});
+ setInterval(check,60000);
+ document.addEventListener('visibilitychange',()=>{if(!document.hidden)check()});
+ window.addEventListener('focus',check);
+})();
+</script>
 </body></html>
