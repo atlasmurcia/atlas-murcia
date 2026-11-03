@@ -6167,4 +6167,21 @@ body.side-collapsed #sideEdge{display:block}
  [0,3000,10000].forEach(delay=>setTimeout(()=>window.renderServiceChecks(),delay));
 })();
 </script>
+<script id="atlas-return-to-ficha-v1">
+// Al crear, modificar, anular o reprogramar una cita desde la ficha del paciente, al terminar se vuelve a su ficha
+// (pestaña Agenda) en lugar de quedarse en la agenda general.
+(()=>{
+ let pending=null;
+ window.addEventListener('message',event=>{const m=event.data||{};if(!m.returnToFicha||!m.patient)return;if((m.type==='atlasAlicante:show-patient'&&m.appointmentAction)||m.type==='atlas:new-appointment')pending={code:String(m.patient.code||''),at:Date.now()}});
+ async function backToFicha(code){
+  const p=typeof patientByCode==='function'?patientByCode(code):null;if(!p)return;
+  document.getElementById('drawer')?.classList.remove('open');document.getElementById('drawerBackdrop')?.classList.remove('open');
+  let list=appointments.filter(a=>String(a.patientRemoteId||a.patient_id||'')===String(p.remoteId||'')||String(a.patientCode||'')===String(p.code));
+  if(p.remoteId&&typeof window.atlasCentralRequest==='function'){try{const rows=await window.atlasCentralRequest('appointments:listForPatient',{patientId:p.remoteId,all:true});list=(rows||[]).map(window.atlasCentralAppointmentFromRow)}catch(error){console.warn('No se pudo recargar el historial de citas del paciente',error)}}
+  parent.postMessage({type:'atlas:patient-selected',openFicha:true,patient:{...p},appointments:list,targetPanel:'agenda'},'*');
+ }
+ const watch=id=>{const el=document.getElementById(id);if(!el)return;let wasOpen=el.classList.contains('open');new MutationObserver(()=>{const open=el.classList.contains('open');if(wasOpen&&!open&&pending)setTimeout(()=>{if(!pending||document.querySelector('#modalBack.open,#cancelBack.open'))return;const target=pending;pending=null;if(Date.now()-target.at<30*60000)backToFicha(target.code)},500);wasOpen=open}).observe(el,{attributes:true,attributeFilter:['class']})};
+ ['modalBack','cancelBack'].forEach(watch);
+})();
+</script>
 </body></html>
