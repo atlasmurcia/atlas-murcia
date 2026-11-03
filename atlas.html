@@ -88,7 +88,7 @@ window.addEventListener('message',ev=>{const msg=ev.data||{};if(msg.type==='atla
  const atlasAuthStorage={getItem(key){try{const value=sessionStorage.getItem(key);if(value!==null){atlasAuthMemory.set(key,value);return value}}catch(error){}try{const value=localStorage.getItem(key);if(value!==null){atlasAuthMemory.set(key,value);return value}}catch(error){}return atlasAuthMemory.get(key)||null},setItem(key,value){atlasAuthMemory.set(key,value);try{localStorage.setItem(key,value);try{sessionStorage.removeItem(key)}catch(error){}return}catch(error){try{localStorage.removeItem(key);localStorage.setItem(key,value);return}catch(retryError){}}try{sessionStorage.setItem(key,value)}catch(error){}},removeItem(key){atlasAuthMemory.delete(key);try{localStorage.removeItem(key)}catch(error){}try{sessionStorage.removeItem(key)}catch(error){}}};
  function atlasRememberedEmail(){try{return localStorage.getItem('atlas-remembered-email')||sessionStorage.getItem('atlas-remembered-email')||''}catch(error){try{return sessionStorage.getItem('atlas-remembered-email')||''}catch(fallbackError){return ''}}}function atlasStoreRememberedEmail(value){try{localStorage.setItem('atlas-remembered-email',value);return}catch(error){}try{sessionStorage.setItem('atlas-remembered-email',value)}catch(error){}}function atlasForgetRememberedEmail(){try{localStorage.removeItem('atlas-remembered-email')}catch(error){}try{sessionStorage.removeItem('atlas-remembered-email')}catch(error){}}
  const db=window.supabase.createClient(ATLAS_SUPABASE_URL,ATLAS_SUPABASE_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:false,storageKey:'atlas-auth-murcia',storage:atlasAuthStorage}});window.ATLAS_CENTRAL_DB=db;let context=null,appointmentsChannel=null,passwordChangeSession=null,centralRefreshTimer=null,lastAppointmentRevision='',lastSettingsRevision='';const appointmentListCache=new Map(),appointmentListInflight=new Map(),appointmentSnapshots=new Map();
- atlasLogin.querySelector('div[style]').textContent='Versión 183 · Agenda más rápida';atlasUserBar.querySelector('span:nth-of-type(2)').textContent='v183';
+ atlasLogin.querySelector('div[style]').textContent='Versión 184 · Aviso de versión nueva';atlasUserBar.querySelector('span:nth-of-type(2)').textContent='v184';
  const safePart=value=>String(value||'item').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-zA-Z0-9._-]+/g,'-').replace(/^-+|-+$/g,'').slice(0,120)||'item';
  async function uploadPrivate(path,dataUrl){if(!dataUrl)return null;const match=String(dataUrl).match(/^data:([^;,]+);base64,/),type=match?.[1]||'application/octet-stream',blob=await fetch(dataUrl).then(r=>r.blob()),result=await db.storage.from('atlas-clinical-private').upload(path,blob,{contentType:type,upsert:true});if(result.error)throw result.error;return path}
  async function addSignedUrls(rows,fields){const paths=[...new Set(rows.flatMap(row=>fields.map(f=>row[f]).filter(Boolean)))];if(!paths.length)return rows;const chunks=[];for(let i=0;i<paths.length;i+=1000)chunks.push(paths.slice(i,i+1000));const signed=await Promise.all(chunks.map(chunk=>db.storage.from('atlas-clinical-private').createSignedUrls(chunk,3600)));const failed=signed.find(x=>x.error);if(failed)throw failed.error;const urls=new Map(signed.flatMap(x=>x.data||[]).map(x=>[x.path,x.signedUrl]));return rows.map(row=>({...row,...Object.fromEntries(fields.map(f=>[f+'_url',urls.get(row[f])||'']))}))}
@@ -1112,6 +1112,20 @@ window.addEventListener('message',event=>{
  setInterval(check,60000);
  document.addEventListener('visibilitychange',()=>{if(!document.hidden)check()});
  window.addEventListener('focus',check);
+})();
+</script>
+<script id="atlas-new-version-v1">
+// Avisa cuando se publica una versión nueva de ATLAS (3/11/2026). Como lo tenéis abierto todo el día, los arreglos
+// no llegaban hasta que alguien recargaba. No recarga solo para no perder lo que se esté escribiendo.
+(()=>{
+ const versionOf=text=>Number((String(text||'').match(/textContent='v(\d+)'/)||[])[1]||0);
+ const running=()=>Number((atlasUserBar.querySelector('span:nth-of-type(2)')?.textContent||'').replace(/\D/g,''))||0;
+ let shown=false,checking=false,lastCheck=0;
+ function show(version){if(shown)return;shown=true;const bar=document.createElement('div');bar.id='atlasNewVersion';bar.setAttribute('role','status');bar.style.cssText='position:fixed;left:50%;bottom:18px;transform:translateX(-50%);z-index:2147483000;display:flex;gap:12px;align-items:center;flex-wrap:wrap;justify-content:center;max-width:calc(100vw - 32px);padding:12px 16px;border-radius:12px;background:#0f3d3e;color:#fff;font:600 14px/1.35 system-ui,-apple-system,Segoe UI,sans-serif;box-shadow:0 8px 28px rgba(0,0,0,.28)';const text=document.createElement('span');text.textContent='Hay una versión nueva de ATLAS (v'+version+'). Guarda lo que estés haciendo y actualiza.';const button=document.createElement('button');button.type='button';button.textContent='Actualizar';button.style.cssText='border:0;border-radius:8px;padding:8px 14px;background:#fff;color:#0f3d3e;font:700 14px system-ui,-apple-system,Segoe UI,sans-serif;cursor:pointer';button.onclick=()=>location.reload();bar.append(text,button);document.body.append(bar)}
+ async function check(){if(shown||checking||document.hidden||!navigator.onLine||Date.now()-lastCheck<60000)return;checking=true;lastCheck=Date.now();try{const response=await fetch('atlas.html?version='+Date.now(),{cache:'no-store',credentials:'same-origin'});if(!response.ok)return;const latest=versionOf(await response.text()),current=running();if(current&&latest>current)show(latest)}catch(error){}finally{checking=false}}
+ setInterval(check,180000);
+ document.addEventListener('visibilitychange',()=>{if(!document.hidden)check()});
+ setTimeout(check,30000);
 })();
 </script>
 </body></html>
