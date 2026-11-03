@@ -6147,4 +6147,20 @@ body.side-collapsed #sideEdge{display:block}
  window.renderActiveSalesReport=function(){const result=base.apply(this,arguments);setTimeout(fill,0);return result};
 })();
 </script>
+<script id="atlas-service-checks-v1">
+// La lista de servicios de la ventana de cita se construía una vez al abrir, con la lista fija antigua. applyRuntimeSettings
+// ya llamaba a renderServiceChecks() al cargar el catálogo de Configuración, pero la función no existía.
+(()=>{
+ const esc=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
+ window.renderServiceChecks=function(){
+  const box=document.getElementById('mServicesOptions');if(!box||typeof therapies==='undefined')return;
+  const checked=new Set(checkedValues('#mServices input')),extra=[...checked].filter(value=>!therapies.includes(value));
+  box.innerHTML=[...therapies,...extra].map(name=>'<label><input type="checkbox" value="'+esc(name)+'"'+(checked.has(name)?' checked':'')+'>'+esc(name)+'</label>').join('');
+  if(typeof initSelect==='function'){const keep=['mTherapy','wService','pfService'].map(id=>[id,document.getElementById(id)?.value]);initSelect('mTherapy',therapies);initSelect('wService',['Cualquiera',...therapies]);initSelect('pfService',therapies,'Todos los servicios');keep.forEach(([id,value])=>{const select=document.getElementById(id);if(select&&value&&[...select.options].some(option=>option.value===value))select.value=value})}
+  if(typeof updateMultiSummaries==='function')updateMultiSummaries();
+ };
+ // Por si el catálogo llegó antes de que existiera la función.
+ [0,3000,10000].forEach(delay=>setTimeout(()=>window.renderServiceChecks(),delay));
+})();
+</script>
 </body></html>
