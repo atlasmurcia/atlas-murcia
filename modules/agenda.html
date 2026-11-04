@@ -4739,6 +4739,9 @@ function printInvoice(x,openedWindow){const issuer=x.issuer||{},recipient=x.reci
  // Nombres antiguos de Koibox de la misma camilla (siguen en muchas citas migradas): se comportan igual que «Camilla FD»,
  // es decir, reservan la máquina Tracción y el fisio que la coloca, sin bloquear la agenda del fisio.
  for(const alias of ['CAMILLA FLEXION-DISTRACCION','Camilla FD Club de Afiliados']){alicanteTherapyResources[alias]=['Traccion',...professionals];alicanteTherapyProfessionals[alias]=[...professionals];therapiesWithoutProfessional.delete(alias);therapyCompetencyRequirement[alias]='poner camilla FD';therapyProfessionalDurations[alias]=0}
+ // Nombres del catálogo de las máquinas que coloca un fisio (por ejemplo «ROBOT»): se comportan igual que su nombre en la agenda,
+ // es decir, piden el fisio que la pone y le reservan el mismo rato que «Robot», «Brains Way», «iMoove» o «Physicalm».
+ for(const [alias,base] of [['ROBOT','Robot'],['BRAINS WAY (TERAPIA TRANSCRANEAL)','Brains Way'],['IMOOVE','iMoove'],['PHYSICALM DINAMICO','Physicalm'],['PHYSICALM ESTATICO','Physicalm']]){if(therapyCompetencyRequirement[base])therapyCompetencyRequirement[alias]=therapyCompetencyRequirement[base];if(therapyProfessionalDurations[base]!==undefined)therapyProfessionalDurations[alias]=therapyProfessionalDurations[base];if(alicanteTherapyResources[base])alicanteTherapyResources[alias]=[...alicanteTherapyResources[base]];if(alicanteTherapyProfessionals[base])alicanteTherapyProfessionals[alias]=[...alicanteTherapyProfessionals[base]];therapiesWithoutProfessional.delete(alias)}
  equipmentTherapyOptions['Traccion']=['Tracción','Camilla FD'];
  equipmentTherapyOptions['Onda de choque']=['Onda de choque'];
  delete equipmentTherapyOptions['Camilla FD'];
