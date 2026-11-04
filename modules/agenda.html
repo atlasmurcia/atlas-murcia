@@ -2664,7 +2664,8 @@ authUsers();
   const cr=Array.isArray(candidate.resources)?candidate.resources:[candidate.resource].filter(Boolean);
   const ct=appointmentTherapists(candidate);
   return appointments.filter(other=>{
-   if(sameId(other.id,ignoreId)||sameId(other.id,candidate.id)||other.date!==candidate.date||other.status==='Cancelada')return false;
+   // La fecha se mira primero (4/11/2026): descarta enseguida las ~5.000 citas de otros días sin comparar identificadores.
+   if(other.date!==candidate.date||sameId(other.id,ignoreId)||sameId(other.id,candidate.id)||other.status==='Cancelada')return false;
    const or=Array.isArray(other.resources)?other.resources:[other.resource].filter(Boolean);
    const shared=cr.filter(r=>or.includes(r));
    // Las citas contiguas (fin === inicio) no se solapan y no deben mostrarse en rojo.
@@ -4770,7 +4771,8 @@ function printInvoice(x,openedWindow){const issuer=x.issuer||{},recipient=x.reci
 </script>
 <script id="atlas-v136-bomba-professional-15-minutes">
 (()=>{
- const normalize=value=>String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+ // Se recuerda cada nombre ya normalizado (4/11/2026): al dibujar la agenda se normalizan los mismos servicios miles de veces.
+ const normalizeCache=new Map(),normalize=value=>{const key=String(value||'');let out=normalizeCache.get(key);if(out===undefined){out=key.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();if(normalizeCache.size>5000)normalizeCache.clear();normalizeCache.set(key,out)}return out};
  // «poner bomba» son los 15 min del fisio (en Koibox va aparte de la cita de máquina): no es una cita de bomba que normalizar.
  const bombaKind=appointment=>{const names=[...(Array.isArray(appointment.services)?appointment.services:[]),appointment.therapy].filter(Boolean).map(normalize).filter(name=>name.trim()!=='poner bomba');if(names.some(name=>name.includes('bomba')&&name.includes('dinamica')))return'dynamic';if(names.some(name=>name.includes('bomba')&&name.includes('estatica')))return'static';if(names.some(name=>name.includes('bomba')||name.includes('diamagnetica')))return appointmentTherapists(appointment).length||appointment.professional?'dynamic':'static';return''};
  const isProfessionalResource=resource=>professionals.some(professional=>normalize(professional)===normalize(resource));
@@ -5268,7 +5270,8 @@ const kind=bombaKind(appointment);if(!kind)return;const nextResources=[...new Se
 (()=>{
  let agendaAllowed=false;
  const applyAuth=user=>{const permissions=Array.isArray(user?.permissions)?user.permissions:(user?.permissions?.areas||[]);agendaAllowed=user?.ownerAccess===true||permissions.includes('agenda')};
- const paint=()=>document.querySelectorAll('.appt[data-id]').forEach(card=>{const appointment=appointments.find(item=>String(item.id)===String(card.dataset.id));card.classList.toggle('atlas-completed-confirmed',appointment?.status==='Realizada')});
+ // Rendimiento (4/11/2026): se busca cada tarjeta en un índice por id, en vez de recorrer todas las citas cargadas por cada tarjeta.
+ const paint=()=>{const byId=new Map();for(const item of appointments){const id=String(item.id);if(!byId.has(id))byId.set(id,item)}document.querySelectorAll('.appt[data-id]').forEach(card=>{const appointment=byId.get(String(card.dataset.id));card.classList.toggle('atlas-completed-confirmed',appointment?.status==='Realizada')})};
  const baseRender=render;render=function(){baseRender();paint()};
  window.addEventListener('message',event=>{const message=event.data||{};if(message.type==='atlas:auth'&&message.user)applyAuth(message.user);if(message.type==='atlas:central-ready')applyAuth(message)});
  const initial=window.ATLAS_CHILD_CENTRAL_CONTEXT||window.ATLAS_CHILD_CENTRAL_CONTEXT;if(initial)applyAuth(initial);
@@ -5988,8 +5991,9 @@ window.addEventListener('message',event=>{if(event.data?.type!=='atlas:open-qual
  const ensureLegend=()=>{const legend=document.querySelector('.legend');if(legend&&!legend.querySelector('[data-wa-legend]'))legend.insertAdjacentHTML('beforeend','<span class="pill" data-wa-legend>✅ Confirmada por WhatsApp</span><span class="pill" data-wa-legend>⚠ No confirma WhatsApp</span>')};
  const waCalendarState=appointment=>{const meta=appointment?.metadata||appointment||{};return meta.whatsappConfirmationStatus||(meta.whatsappConfirmationAt?'confirmed':meta.whatsappNoConfirmationAt?'not_confirmed':'')};
  const waCalendarIdentityKeys=appointment=>{if(!appointment)return [];const keys=[],remote=String(appointment.patientRemoteId||appointment.patient_id||'').trim(),code=String(appointment.patientCode||'').trim(),name=normalizeSearch(appointment.patient||'').replace(/\s+/g,' ').trim();if(remote)keys.push(`remote:${remote}`);if(code)keys.push(`code:${code}`);if(name.length>=6)keys.push(`name:${name}`);return keys};
- const effectiveWaCalendarState=appointment=>{const own=waCalendarState(appointment);if(own==='confirmed')return own;const keys=waCalendarIdentityKeys(appointment);if(!keys.length||!appointment?.date)return own;const states=appointments.filter(other=>other!==appointment&&other.date===appointment.date&&waCalendarIdentityKeys(other).some(key=>keys.includes(key))).map(waCalendarState);return states.includes('confirmed')?'confirmed':own||(states.includes('not_confirmed')?'not_confirmed':'')};
- const paintCalendar=()=>{ensureLegend();document.querySelectorAll('.appt[data-id]').forEach(card=>{const appointment=appointments.find(item=>String(item.id)===String(card.dataset.id)),state=effectiveWaCalendarState(appointment);card.classList.toggle('atlas-wa-confirmed',state==='confirmed');card.classList.toggle('atlas-wa-not-confirmed',state==='not_confirmed')})};
+ // Rendimiento (4/11/2026): paintCalendar prepara una vez las citas de cada día con sus claves; antes cada tarjeta recorría todas las citas y recalculaba las claves.
+ const effectiveWaCalendarState=(appointment,byDate)=>{const own=waCalendarState(appointment);if(own==='confirmed')return own;const keys=waCalendarIdentityKeys(appointment);if(!keys.length||!appointment?.date)return own;const sameDay=byDate?(byDate.get(appointment.date)||[]):appointments.filter(other=>other.date===appointment.date).map(other=>({other,keys:null}));const states=sameDay.filter(entry=>entry.other!==appointment&&(entry.keys||(entry.keys=waCalendarIdentityKeys(entry.other))).some(key=>keys.includes(key))).map(entry=>waCalendarState(entry.other));return states.includes('confirmed')?'confirmed':own||(states.includes('not_confirmed')?'not_confirmed':'')};
+ const paintCalendar=()=>{ensureLegend();const byId=new Map(),byDate=new Map();for(const item of appointments){const id=String(item.id);if(!byId.has(id))byId.set(id,item);if(!byDate.has(item.date))byDate.set(item.date,[]);byDate.get(item.date).push({other:item,keys:null})}document.querySelectorAll('.appt[data-id]').forEach(card=>{const appointment=byId.get(String(card.dataset.id)),state=effectiveWaCalendarState(appointment,byDate);card.classList.toggle('atlas-wa-confirmed',state==='confirmed');card.classList.toggle('atlas-wa-not-confirmed',state==='not_confirmed')})};
  const previousAgendaRender=render;render=function(){previousAgendaRender();paintCalendar()};paintCalendar();
 })();
 </script>
