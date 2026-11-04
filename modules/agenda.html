@@ -773,7 +773,9 @@ function canonicalAppointmentService(value){
  if(key==='valoracion'||key.startsWith('valoracionfisioterapia'))return 'Valoración';
  return original;
 }
-function patientByCode(code){ return patientMaster.find(p=>p.code===String(code||'')); }
+// Mientras se dibuja la agenda se usa un índice por código (4/11/2026): cada tarjeta buscaba su ficha entre ~20.000 pacientes.
+let patientCodeIndex=null;
+function patientByCode(code){ if(patientCodeIndex)return patientCodeIndex.get(String(code||'')); return patientMaster.find(p=>p.code===String(code||'')); }
 function linkedPatientForAppointment(a){
  if(!a)return null;
  const direct=patientMaster.find(p=>p.remoteId&&String(p.remoteId)===String(a.patientRemoteId||a.patient_id||''))||
@@ -980,6 +982,7 @@ function render(){
  const dateChanged=lastRenderedAgendaDate!==currentDate;lastRenderedAgendaDate=currentDate;renderCurrentTimeLine(dateChanged);
  updateStats();refreshWaitingRoom();refreshWaitlist();
 }
+const renderWithoutPatientIndex=render;render=function(){if(patientCodeIndex)return renderWithoutPatientIndex.apply(this,arguments);const index=new Map();for(const p of patientMaster)if(typeof p.code==='string'&&!index.has(p.code))index.set(p.code,p);patientCodeIndex=index;try{return renderWithoutPatientIndex.apply(this,arguments)}finally{patientCodeIndex=null}};
 function effectiveStatus(a){return a.status==='Cancelada'?'Cancelada':conflictsFor(a,a.id).length?'Conflicto':a.status==='Conflicto'?'Pendiente':a.status}
 function professionalHoldHtml(a,column=''){
  const dur=professionalDuration(a);
@@ -2663,6 +2666,10 @@ authUsers();
  conflictsFor=function(candidate,ignoreId=null){
   const cr=Array.isArray(candidate.resources)?candidate.resources:[candidate.resource].filter(Boolean);
   const ct=appointmentTherapists(candidate);
+  // Rendimiento (4/11/2026): cada parte se calcula solo cuando hace falta (todas son lecturas, el resultado es el mismo):
+  // si ya hay conflicto de recurso no se mira más, la duración del fisio solo se calcula si comparten fisio,
+  // y la del candidato y su nombre normalizado se calculan una vez por llamada.
+  let cd,candidatePatient;
   return appointments.filter(other=>{
    // La fecha se mira primero (4/11/2026): descarta enseguida las ~5.000 citas de otros días sin comparar identificadores.
    if(other.date!==candidate.date||sameId(other.id,ignoreId)||sameId(other.id,candidate.id)||other.status==='Cancelada')return false;
@@ -2670,11 +2677,11 @@ authUsers();
    const shared=cr.filter(r=>or.includes(r));
    // Las citas contiguas (fin === inicio) no se solapan y no deben mostrarse en rojo.
    const resourceConflict=shared.some(r=>intervalsOverlap(candidate.time,Number(candidate.duration||30),other.time,Number(other.duration||30))&&equipmentOverCapacity(candidate,r,appointments,ignoreId,other));
-   const ot=appointmentTherapists(other),cd=professionalDuration(candidate),od=professionalDuration(other);
-   const professionalConflict=ct.some(p=>ot.includes(p))&&cd>0&&od>0&&intervalsOverlap(candidate.time,cd,other.time,od);
-   const samePatient=(candidate.patientCode&&other.patientCode&&sameId(candidate.patientCode,other.patientCode))||(!candidate.patientCode&&!other.patientCode&&normalizeSearch(candidate.patient)===normalizeSearch(other.patient));
-   const patientConflict=samePatient&&intervalsOverlap(candidate.time,Number(candidate.duration||30),other.time,Number(other.duration||30));
-   return resourceConflict||professionalConflict||patientConflict;
+   if(resourceConflict)return true;
+   const ot=appointmentTherapists(other);
+   if(ct.some(p=>ot.includes(p))){if(cd===undefined)cd=professionalDuration(candidate);const od=cd>0?professionalDuration(other):0;if(cd>0&&od>0&&intervalsOverlap(candidate.time,cd,other.time,od))return true}
+   const samePatient=(candidate.patientCode&&other.patientCode&&sameId(candidate.patientCode,other.patientCode))||(!candidate.patientCode&&!other.patientCode&&(candidatePatient===undefined?(candidatePatient=normalizeSearch(candidate.patient)):candidatePatient)===normalizeSearch(other.patient));
+   return !!(samePatient&&intervalsOverlap(candidate.time,Number(candidate.duration||30),other.time,Number(other.duration||30)));
   });
  };
 
