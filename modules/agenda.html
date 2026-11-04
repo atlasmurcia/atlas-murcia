@@ -4566,7 +4566,7 @@ function printInvoice(x,openedWindow){const issuer=x.issuer||{},recipient=x.reci
 
  renderTherapistSelectors=function(assignments={}){
   const field=document.getElementById('mTherapistsField'),box=document.getElementById('mTherapists'),previous={};
-  const syncNonBlockingTherapistColumns=()=>{const selectedServices=checkedValues('#mServices input');if(!selectedServices.some(service=>service==='Tracción'||service==='Camilla FD'))return;const selectedProfessionals=[...document.querySelectorAll('#mTherapists select[data-service]')].map(select=>select.value).filter(Boolean);document.querySelectorAll('#mResources input').forEach(input=>{if(professionals.includes(input.value))input.checked=selectedProfessionals.includes(input.value)});updateMultiSummaries()};
+  const syncNonBlockingTherapistColumns=()=>{const selectedServices=checkedValues('#mServices input');if(!selectedServices.some(service=>service==='Tracción'||therapyCompetencyRequirement[service]==='poner camilla FD'))return;const selectedProfessionals=[...document.querySelectorAll('#mTherapists select[data-service]')].map(select=>select.value).filter(Boolean);document.querySelectorAll('#mResources input').forEach(input=>{if(professionals.includes(input.value))input.checked=selectedProfessionals.includes(input.value)});updateMultiSummaries()};
   box.querySelectorAll('select[data-service]').forEach(select=>previous[select.dataset.service]=select.value);
   const selected=checkedValues('#mServices input').filter(service=>serviceCompetency(service)&&!therapiesWithoutProfessional.has(service));
   if(!selected.length){field.classList.add('hidden');box.innerHTML='';if(professionalSelect)professionalSelect.value='';return}
@@ -4729,6 +4729,9 @@ function printInvoice(x,openedWindow){const issuer=x.issuer||{},recipient=x.reci
  therapiesWithoutProfessional.delete('Camilla FD');
  therapyCompetencyRequirement['Camilla FD']='poner camilla FD';
  therapyProfessionalDurations['Camilla FD']=0;
+ // Nombres antiguos de Koibox de la misma camilla (siguen en muchas citas migradas): se comportan igual que «Camilla FD»,
+ // es decir, reservan la máquina Tracción y el fisio que la coloca, sin bloquear la agenda del fisio.
+ for(const alias of ['CAMILLA FLEXION-DISTRACCION','Camilla FD Club de Afiliados']){alicanteTherapyResources[alias]=['Traccion',...professionals];alicanteTherapyProfessionals[alias]=[...professionals];therapiesWithoutProfessional.delete(alias);therapyCompetencyRequirement[alias]='poner camilla FD';therapyProfessionalDurations[alias]=0}
  equipmentTherapyOptions['Traccion']=['Tracción','Camilla FD'];
  equipmentTherapyOptions['Onda de choque']=['Onda de choque'];
  delete equipmentTherapyOptions['Camilla FD'];
