@@ -2305,7 +2305,7 @@ window.addEventListener('message',function(event){const msg=event.data||{};if(ms
    {name:'Tracción',category:'TRACCIÓN',reference:'ALC-TRA',price:55,duration:30,clubPrice:35},
    {name:'Camilla FD',category:'CAMILLA FD',reference:'ALC-CFD',price:65,duration:15,clubPrice:45},
    {name:'Fisioterapia',category:'FISIOTERAPIA',reference:'ALC-FIS',price:45,duration:30},
-   {name:'Readaptación',category:'READAPTACIÓN',reference:'ALC-REA',price:35,duration:45,clubPrice:17},
+   {name:'Readaptación',category:'READAPTACIÓN',reference:'ALC-REA',price:45,duration:45,clubPrice:17},
    {name:'MBST Músculo',category:'MBST',reference:'ALC-MBST-MUS',price:150,duration:60},
    {name:'MBST Tendón',category:'MBST',reference:'ALC-MBST-TEN',price:150,duration:60},
    {name:'MBST Ligamento',category:'MBST',reference:'ALC-MBST-LIG',price:150,duration:60},
@@ -2789,7 +2789,7 @@ authUsers();
 (()=>{
  const PRICE={
   '1.ª consulta':60,'1.ª consulta y valoración':60,'Valoración':50,'MBST OSTEOSPIN Artrosis':150,'MBST OSTEOSPIN Nervio':150,'MBST OSTEOSPIN Osteoporosis':150,'MBST OSTEOSPIN Postcirugía':150,'MBST OSTEOSPIN Disco':150,'MBST Músculo':150,'MBST Tendón':150,'MBST Ligamento':150,'MBST Hueso':150,
-  'Bomba Diamagnética':100,'Magnetophysio':25,'SIS':25,'Osteopatía':60,'Neuromodulación':20,'Onda de choque':35,'Tracción':55,'Camilla FD':65,'Fisioterapia':45,'Readaptación':35
+  'Bomba Diamagnética':100,'Magnetophysio':25,'SIS':25,'Osteopatía':60,'Neuromodulación':20,'Onda de choque':35,'Tracción':55,'Camilla FD':65,'Fisioterapia':45,'Readaptación':45
  };
  let chargeAppointmentId=null,requestSeq=0,reloadPaymentTimer=null;const paymentPending=new Map();
  const same=(a,b)=>String(a??'')===String(b??'');
