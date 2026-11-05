@@ -27,7 +27,9 @@ ATLAS es el programa de gestión de FisioSport Murcia (agenda, fichas de pacient
 
 - Localiza la causa exacta y explícala en una o dos frases.
 - Comprueba el cambio: como mínimo, que el JavaScript sigue siendo válido y que la función corregida da el resultado esperado con los casos del fallo (por ejemplo, con un script que ejecute la función aislada).
-- Revisa visualmente la pantalla afectada con datos sintéticos o de prueba, sin exponer datos de pacientes. Si no puedes completar esta revisión, deja el pull request abierto e indica qué falta.\n- Antes de fusionar, comprueba de nuevo que el cambio solo afecta a lo solicitado y que no entra en las restricciones de facturación, comunicaciones, datos clínicos, permisos o secretos.\n- En el pull request indica qué tiene que hacer recepción después (normalmente: recargar ATLAS) y si hay que corregir a mano algo que se guardó mal antes del arreglo.
+- Revisa visualmente la pantalla afectada con datos sintéticos o de prueba, sin exponer datos de pacientes. Si no puedes completar esta revisión, deja el pull request abierto e indica qué falta.
+- Antes de fusionar, comprueba de nuevo que el cambio solo afecta a lo solicitado y que no entra en las restricciones de facturación, comunicaciones, datos clínicos, permisos o secretos.
+- En el pull request indica qué tiene que hacer recepción después (normalmente: recargar ATLAS) y si hay que corregir a mano algo que se guardó mal antes del arreglo.
 
 ## Avisos conocidos
 
