@@ -6277,4 +6277,26 @@ body.side-collapsed #sideEdge{display:block}
  ['modalBack','cancelBack'].forEach(watch);
 })();
 </script>
+<script id="atlas-professional-column-follows-therapist-v1">
+// La columna de una persona sigue al fisio elegido (5/11/2026). Si la cita se crea pulsando en la columna de un fisio
+// (o viene así de Koibox) y después se elige otro fisio, la columna antigua se quedaba marcada: la cita salía en las dos
+// columnas y ocupaba el hueco de quien ya no la atiende. Al guardar se quitan las columnas de personas que no atienden
+// ningún servicio de la cita; si no queda ninguna, se pone la del fisio. Las máquinas y salas no se tocan.
+(()=>{
+ const followTherapists=appointment=>{
+  const names=[...new Set(Object.values(appointment?.therapists||{}).filter(name=>professionals.includes(name)))];
+  if(!names.length)return appointment;
+  const current=(appointment.resources||[appointment.resource]).filter(Boolean);
+  const people=current.filter(resource=>professionals.includes(resource));
+  if(!people.length||people.every(resource=>names.includes(resource)))return appointment;
+  const kept=current.filter(resource=>!professionals.includes(resource)||names.includes(resource));
+  const resources=kept.some(resource=>professionals.includes(resource))?kept:[names[0],...kept];
+  appointment.resources=resources;appointment.resource=resources[0]||'';
+  return appointment;
+ };
+ const previousReadModal=readModal;
+ readModal=function(){return followTherapists(previousReadModal.apply(this,arguments))};
+ window.atlasProfessionalColumnFollowsTherapist=followTherapists;
+})();
+</script>
 </body></html>
