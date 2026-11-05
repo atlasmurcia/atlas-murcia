@@ -1776,16 +1776,22 @@ clinicalRecognition.onend=retry;try{clinicalRecognition.start()}catch(e){retry()
  window.addEventListener('message',e=>{if(e.data?.type==='atlas:central-ready')apply(e.data)});
 })();
 </script>
-<style id="atlas-clinical-readonly-style">html.atlas-clinical-readonly .atlas-clinical-write,html.atlas-clinical-readonly [data-edit-clinical-evolution],html.atlas-clinical-readonly #clinicalDocuments [data-central-delete],html.atlas-clinical-readonly .atlas-clinical-attach{display:none!important}</style>
+<style id="atlas-clinical-readonly-style">html.atlas-clinical-readonly .atlas-clinical-write,html.atlas-clinical-readonly [data-edit-clinical-evolution],html.atlas-clinical-readonly #clinicalDocuments [data-central-delete],html.atlas-clinical-readonly .atlas-clinical-attach,html.atlas-clinical-readonly:not(.atlas-clinical-doc-upload) .atlas-clinical-doc-card{display:none!important}</style>
 <script id="atlas-clinical-readonly-v1">
 // Quien solo tiene lectura clínica (Recepción, decisión de Rubén 2/11/2026) ve la historia, evoluciones, documentos y pruebas,
 // pero no los formularios ni botones para escribir, que el servidor le rechazaría.
+// Excepción (decisión de Rubén, 5/11/2026): con el permiso clinical_documents_write (Recepción) se ve la tarjeta para
+// subir documentos clínicos escaneados. El servidor solo les deja añadirlos: ni editarlos, ni borrarlos, ni tocar historias o evoluciones.
 (()=>{
- const writeCards=['saveClinicalHistory()','saveClinicalConsultation()','saveClinicalEvolution()',"savePatientDocument('clinical')",'saveDiagnosticTest()'];
- const mark=()=>{writeCards.forEach(call=>document.querySelectorAll('button[onclick="'+call+'"]').forEach(button=>button.closest('.card')?.classList.add('atlas-clinical-write')));document.querySelectorAll('#diagnosticTests button').forEach(button=>{if(button.textContent.trim()==='Adjuntar archivo')button.classList.add('atlas-clinical-attach')})};
- const apply=c=>{if(!c)return false;const canWrite=c.ownerAccess===true||c.managementAccess===true||c.permissions?.clinical_write===true;document.documentElement.classList.toggle('atlas-clinical-readonly',!canWrite);return true};
+ const writeCards=['saveClinicalHistory()','saveClinicalConsultation()','saveClinicalEvolution()','saveDiagnosticTest()'];
+ const mark=()=>{writeCards.forEach(call=>document.querySelectorAll('button[onclick="'+call+'"]').forEach(button=>button.closest('.card')?.classList.add('atlas-clinical-write')));document.querySelectorAll('button[onclick="savePatientDocument(\'clinical\')"]').forEach(button=>button.closest('.card')?.classList.add('atlas-clinical-doc-card'));document.querySelectorAll('#diagnosticTests button').forEach(button=>{if(button.textContent.trim()==='Adjuntar archivo')button.classList.add('atlas-clinical-attach')})};
+ // El botón «Área clínica» depende de la lista de áreas del usuario; a Recepción, que tiene lectura clínica, se le muestra igualmente.
+ let canReadClinical=false;
+ const showClinicalArea=()=>{const button=document.querySelector('.area-btn[data-area="clinical"]');if(canReadClinical&&button&&button.style.display==='none')button.style.display=''};
+ const apply=c=>{if(!c)return false;const full=c.ownerAccess===true||c.managementAccess===true,canWrite=full||c.permissions?.clinical_write===true;canReadClinical=canWrite||c.permissions?.clinical_read===true;document.documentElement.classList.toggle('atlas-clinical-readonly',!canWrite);document.documentElement.classList.toggle('atlas-clinical-doc-upload',canWrite||c.permissions?.clinical_documents_write===true);showClinicalArea();return true};
  const poll=setInterval(()=>{let c=null;try{c=parent.ATLAS_CENTRAL_CONTEXT}catch(e){}if(apply(c))clearInterval(poll)},700);
- window.addEventListener('message',e=>{if(e.data?.type==='atlas:central-ready')apply(e.data)});
+ window.addEventListener('message',e=>{if(e.data?.type==='atlas:central-ready')apply(e.data);if(e.data?.type==='atlas:auth')setTimeout(showClinicalArea,0)});
+ const clinicalAreaButton=document.querySelector('.area-btn[data-area="clinical"]');if(clinicalAreaButton)new MutationObserver(showClinicalArea).observe(clinicalAreaButton,{attributes:true,attributeFilter:['style']});
  mark();new MutationObserver(()=>queueMicrotask(mark)).observe(document.getElementById('diagnosticTests')||document.body,{childList:true,subtree:true});
 })();
 </script>
