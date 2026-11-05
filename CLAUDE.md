@@ -15,7 +15,7 @@ ATLAS es el programa de gestión de FisioSport Murcia (agenda, fichas de pacient
 
 ## Reglas que no se saltan nunca
 
-1. Nunca publiques directamente en `main`. Trabaja en una rama nueva y abre un pull request explicando en español qué fallaba, qué cambias y cómo comprobarlo. Rubén (@atlasmurcia) lo aprueba antes de que se publique.
+1. Nunca publiques directamente en `main`. Trabaja en una rama nueva y abre un pull request explicando en español qué fallaba, qué cambias y cómo comprobarlo. Para cambios ordinarios de interfaz o funcionamiento solicitados por el equipo, la persona con permiso de escritura que hizo el cambio puede fusionar su propio pull request sin aprobación de Rubén, una vez completadas las comprobaciones de abajo. Al fusionar, GitHub Pages publica el cambio automáticamente en la clínica.
 2. Facturas y VeriFactu: no cambies cómo se numeran, emiten, rectifican o envían facturas. Son registros fiscales. Si el fallo es de facturación, describe el problema y para.
 3. WhatsApp y correos a pacientes: no cambies a quién, cuándo o qué se envía sin que Rubén lo pida expresamente.
 4. Datos: no borres ni modifiques datos de pacientes, citas, cobros o caja. Desde estas sesiones no hay acceso de escritura a la base de datos; si un arreglo necesita tocar datos, explica qué habría que hacer y lo hace Rubén.
@@ -27,6 +27,8 @@ ATLAS es el programa de gestión de FisioSport Murcia (agenda, fichas de pacient
 
 - Localiza la causa exacta y explícala en una o dos frases.
 - Comprueba el cambio: como mínimo, que el JavaScript sigue siendo válido y que la función corregida da el resultado esperado con los casos del fallo (por ejemplo, con un script que ejecute la función aislada).
+- Revisa visualmente la pantalla afectada con datos sintéticos o de prueba, sin exponer datos de pacientes. Si no puedes completar esta revisión, deja el pull request abierto e indica qué falta.
+- Antes de fusionar, comprueba de nuevo que el cambio solo afecta a lo solicitado y que no entra en las restricciones de facturación, comunicaciones, datos clínicos, permisos o secretos.
 - En el pull request indica qué tiene que hacer recepción después (normalmente: recargar ATLAS) y si hay que corregir a mano algo que se guardó mal antes del arreglo.
 
 ## Avisos conocidos
