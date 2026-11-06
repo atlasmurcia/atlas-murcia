@@ -18,8 +18,8 @@ for(const name of ['Vacu','ATT Robotic'])assert.equal(rules.sessions({name,sessi
 for(const name of ['Phisicalm estático','Phisicalm dinámico'])assert.equal(rules.sessions({name,sessions:10}),6);
 console.log('Plantilla: cantidades, alias, orden, precios visibles y regalos al 100 % verificados.');
 
-assert.equal(rules.eligible({createdAt:"2026-11-06T10:17:59Z"}),false);
-assert.equal(rules.eligible({createdAt:"2026-11-06T10:18:00Z"}),true);
+assert.equal(rules.eligible({createdAt:"2026-11-06T10:22:13Z"}),false);
+assert.equal(rules.eligible({createdAt:"2026-11-06T10:22:14Z"}),true);
 assert.equal(rules.eligible({createdAt:"2026-11-07T10:00:00Z"}),true);
 assert.equal(rules.eligible({}),false);
 assert.equal(rules.eligible({createdAt:"incorrecta"}),false);
