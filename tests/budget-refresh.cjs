@@ -19,6 +19,14 @@ function setup(){
 async function initial(c,rows=[]){c.message({type:'atlas:central-ready'});c.message({type:'atlas:load-patient',patient:{remoteId:'synthetic-patient'}});const task=c.timers.find(t=>t.delay===180).fn();c.reply(rows);await task;return c}
 const row={id:'synthetic-budget',client_ref:'budget-synthetic-2',patient_id:'synthetic-patient',metadata:{local_id:2},name:'Presupuesto de prueba',status:'draft',total:50,updated_at:'2026-11-06T12:00:00Z',budget_lines:[{service_name:'Tratamiento de prueba',sessions:1,unit_price:50,line_order:1}]};
 (async()=>{
+ // El puente conserva el filtro habitual y solo incluye bajas al solicitarlas, siempre bajo el mismo ámbito.
+ const bridge=fs.readFileSync(__dirname+'/../atlas.html','utf8').split("else if(m.action==='budgets:list'){")[1].split('\n')[0].slice(0,-1);
+ for(const includeDeleted of [false,true]){const calls=[],query={select:v=>(calls.push(['select',v]),query),eq:(k,v)=>(calls.push(['eq',k,v]),query),is:(k,v)=>(calls.push(['is',k,v]),query),order:()=>[]};
+  const context={db:{from:table=>(assert.equal(table,'budgets'),query)},m:{payload:{patientId:'synthetic-patient',includeDeleted}},context:{organizationId:'synthetic-org',clinicId:'synthetic-clinic'}};
+  await vm.runInNewContext('(async()=>{let result;'+bridge+';return result})()',context);
+  assert.equal(calls.some(c=>c[0]==='is'&&c[1]==='deleted_at'),!includeDeleted);assert.ok(calls.some(c=>c[0]==='select'&&c[1].includes('deleted_at')));
+  for(const key of ['organization_id','clinic_id','patient_id'])assert.ok(calls.some(c=>c[0]==='eq'&&c[1]===key));
+ }
  const c=await initial(setup());assert.equal(c.ctx.budgets.length,0);
  // Un presupuesto creado en otro equipo llega mediante lectura, sin escribir ni crear copias.
  let task=c.intervals[0]();c.reply([row]);await task;assert.equal(c.ctx.budgets.length,1);assert.equal(c.ctx.budgets[0].centralId,row.id);
@@ -48,6 +56,15 @@ const row={id:'synthetic-budget',client_ref:'budget-synthetic-2',patient_id:'syn
  const retry=offline.ctx.window.saveCurrentBudget();offline.reply([]);await retry;assert.equal(offline.saves,1);
  const switched=setup();switched.message({type:'atlas:central-ready'});switched.message({type:'atlas:load-patient',patient:{remoteId:'synthetic-patient'}});switched.ctx.budgets=[{id:2,name:'Prueba',lines:[['Prueba',1,50,0]]}];switched.ctx.currentBudgetId=2;
  const staleSave=switched.ctx.window.saveCurrentBudget();switched.message({type:'atlas:load-patient',patient:{remoteId:'other-synthetic-patient'}});switched.reply([]);assert.equal(await staleSave,false);assert.equal(switched.saves,0);
+
+ // Las bajas del servidor retiran copias locales, incluso si una versión anterior perdió centralId.
+ const deleted={...row,id:'deleted-synthetic-budget',client_ref:'budget-synthetic-patient-1',metadata:{local_id:1},deleted_at:'2026-11-06T14:00:00Z'};
+ const stale=setup();stale.ctx.budgets=[{id:1,centralRef:deleted.client_ref,centralId:null,name:'Copia local antigua',lines:[['Prueba',1,50,0]]}];
+ await initial(stale,[row,deleted]);assert.equal(stale.ctx.budgets.length,1);assert.equal(stale.ctx.budgets[0].centralId,row.id);assert.ok(stale.sent.every(m=>m.action==='budgets:list'),'La limpieza de copias solo lee el servidor');
+ const empty=setup();empty.ctx.budgets=[{id:1,centralId:deleted.id,centralRef:deleted.client_ref,lines:[['Prueba',1,50,0]]}];await initial(empty,[deleted]);assert.equal(empty.ctx.budgets.length,1);assert.equal(empty.ctx.budgets[0].lines.length,0,'Sin presupuestos activos se muestra un editor vacío');
+ const draft=setup();draft.ctx.budgets=[{id:3,name:'Borrador sin enviar',lines:[['Prueba',1,80,0]]}];await initial(draft,[row,deleted]);assert.ok(draft.ctx.budgets.some(b=>b.name==='Borrador sin enviar'),'Un borrador nuevo no se pierde por otra baja');
+ const deletedEarly=setup();deletedEarly.message({type:'atlas:central-ready'});deletedEarly.message({type:'atlas:load-patient',patient:{remoteId:'synthetic-patient'}});deletedEarly.ctx.budgets=[{id:1,centralRef:deleted.client_ref,lines:[['Prueba',1,50,0]]}];deletedEarly.ctx.currentBudgetId=1;
+ const deletedSave=deletedEarly.ctx.window.saveCurrentBudget();deletedEarly.reply([deleted]);assert.equal(await deletedSave,false);assert.equal(deletedEarly.saves,0,'Guardar durante la carga no envía un presupuesto eliminado');assert.ok(deletedEarly.sent.every(m=>m.action==='budgets:list'));
 
  console.log('Presupuestos: actualización entre equipos, lecturas sin solapar, datos sin cambios, editor protegido, foco, errores y respuestas antiguas comprobados.');
 })().catch(error=>{console.error(error);process.exitCode=1});
