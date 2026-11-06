@@ -21,7 +21,7 @@
  function order(lines,nameOf=line=>line[0]){
   return lines.map((line,index)=>({line,index})).sort((a,b)=>rank(nameOf(a.line))-rank(nameOf(b.line))||a.index-b.index).map(item=>item.line);
  }
- function template(services){return order(services.map(service=>[service.name,sessions(service),service.price,giftOrder(service.name)?100:0]));}
+ function template(services){return order(services.map(service=>[service.name,sessions(service),service.price,0]));}
  const effectiveFrom=Date.parse('2026-11-06T11:22:14+01:00');
  const eligible=budget=>Number.isFinite(Date.parse(budget?.createdAt))&&Date.parse(budget.createdAt)>=effectiveFrom;
  const api={key,giftOrder,sessions,order,template,eligible};
