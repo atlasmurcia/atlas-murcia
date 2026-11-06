@@ -1836,18 +1836,22 @@ clinicalRecognition.onend=retry;try{clinicalRecognition.start()}catch(e){retry()
 <script id="atlas-live-patient-indicators">
 (()=>{
  const values=()=>[...document.querySelectorAll('.kpis .kpi b')],state=document.getElementById('patientIndicatorsState'),button=document.getElementById('refreshPatientIndicators');
- const waiting=new Map();let patientId='',ready=false,sequence=0,generation=0,loading=false,reload=false,timer;
+ const waiting=new Map();let patientId='',patientCode='',ready=false,sequence=0,generation=0,loading=false,reload=false,timer;
  const currency=value=>new Intl.NumberFormat('es-ES',{style:'currency',currency:'EUR'}).format(value);
  const date=value=>value?new Intl.DateTimeFormat('es-ES',{timeZone:'Europe/Madrid',day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}).format(new Date(value)):'—';
  const tips=['Todos los bloques de tratamiento realizados, incluidas citas sueltas e históricas. Un bloque de agenda cuenta como una sesión.','Bloques de tratamiento pendientes en agenda, incluidos los atrasados. No incluye sesiones aún sin planificar.','Primera cita pendiente futura, hora de Madrid.','Pendiente de presupuestos aceptados más deuda histórica registrada.','Último bloque de tratamiento realizado.','Porcentaje de bloques realizados sobre realizados y pendientes en agenda.','Ventas cobradas más saldo pendiente registrado. Incluye el histórico importado sin duplicar cobros anteriores a su fecha de corte.'];
  values().forEach((node,i)=>node.closest('.kpi').title=tips[i]);
  function clear(){values().forEach(node=>node.textContent='—');const chip=document.querySelector('.hero .chips .chip:nth-child(2)');if(chip)chip.textContent='Saldo sin consultar'}
- function request(){return new Promise((resolve,reject)=>{const requestId='indicators-'+Date.now()+'-'+(++sequence),timeout=setTimeout(()=>{waiting.delete(requestId);reject(new Error('El servidor no respondió a tiempo.'))},45000);waiting.set(requestId,{resolve,reject,timeout});parent.postMessage({type:'atlas:central-db-request',requestId,action:'patients:indicators',payload:{patientId}},'*')})}
+ function request(action,payload){return new Promise((resolve,reject)=>{const requestId='indicators-'+Date.now()+'-'+(++sequence),timeout=setTimeout(()=>{waiting.delete(requestId);reject(new Error('El servidor no respondió a tiempo.'))},45000);waiting.set(requestId,{resolve,reject,timeout});parent.postMessage({type:'atlas:central-db-request',requestId,action,payload},'*')})}
  async function load(){
-  if(!ready||!patientId||document.hidden)return;
+  if(document.hidden)return;
+  if(!ready){state.textContent='Esperando conexión con el servidor…';parent.postMessage({type:'atlas:central-module-ready',module:'ficha'},'*');return}
+  if(!patientId&&!patientCode){clear();state.textContent='No se puede enlazar: falta el número de ficha. Vuelve a abrir el paciente desde el directorio.';return}
   if(loading){reload=true;return}loading=true;reload=false;const currentGeneration=generation;
   button.disabled=true;state.textContent='Actualizando datos del servidor…';
-  try{const data=await request();if(currentGeneration!==generation)return;
+  try{
+   if(!patientId){const patient=await request('patients:resolve',{patientNumber:patientCode});if(currentGeneration!==generation)return;if(!patient?.id)throw new Error('No se ha encontrado esta ficha en la clínica.');patientId=String(patient.id)}
+   const data=await request('patients:indicators',{patientId});if(currentGeneration!==generation)return;
    const fields=[data.completed,data.pending,date(data.next),currency(data.balance),date(data.last),data.progress==null?'—':data.progress+'%',data.totalSales==null?'—':currency(data.totalSales)];
    values().forEach((node,i)=>node.textContent=fields[i]);const chip=document.querySelector('.hero .chips .chip:nth-child(2)');if(chip)chip.textContent=data.balance>0?'Saldo pendiente: '+currency(data.balance):'Sin saldo pendiente';
    state.textContent='Actualizado: '+date(data.checkedAt)+(data.totalSales==null?' · Total ventas pendiente de verificar: falta la fecha del histórico.':'')+' · Se revisa cada minuto.';
@@ -1860,9 +1864,9 @@ clinicalRecognition.onend=retry;try{clinicalRecognition.start()}catch(e){retry()
   const message=event.data||{},item=waiting.get(message.requestId);
   if(message.type==='atlas:central-db-response'&&item){waiting.delete(message.requestId);clearTimeout(item.timeout);message.ok?item.resolve(message.data):item.reject(new Error(message.error||'No se pudo consultar el resumen.'));return}
   if(message.type==='atlas:central-ready'){ready=true;schedule()}
-  if(message.type==='atlas:load-patient'&&message.patient){const next=String(message.patient.remoteId||'');if(next!==patientId){generation++;patientId=next;clear();state.textContent=next?'Consultando el resumen…':'Ficha sin enlazar con el servidor.'}schedule()}
+  if(message.type==='atlas:load-patient'&&message.patient){const code=String(message.patient.code||''),next=String(message.patient.remoteId||(code&&code===patientCode?patientId:'')||'');if(next!==patientId||code!==patientCode){generation++;patientId=next;patientCode=code;clear();state.textContent='Consultando el resumen…'}schedule()}
   if(['atlas:payment-recorded','atlas:budget-payment-recorded','atlas:central-payments-changed','atlas:central-budgets-changed','atlas:central-cash-changed','atlas:central-appointments-changed','atlas:appointment-progress-changed','atlas:patient-appointment-cancelled','atlas:server-recovered'].includes(message.type))schedule();
-  if(message.type==='atlas:patient-deleted'){generation++;patientId='';clear();state.textContent='Selecciona un paciente.'}
+  if(message.type==='atlas:patient-deleted'){generation++;patientId='';patientCode='';clear();state.textContent='Selecciona un paciente.'}
  });
  document.addEventListener('visibilitychange',()=>{if(!document.hidden)schedule()});window.addEventListener('focus',schedule);
  setInterval(()=>{if(!document.hidden)load()},60000);

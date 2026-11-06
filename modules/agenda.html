@@ -2227,8 +2227,8 @@ window.addEventListener('message',function(event){const msg=event.data||{};if(ms
  window.openDrawer=function(id){
    originalOpenDrawer(id);
    const a=appointments.find(x=>String(x.id)===String(id));if(!a)return;
-   const master=typeof patientByCode==='function'?patientByCode(a.patientCode):null;
-   parent.postMessage({type:'atlas:patient-selected',patient:{code:a.patientCode||'',name:a.patient,phone:master?.phone||'',email:master?.email||''},appointments:appointments.filter(x=>x.patient===a.patient)},'*');
+   const master=(a.patientRemoteId&&patientMaster.find(p=>p.remoteId===a.patientRemoteId))||(a.patientCode&&typeof patientByCode==='function'?patientByCode(a.patientCode):null);
+   parent.postMessage({type:'atlas:patient-selected',patient:master?{...master}:{remoteId:a.patientRemoteId||'',code:a.patientCode||'',name:a.patient},appointments:appointments.filter(x=>a.patientRemoteId?x.patientRemoteId===a.patientRemoteId:a.patientCode?String(x.patientCode||'')===String(a.patientCode):x.patient===a.patient)},'*');
  };
  const searchResults=document.getElementById('globalResults');
  function openPatientFromSearch(target){
