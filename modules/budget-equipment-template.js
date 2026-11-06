@@ -22,7 +22,7 @@
   return lines.map((line,index)=>({line,index})).sort((a,b)=>rank(nameOf(a.line))-rank(nameOf(b.line))||a.index-b.index).map(item=>item.line);
  }
  function template(services){return order(services.map(service=>[service.name,sessions(service),service.price,giftOrder(service.name)?100:0]));}
- const effectiveFrom=Date.parse('2026-11-06T11:18:00+01:00');
+ const effectiveFrom=Date.parse('2026-11-06T11:22:14+01:00');
  const eligible=budget=>Number.isFinite(Date.parse(budget?.createdAt))&&Date.parse(budget.createdAt)>=effectiveFrom;
  const api={key,giftOrder,sessions,order,template,eligible};
  if(typeof module!=='undefined'&&module.exports)module.exports=api;
@@ -38,7 +38,7 @@
  // Nunca reordenar ni aplicar la nueva plantilla a presupuestos anteriores al corte.
  const current=()=>budgets.find(budget=>String(budget.id)===String(currentBudgetId));
  const previousTemplate=applyBudgetTemplate;
- applyBudgetTemplate=function(type){if(type==='todas'&&!eligible(current()))return alert('Esta plantilla se aplica solo a presupuestos nuevos desde el 6/11/2026 a las 11:18. Crea un nuevo presupuesto para utilizarla.');return previousTemplate.apply(this,arguments)};
+ applyBudgetTemplate=function(type){if(type==='todas'&&!eligible(current()))return alert('Esta plantilla se aplica solo a presupuestos nuevos desde el 6/11/2026 a las 11:22. Crea un nuevo presupuesto para utilizarla.');return previousTemplate.apply(this,arguments)};
  const previousAdd=addBudgetLine;
  addBudgetLine=function(){const result=previousAdd.apply(this,arguments),host=document.getElementById('budgetLines');if(host&&eligible(current()))order([...host.children],line=>line.querySelector('.bl-name')?.value||'').forEach(line=>host.appendChild(line));return result};
  refresh();
