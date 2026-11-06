@@ -1,0 +1,16 @@
+const assert=require('node:assert/strict'),fs=require('fs'),vm=require('vm');
+const api=require('../modules/sales-rectifications.js');
+const invoice={id:'r1',payment_id:'p1',original_invoice_id:'f1',invoice_type:'R1',status:'issued',total:-135,issue_date:'2026-11-06',created_at:'2026-11-06T10:00:00Z',invoice_number:'TEST-R-1',lines:[{description:'Servicio A',total:40,subtotal:40},{description:'Servicio B',total:95,subtotal:95}]};
+const payment={id:'p1',patient_id:'test-patient',method:'card',receipt_number:1};
+const row=api.toRow(invoice,payment,{first_name:'Paciente de prueba'},{invoice_number:'TEST-F-1'});
+assert.equal(row.amount,-135);assert.equal(row.report_date,'2026-11-06');assert.equal(row.original_invoice_number,'TEST-F-1');assert.equal(row.id,'rectification:r1');assert.equal(row.payment_id,'p1');assert.ok(api.matchesType(row,'all'));assert.ok(api.matchesType(row,'rectifications'));assert.ok(!api.matchesType(row,'sales'));assert.ok(api.matchesType({amount:135},'sales'));
+assert.deepEqual(row.receipt_lines.map(x=>x.total),[-40,-95]);assert.equal(invoice.lines[0].total,40);
+const source=fs.readFileSync(__dirname+'/../modules/agenda.html','utf8'),begin=source.indexOf(' function exportedSaleLines('),end=source.indexOf(' window.atlasExportSalesSearch=async function',begin);assert.ok(begin>0&&end>begin);
+const ctx={text:x=>String(x??'').trim(),number:x=>Number(x||0)};vm.createContext(ctx);vm.runInContext(source.slice(begin,end)+'this.exportedSaleLines=exportedSaleLines',ctx);assert.deepEqual(Array.from(ctx.exportedSaleLines(row),x=>x.lineAmount),[-40,-95]);
+assert.equal([{amount:135},{amount:135},row].reduce((sum,x)=>sum+Math.round(x.amount*100),0)/100,135);
+(async()=>{
+ const allFilters=[];function dbFor(failure=false){return {from(table){const filters=[],query={select(){return this},eq(k,v){filters.push([k,v]);return this},gte(k,v){filters.push([k,'>=',v]);return this},lte(k,v){filters.push([k,'<=',v]);return this},in(k,v){filters.push([k,'in',v]);return this},order(){return this},range(){return this},then(resolve){allFilters.push({table,filters});return Promise.resolve(resolve(failure?{error:new Error('Fallo de lectura')}:{data:table==='sales_invoices'?(filters.some(x=>x[0]==='invoice_type')?[invoice]:[{id:'f1',invoice_number:'TEST-F-1'}]):table==='payments'?[payment]:[{id:'test-patient',first_name:'Paciente de prueba'}]}))}};return query}}}
+ const context={organizationId:'org-prueba',clinicId:'clinica-prueba'},result=await api.read(dbFor(),context,'2026-11-01','2026-11-30');assert.equal(result.length,1);assert.equal(result[0].amount,-135);assert.ok(allFilters.every(x=>x.filters.some(f=>f[0]==='clinic_id'&&f[1]==='clinica-prueba')&&x.filters.some(f=>f[0]==='organization_id'&&f[1]==='org-prueba')));assert.ok(allFilters.some(x=>x.filters.some(f=>f[0]==='issue_date'&&f[1]==='>=')));
+ await assert.rejects(()=>api.read(dbFor(true),context,'2026-11-01','2026-11-30'),/Fallo de lectura/);await assert.rejects(()=>api.read(dbFor(),context,'2026-12-01','2026-11-01'));
+ console.log('Rectificativas: importes negativos, total neto, filtros, fecha de emisión, vínculo original, exportación por líneas y ámbito de clínica verificados.');
+})().catch(e=>{console.error(e);process.exit(1)});
