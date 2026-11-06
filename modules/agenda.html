@@ -504,7 +504,7 @@ function loadStoredAppointments(){
 }
 let appointments = loadStoredAppointments();let atlasCamillaFdResourceMigrated=false;appointments.forEach(item=>{if(item.resource==='Camilla FD'){item.resource='Traccion';atlasCamillaFdResourceMigrated=true}if(Array.isArray(item.resources)){const next=[...new Set(item.resources.map(resource=>resource==='Camilla FD'?'Traccion':resource))];if(JSON.stringify(next)!==JSON.stringify(item.resources)){item.resources=next;atlasCamillaFdResourceMigrated=true}}});
 const atlasToday=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}; let currentDate = sessionStorage.getItem('atlasAlicanteRealDate_20260817_PATIENTS_V6__session_fallback')||localStorage.getItem('atlasAlicanteRealDate_20260817_PATIENTS_V6')||atlasToday();
-let selectedId=null, editingId=null, simulation=[];
+let selectedId=null, editingId=null, simulation=[], pendingModalAppointment=null;
 let lockedProfessionalContext='';
 let lockedEquipmentContext='';
 let selectedPatientCode='';
@@ -1832,6 +1832,7 @@ function openModalFromCell(resource,time){
 }
 let leadBookingContext=null,reprogrammingAppointment=null;
 function openModal(a=null){
+ pendingModalAppointment=null;
  editingId=a?a.id:null; document.getElementById('modalTitle').textContent=a?'Editar cita aislada':'Nueva cita';document.getElementById('mEditScope').classList.toggle('hidden',!a);document.getElementById('saveBtn').textContent=a?'Guardar cambios de esta cita':'Guardar cita';
  const today=currentDate;
  const linked=a?.patientCode?patientByCode(a.patientCode):null;
@@ -1969,19 +1970,20 @@ function validateModal(a){
 document.getElementById('saveBtn').onclick=async function(){
  const a=readModal(); if(!validateModal(a)) return;
  const wasEditing=!!editingId,editedId=editingId,button=this,previousText=button.textContent;
- a.history.push({at:new Date().toISOString(),user:agendaActorName(),action:wasEditing?'Cita actualizada':'Cita creada'});
+ if(!wasEditing&&pendingModalAppointment){a.id=pendingModalAppointment.id;a.centralRef=pendingModalAppointment.centralRef;a.history=pendingModalAppointment.history}else a.history.push({at:new Date().toISOString(),user:agendaActorName(),action:wasEditing?'Cita actualizada':'Cita creada'});
+ if(!wasEditing)pendingModalAppointment=a;
  button.disabled=true;button.textContent='Guardando en servidor…';
  try{
   if(typeof window.atlasPersistAppointmentCentral!=='function')throw new Error('La agenda central todavía no está preparada. Espera unos segundos y vuelve a pulsar Guardar.');
   await window.atlasPersistAppointmentCentral(a);
   logAgenda(wasEditing?'Cita actualizada':'Cita creada',a);
-  if(wasEditing){appointments=appointments.map(x=>x.id===editedId?a:x)}else appointments.push(a);
+  if(wasEditing){appointments=appointments.map(x=>x.id===editedId?a:x)}else{const existing=appointments.findIndex(x=>String(x.centralRef||x.id)===String(a.centralRef||a.id));if(existing>=0)appointments[existing]=a;else appointments.push(a)}
   save();document.getElementById('modalBack').classList.remove('open');render();
   if(!wasEditing&&a.leadContext?.id&&!a.leadContext?.continuation&&window.atlasMarkLeadBooked)window.atlasMarkLeadBooked(a).catch(function(error){console.error('La cita se guardó, pero no se pudo actualizar el lead',error);alert('La cita se ha guardado. Revisa el estado del lead: '+error.message)});
-  leadBookingContext=null;reprogrammingAppointment=null;
+  leadBookingContext=null;reprogrammingAppointment=null;pendingModalAppointment=null;
  }catch(error){
   console.error('Cita no confirmada por el servidor',error);
-  alert('La cita NO se ha guardado en el servidor. El formulario seguirá abierto para que no pierdas los datos.\n\n'+(error?.message||'Error desconocido'));
+  alert((error?.code==='APPOINTMENT_SAVE_UNCONFIRMED'?'No se ha podido confirmar todavía el guardado. La cita puede haberse guardado; no crees otra cita para sustituirla. Conservamos el formulario y la misma referencia para comprobarla sin duplicarla.':'El servidor no ha confirmado el cambio. El formulario seguirá abierto para que no pierdas los datos.')+'\n\n'+(error?.message||'Error desconocido'));
  }finally{button.disabled=false;button.textContent=previousText}
 }
 document.getElementById('newBtn').onclick=()=>{
@@ -3103,7 +3105,24 @@ window.sendPaymentDocumentsAutomatically=function(paymentId,patientName){central
  // no por ajustes automáticos anteriores (historial vacío, normalización de bomba…).
  const historicLocalFingerprints=new Map();
  for(const type of ['pointerdown','click','dblclick','keydown','change','drop','submit'])document.addEventListener(type,()=>{userEditing=true;setTimeout(()=>{userEditing=false},0)},true);
- function request(action,payload={}){return new Promise((resolve,reject)=>{const requestId='appointment-'+Date.now()+'-'+(++seq),timer=setTimeout(()=>{pending.delete(requestId);reject(new Error('La agenda central no respondió a tiempo.'))},60000);pending.set(requestId,{resolve,reject,timer});parent.postMessage({type:'atlas:central-db-request',requestId,action,payload},'*')})}
+ // Un tiempo agotado no demuestra que una escritura haya fallado. Consultar su huella exacta.
+ function request(action,payload={}){return new Promise((resolve,reject)=>{
+  const requestId='appointment-'+Date.now()+'-'+(++seq);
+  const uncertain=()=>Object.assign(new Error('El servidor aún no ha confirmado la operación. Mantén el formulario abierto y comprueba el estado antes de repetirla.'),{code:'APPOINTMENT_SAVE_UNCONFIRMED'});
+  const finish=(ok,value)=>{if(!pending.has(requestId))return;const item=pending.get(requestId);pending.delete(requestId);clearTimeout(item.timer);ok?resolve(value):reject(value)};
+  const timer=setTimeout(async()=>{
+   if(action!=='appointments:upsertMany'){finish(false,new Error('La agenda central no respondió a tiempo.'));return}
+   tell('El servidor está tardando. Comprobando si la cita ya está guardada…','warn');
+   try{
+    const saved=await request('appointments:verifyWrite',{rows:payload.rows||[]});
+    if(Array.isArray(saved)&&saved.length===(payload.rows||[]).length&&saved.length&&saved.every(row=>row.id&&row.updated_at))finish(true,saved);
+    else finish(false,uncertain());
+   }catch(error){finish(false,uncertain())}
+  },60000);
+  pending.set(requestId,{resolve:value=>finish(true,value),reject:error=>finish(false,error),timer});
+  parent.postMessage({type:'atlas:central-db-request',requestId,action,payload},'*');
+ })}
+
  // Rendimiento (4/11/2026): con unos 20.000 pacientes, buscar el paciente de cada cita recorriendo toda la lista
  // congelaba la agenda medio segundo en cada guardado (cambiar de día, dar o mover una cita) y al recibir cambios.
  // Mientras dura un recorrido de todas las citas se usa un índice; da el mismo paciente que la búsqueda de siempre.
@@ -3230,7 +3249,7 @@ for(let i=locals.length-1;i>=0;i--){const a=locals[i];if(clientRef(a)===mapped.c
 merged.push(mapped);const central=toRow(mapped);remoteByRef.set(mapped.centralRef,{...row,_fingerprint:central?fingerprint(central):''})}});appointments=[...merged,...locals];loadedWindowStart=start;loadedWindowEnd=end;lastCentralRefreshAt=Date.now();lastCentralSignature=signature;baseSave();ready=true;if(typeof render==='function')render();window.dispatchEvent(new Event('atlas:central-appointments-loaded'));if(typeof window.atlasReconcileWhatsappQueue==='function')window.atlasReconcileWhatsappQueue();tell(remoteRefresh?'Agenda actualizada con los cambios de otros usuarios':appointments.length+' citas cargadas · '+start+' a '+end,'ok')}catch(error){console.error(error);const detail=[error?.code,error?.message].filter(Boolean).join(' · ');tell('No se pudo cargar la agenda central'+(detail?' · '+detail:''),'error')}finally{loading=false;if(syncRequested)queueSync();else if(remoteRefreshPending)requestCentralRefresh(250)}}
  const baseCentralRender=render;render=function(){baseCentralRender();if(ready&&!loading&&(currentDate<loadedWindowStart||currentDate>loadedWindowEnd))requestCentralRefresh(120)};
  function activate(){if(!moduleVisible||ready||loading)return;if(!window.ATLAS_CHILD_CENTRAL_CONTEXT)return;if(!patientMaster.some(p=>p.remoteId)){setTimeout(activate,350);return}loadCentral()}
- window.addEventListener('message',event=>{const m=event.data||{};if(m.type==='atlas:central-db-response'&&pending.has(m.requestId)){const item=pending.get(m.requestId);pending.delete(m.requestId);clearTimeout(item.timer);m.ok?item.resolve(m.data):item.reject(Object.assign(new Error(m.error||'Error central'),{code:m.code||''}));return}if(m.type==='atlas:module-visibility'){moduleVisible=m.visible!==false;if(moduleVisible){activate();if(ready)requestCentralRefresh(80)}return}if(m.type==='atlas:server-recovered'&&m.action==='appointments:upsertMany'){for(const row of m.payload?.rows||[])dirtyRefs.delete(row.client_ref);requestCentralRefresh(120);return}if(m.type==='atlas:central-ready')activate();if(m.type==='atlas:central-appointments-changed'&&ready&&moduleVisible)requestCentralRefresh(300)});
+ window.addEventListener('message',event=>{const m=event.data||{};if(m.type==='atlas:central-db-response'&&pending.has(m.requestId)){const item=pending.get(m.requestId);m.ok?item.resolve(m.data):item.reject(Object.assign(new Error(m.error||'Error central'),{code:m.code||''}));return}if(m.type==='atlas:module-visibility'){moduleVisible=m.visible!==false;if(moduleVisible){activate();if(ready)requestCentralRefresh(80)}return}if(m.type==='atlas:server-recovered'&&m.action==='appointments:upsertMany'){for(const row of m.payload?.rows||[])dirtyRefs.delete(row.client_ref);requestCentralRefresh(120);return}if(m.type==='atlas:central-ready')activate();if(m.type==='atlas:central-appointments-changed'&&ready&&moduleVisible)requestCentralRefresh(300)});
  document.addEventListener('visibilitychange',()=>{if(moduleVisible&&!document.hidden&&ready)requestCentralRefresh(80)});window.addEventListener('focus',()=>{if(moduleVisible&&ready)requestCentralRefresh(80)});
  setInterval(()=>{activate();if(ready&&moduleVisible&&!document.hidden&&Date.now()-lastCentralRefreshAt>30000)requestCentralRefresh(0)},1000);parent.postMessage({type:'atlas:central-module-ready',module:'appointments'},'*');
 })();
