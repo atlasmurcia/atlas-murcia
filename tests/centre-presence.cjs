@@ -1,0 +1,14 @@
+const assert=require('node:assert/strict'),{summarize,today,bounds}=require('../modules/centre-presence.js');
+const date='2026-11-06',base={date,status:'En sala',patient:'Nombre sintético',attendance:{arrivedAt:'2026-11-06T09:00:00Z'}};
+const a={...base,id:'a',centralId:'a',patientRemoteId:'patient-a'},duplicate={...a,id:'a2',centralId:'a2'},b={...base,id:'b',centralId:'b',patientRemoteId:'patient-b'};
+let rows=[a,duplicate,b,{...base,id:'c',patientRemoteId:'c',status:'Confirmada'},{...base,id:'d',patientRemoteId:'d',status:'Realizada'},{...base,id:'e',patientRemoteId:'e',status:'Cancelada'},{...base,id:'y',patientRemoteId:'y',date:'2026-11-05'}];
+let result=summarize(rows,date);assert.equal(result.total,2);assert.equal(result.waiting.length,2);assert.equal(result.treating.length,0);
+rows=rows.map(x=>x.id==='a'?{...x,centerPresence:{stage:'treating',resource:'Equipo de prueba',updatedAt:'2026-11-06T09:10:00Z'}}:x);result=summarize(rows,date);assert.equal(result.total,2);assert.equal(result.waiting.length,1);assert.equal(result.treating.length,1);assert.equal(result.treating[0].resource,'Equipo de prueba');
+rows=rows.map(x=>x.id==='a2'?{...x,centerPresence:{stage:'left',updatedAt:'2026-11-06T09:20:00Z'}}:x);assert.equal(summarize(rows,date).total,1);
+assert.equal(summarize([{...a,status:'Pendiente',centerPresence:{stage:'treating'}}],date).total,0);
+assert.equal(summarize([{...a,status:'Realizada',centerPresence:{stage:'treating'}}],date).total,0);
+assert.equal(today(new Date('2026-11-05T23:30:00Z')),date);
+assert.equal(bounds(date).from,'2026-11-05T23:00:00.000Z');assert.equal(bounds(date).to,'2026-11-06T23:00:00.000Z');
+const hours=d=>(Date.parse(bounds(d).to)-Date.parse(bounds(d).from))/3600000;assert.equal(hours('2026-03-29'),23);assert.equal(hours('2026-10-25'),25);
+assert.equal(summarize([{...base,id:'unlinked-a'},{...base,id:'unlinked-b'}],date).total,2);
+console.log('Presencia: identidades únicas, homónimos, varias citas, estados registrados, salidas, cancelación, corrección de llegada y horario de Madrid verificados.');
