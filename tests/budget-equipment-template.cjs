@@ -12,11 +12,11 @@ assert.equal(JSON.stringify(services),original);
 assert.equal(byName.get('Robot')[1],10);assert.equal(byName.get('VacuSport')[1],10);
 assert.equal(byName.get('PHYSICALM ESTATICO')[1],6);assert.equal(byName.get('Physicalm dinámico')[1],6);
 assert.deepEqual(lines.map(line=>line[0]),['DPA','Robot','VacuSport','SIS','Readaptación','Osteopatía','iMoove','Physicalm dinámico','PHYSICALM ESTATICO','Camilla de flexión-distracción']);
-assert.ok(lines.slice(0,5).every(line=>line[3]===0));assert.ok(lines.slice(5).every(line=>line[3]===100&&line[2]>0));
-assert.equal(lines.reduce((sum,line)=>sum+line[1]*line[2]*(1-line[3]/100),0),1850);
+assert.ok(lines.slice(0,5).every(line=>line[3]===0));assert.ok(lines.slice(5).every(line=>line[3]===0&&line[2]>0));
+assert.equal(lines.reduce((sum,line)=>sum+line[1]*line[2]*(1-line[3]/100),0),2980);
 for(const name of ['Vacu','ATT Robotic'])assert.equal(rules.sessions({name,sessions:1}),10);
 for(const name of ['Phisicalm estático','Phisicalm dinámico'])assert.equal(rules.sessions({name,sessions:10}),6);
-console.log('Plantilla: cantidades, alias, orden, precios visibles y regalos al 100 % verificados.');
+console.log('Plantilla: cantidades, alias, orden, precios visibles y regalos sin descuento automático verificados.');
 
 assert.equal(rules.eligible({createdAt:"2026-11-06T10:22:13Z"}),false);
 assert.equal(rules.eligible({createdAt:"2026-11-06T10:22:14Z"}),true);
