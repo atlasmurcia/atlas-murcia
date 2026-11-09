@@ -33,13 +33,15 @@
   ['Neuromodulación',6,20,0],['Fisioterapia',6,45,0],['ROBOT',10,65,0],['Readaptación',10,45,0],
   ['Osteopatía',6,60,0],['IMOOVE',10,20,0],['PHYSICALM DINAMICO',6,15,0],['Camilla FD',6,65,0]
  ])}}
+ function combinedDiscTemplate(){const base=combinedTemplate();return {name:'Radiculopatía Compleja',lines:order([...base.lines,['MBST OSTEOSPIN Disco',9,150,0]])}}
  const effectiveFrom=Date.parse('2026-11-06T11:22:14+01:00');
  const eligible=budget=>Number.isFinite(Date.parse(budget?.createdAt))&&Date.parse(budget.createdAt)>=effectiveFrom;
- const api={key,giftOrder,sessions,order,template,combinedTemplate,eligible};
+ const api={key,giftOrder,sessions,order,template,combinedTemplate,combinedDiscTemplate,eligible};
  if(typeof module!=='undefined'&&module.exports)module.exports=api;
  if(root)root.AtlasBudgetEquipmentTemplate=api;
  if(typeof window==='undefined'||typeof therapyCatalog==='undefined')return;
  budgetTemplates.radiculopatia_simple=combinedTemplate();
+ budgetTemplates.radiculopatia_compleja=combinedDiscTemplate();
  function refresh(){
   therapyCatalog.forEach(service=>{service.sessions=sessions(service)});
   budgetTemplates.todas.lines=template(therapyCatalog);

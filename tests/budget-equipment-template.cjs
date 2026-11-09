@@ -51,3 +51,17 @@ vm.runInContext(newBudgetSource,ctx);ctx.newBudget('radiculopatia_simple');
 assert.equal(ctx.budgets.length,2);assert.equal(ctx.budgets[0].template,'radiculopatia_simple');assert.equal(ctx.budgets[0].status,'Borrador');assert.equal(ctx.budgets[0].lines.length,13);assert.equal(ctx.budgets[0].notes,'');assert.equal(ctx.budgets[0].discount,0);assert.equal(ctx.budgets[0].payments.length,0);assert.equal(JSON.stringify(ctx.budgets[1]),savedBefore);
 ctx.budgets[0].lines[0][1]=20;assert.equal(ctx.budgetTemplates.radiculopatia_simple.lines[0][1],9,'Editar un presupuesto no cambia la plantilla');
 console.log('Plantilla combinada: 13 terapias, transcraneal 10, total 6.480 €, recarga, creación real en borrador y presupuestos anteriores intactos.');
+
+const simpleBefore=JSON.stringify(rules.combinedTemplate()),disc=rules.combinedDiscTemplate();
+assert.equal(disc.name,'Radiculopatía Compleja');assert.equal(disc.lines.length,14);
+assert.deepEqual(disc.lines.find(l=>l[0]==='MBST OSTEOSPIN Disco'),['MBST OSTEOSPIN Disco',9,150,0]);
+assert.deepEqual(disc.lines.filter(l=>l[0]!=='MBST OSTEOSPIN Disco'),rules.combinedTemplate().lines);
+assert.equal(disc.lines.reduce((sum,l)=>sum+l[1]*l[2]*(1-l[3]/100),0),7830);
+assert.equal(disc.lines.find(l=>l[0]==='BRAINS WAY (TERAPIA TRANSCRANEAL)')[1],10);
+assert.equal(JSON.stringify(ctx.budgetTemplates.radiculopatia_compleja),JSON.stringify(disc));
+const previousBudgets=JSON.stringify(ctx.budgets);ctx.nextBudgetId=()=>3;ctx.newBudget('radiculopatia_compleja');
+assert.equal(ctx.budgets[0].template,'radiculopatia_compleja');assert.equal(ctx.budgets[0].lines.length,14);assert.equal(JSON.stringify(ctx.budgets.slice(1)),previousBudgets);
+ctx.budgets[0].lines[0][1]=99;disc.lines[0][1]=30;
+assert.equal(JSON.stringify(rules.combinedTemplate()),simpleBefore);assert.equal(ctx.budgetTemplates.radiculopatia_compleja.lines[0][1],9);
+assert.equal(rules.combinedDiscTemplate().lines[0][1],9);
+console.log('Variante Disco: 14 terapias, Disco 9 × 150 €, transcraneal 10, total 7.830 €, sin alterar la plantilla simple ni presupuestos previos.');
