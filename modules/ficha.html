@@ -115,7 +115,7 @@ header{background:#fff!important;border-bottom:1px solid #e3e8eb!important;box-s
    <div class="quote-grid">
     <label class="field">Nombre<input id="bName" oninput="dirtyBudget()"></label>
     <label class="field">Estado<select id="bStatus" onchange="dirtyBudget()"><option>Borrador</option><option>Entregado</option><option>Aceptado</option><option>Rechazado</option><option>Cancelado</option></select></label>
-    <label class="field">Plantilla<select id="bTemplate" onchange="applyBudgetTemplate(this.value)"><option value="libre">En blanco</option><option value="todas">Todas las terapias</option></select></label>
+    <label class="field">Plantilla<select id="bTemplate" onchange="applyBudgetTemplate(this.value)"><option value="libre">En blanco</option><option value="todas">Todas las terapias</option><option value="radiculopatia_simple">Radiculopatia Simple</option></select></label>
     <label class="field">Forma de pago<select id="bPaymentMethod" onchange="budgetPaymentMethodChanged()"><option>Metálico</option><option>Transferencia</option><option>Tarjeta</option><option>Financiación</option></select></label>
     <label class="field">Modalidad de pago<select id="bPaymentTerms" onchange="paymentTermsChanged()"><option value="single">Pago único</option><option value="financed">Pago financiado</option></select></label>
     <label class="field" id="firstPaymentField">Fecha del primer pago<input id="bFirstPayment" type="date" oninput="recalcBudget()"></label>
@@ -1877,5 +1877,5 @@ clinicalRecognition.onend=retry;try{clinicalRecognition.start()}catch(e){retry()
  parent.postMessage({type:'atlas:central-module-ready',module:'ficha'},'*');
 })();
 </script>
-<script src="./budget-equipment-template.js?v=2"></script>
+<script src="./budget-equipment-template.js?v=3"></script>
 </body></html>

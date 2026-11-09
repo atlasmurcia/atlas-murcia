@@ -38,3 +38,16 @@ ctx.window={atlasApplyServiceCatalog(services){ctx.therapyCatalog.splice(0,ctx.t
 vm.createContext(ctx);vm.runInContext(source,ctx);
 for(const price of [45,80]){ctx.window.atlasApplyServiceCatalog(defaults.map(({name})=>({name,sessions:1,price})));for(const {name,expected} of defaults){assert.equal(ctx.therapyCatalog.find(s=>s.name===name).sessions,expected);const line=ctx.budgetTemplates.todas.lines.find(l=>l[0]===name);assert.equal(line[1],expected);assert.equal(line[2],price);}assert.equal(JSON.stringify(saved),savedBefore,'Recargar catálogo conserva cantidades, precios y descuentos ya guardados');}
 console.log('Sesiones predeterminadas: BRAINS WAY 10, FISIOAVANZADA 6 y FLEX/OSTEOSPIN 9 salvo Osteoporosis 10; recarga del catálogo y presupuestos anteriores comprobados.');
+
+const combination=rules.combinedTemplate(),expectedCombination=[['MBST OSTEOSPIN Nervio',9,150,0],['BRAINS WAY (TERAPIA TRANSCRANEAL)',10,110,0],['Bomba Diamagnética dinámica',10,100,0],['Magnetophysio',10,25,0],['SIS',10,25,0],['Neuromodulación',6,20,0],['Fisioterapia',6,45,0],['ROBOT',10,65,0],['Readaptación',10,45,0],['Osteopatía',6,60,0],['IMOOVE',10,20,0],['PHYSICALM DINAMICO',6,15,0],['Camilla FD',6,65,0]];
+assert.equal(combination.name,'Radiculopatia Simple');
+assert.deepEqual(combination.lines,rules.order(expectedCombination));
+assert.equal(combination.lines.reduce((sum,l)=>sum+l[1]*l[2]*(1-l[3]/100),0),6480);
+assert.equal(JSON.stringify(ctx.budgetTemplates.radiculopatia_simple),JSON.stringify(combination),'La plantilla se registra y conserva al recargar el catálogo');
+combination.lines[0][1]=99;assert.equal(rules.combinedTemplate().lines[0][1],9,'Cada instancia tiene sus propias líneas');
+const ficha=fs.readFileSync(__dirname+'/../modules/ficha.html','utf8'),newBudgetSource=ficha.split('\n').find(line=>line.trim().startsWith("newBudget=function(type='libre')"));
+ctx.nextBudgetId=()=>2;ctx.persistBudgets=()=>{};ctx.renderBudgetCards=()=>{};ctx.selectBudget=()=>{};ctx.document.querySelector=()=>({click(){}});
+vm.runInContext(newBudgetSource,ctx);ctx.newBudget('radiculopatia_simple');
+assert.equal(ctx.budgets.length,2);assert.equal(ctx.budgets[0].template,'radiculopatia_simple');assert.equal(ctx.budgets[0].status,'Borrador');assert.equal(ctx.budgets[0].lines.length,13);assert.equal(ctx.budgets[0].notes,'');assert.equal(ctx.budgets[0].discount,0);assert.equal(ctx.budgets[0].payments.length,0);assert.equal(JSON.stringify(ctx.budgets[1]),savedBefore);
+ctx.budgets[0].lines[0][1]=20;assert.equal(ctx.budgetTemplates.radiculopatia_simple.lines[0][1],9,'Editar un presupuesto no cambia la plantilla');
+console.log('Plantilla combinada: 13 terapias, transcraneal 10, total 6.480 €, recarga, creación real en borrador y presupuestos anteriores intactos.');
