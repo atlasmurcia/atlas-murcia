@@ -13,6 +13,10 @@
  }
  function sessions(service){
   const value=key(service.name);
+  if(/^brains?way(?:terapiatranscraneal)?$/.test(value))return 10;
+  if(value==='fisioavanzada')return 6;
+  const mbst=value.match(/^mbst(?:flex|osteospin)?(artrosis|disco|hueso|ligamento|musculo|nervios?|osteoporosis|postcirugia|tendon)$/);
+  if(mbst)return mbst[1]==='osteoporosis'?10:9;
   if(physicalm(service.name))return 6;
   if(['robot','attrobotic','robotatt','attrobot','robottraccion','traccionrobotica','vacu','vacusport'].includes(value))return 10;
   return service.sessions;
