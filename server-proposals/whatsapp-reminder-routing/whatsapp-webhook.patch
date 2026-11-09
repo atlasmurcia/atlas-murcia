@@ -1,0 +1,146 @@
+--- a/index.ts
++++ b/index.ts
+@@ -1,6 +1,6 @@
+ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+-import { reminderResponseKind, selectReminderAppointments } from "./reminder-confirmation.mjs";
++import { reminderResponseKind, selectReminderAppointments, isExplicitReminderConfirmation, isActiveRebook } from "./reminder-confirmation.mjs";
+ 
+ const jsonHeaders = { "content-type": "application/json" };
+ const CLINIC = "0b741520-b7dc-48a2-9f79-3ef6b74258d4";
+@@ -235,7 +235,7 @@
+   const now = new Date().toISOString(), saved = await db.from("whatsapp_messages").insert({ organization_id: connection.organization_id, clinic_id: connection.clinic_id, conversation_id: conversation.id, patient_id: conversation.patient_id || null, direction: "outbound", message_type: "interactive", body: "Horarios disponibles para reagendar", provider_message_id: data?.messages?.[0]?.id || null, status: "sent", sent_at: now, payload: { request: graphBody, response: data } }).select().single(); if (saved.error) throw saved.error; await db.from("whatsapp_conversations").update({ last_message_at: now, last_message_preview: "Horarios disponibles para reagendar", updated_at: now }).eq("id", conversation.id);
+ }
+ async function handleCancellationRebook(connection: any, conversation: any, inbound: any) {
+-  const context = conversation.metadata?.rebook; if (!context || context.expiresAt && new Date(context.expiresAt).getTime() < Date.now()) return;
++  const context = conversation.metadata?.rebook; if (!isActiveRebook(context)) return;
+   const text = textReply(inbound), normalized = normalizedReply(text); if (!normalized) return;
+   const leadQ = await db.from("leads").select("*").eq("id", context.leadId).eq("clinic_id", connection.clinic_id).is("deleted_at", null).maybeSingle(); if (leadQ.error) throw leadQ.error; if (!leadQ.data) return;
+   const lead = leadQ.data;
+@@ -255,12 +255,12 @@
+   }
+ }
+ 
+-async function handleReminderConfirmation(connection: any, conversation: any, inbound: any) {
++async function handleReminderConfirmation(connection: any, conversation: any, inbound: any, priorityJobs: any[] = []) {
+   const text = textReply(inbound), normalized = normalizedReply(text), actionId = replyId(inbound);
+   const responseKind = reminderResponseKind(normalized, actionId);
+   if (!responseKind) return;
+   const rebook = conversation.metadata?.rebook;
+-  if (rebook && rebook.state && rebook.state !== "closed") return;
++  if (isActiveRebook(rebook) && !priorityJobs.length) return;
+   const selectedOption = await db.from("whatsapp_appointment_options").select("id").eq("clinic_id", connection.clinic_id).eq("conversation_id", conversation.id).eq("selected_message_id", inbound.id).maybeSingle();
+   if (selectedOption.error) throw selectedOption.error;
+   if (selectedOption.data) return;
+@@ -280,9 +280,9 @@
+   const now = new Date().toISOString(), recentReminderCutoff = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
+   // 3/11/2026: si el paciente pulsa el botón de un recordatorio concreto, WhatsApp manda el id de ese mensaje (context.id).
+   // Antes se cogía la cita más próxima de los recordatorios de 48 h, y quien recibía dos seguidos confirmaba la de hoy en vez de la de mañana.
+-  let appointments: any[] = [];
++  let appointments: any[] = selectReminderAppointments(priorityJobs, normalized);
+   const contextId = String(inbound?.payload?.context?.id || "").trim();
+-  if (contextId) {
++  if (!appointments.length && contextId) {
+     const repliedQ = await db.from("appointment_reminder_jobs").select("appointment_id,sent_at,appointment:appointments(id,starts_at,metadata,status)").eq("clinic_id", connection.clinic_id).eq("provider_message_id", contextId).gt("appointment_starts_at", now).limit(1);
+     if (repliedQ.error) throw repliedQ.error;
+     appointments = selectReminderAppointments(repliedQ.data || [], normalized);
+@@ -299,7 +299,7 @@
+     if (appointmentQ.error) throw appointmentQ.error;
+     if (appointmentQ.data) appointments = [appointmentQ.data];
+   }
+-  if (appointments.length) {
++  if (appointments.length && !contextId && !priorityJobs.length) {
+     const selectedDate = madridDate(appointments[0].starts_at);
+     const sameDayQ = await db.from("appointments").select("id,starts_at,metadata,status").eq("clinic_id", connection.clinic_id).eq("patient_id", patient.id).is("deleted_at", null).gt("starts_at", now).not("status", "in", "(cancelled,Cancelada)").order("starts_at", { ascending: true }).limit(50);
+     if (sameDayQ.error) throw sameDayQ.error;
+@@ -384,6 +384,52 @@
+   await bookSelectedOption(connection, conversation, option, freshLead);
+ }
+ 
++// Solo permite atravesar una reagendación si hay un recordatorio vigente y vinculado.
++async function reminderJobsDuringRebook(connection: any, conversation: any, inbound: any) {
++  if (!isActiveRebook(conversation.metadata?.rebook)) return [];
++  const normalized = normalizedReply(textReply(inbound)), actionId = replyId(inbound);
++  if (!reminderResponseKind(normalized, actionId)) return [];
++  const contextId = String(inbound?.payload?.context?.id || "").trim();
++  if (!contextId && !isExplicitReminderConfirmation(normalized, actionId)) return [];
++  if (!contextId) {
++    const selected = await db.from("whatsapp_appointment_options").select("id").eq("clinic_id", connection.clinic_id).eq("conversation_id", conversation.id).eq("status", "selected").gt("expires_at", new Date().toISOString()).limit(1).maybeSingle();
++    if (selected.error) throw selected.error;
++    if (selected.data) return [];
++  }
++  let patientId = conversation.patient_id;
++  if (!patientId) {
++    const patients = await db.from("patients").select("id").eq("clinic_id", connection.clinic_id).is("deleted_at", null).in("phone", patientPhoneVariants(conversation.contact_phone)).limit(2);
++    if (patients.error) throw patients.error;
++    if (patients.data?.length !== 1) return [];
++    patientId = patients.data[0].id;
++  }
++  const now = new Date().toISOString();
++  let query = db.from("appointment_reminder_jobs").select("appointment_id,patient_id,sent_at,appointment:appointments(id,patient_id,starts_at,metadata,status,deleted_at)").eq("clinic_id", connection.clinic_id).eq("patient_id", patientId).eq("phone", normalizePhone(conversation.contact_phone)).eq("status", "sent").gt("appointment_starts_at", now);
++  if (contextId) query = query.eq("provider_message_id", contextId);
++  else query = query.gte("sent_at", new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString());
++  const result = await query.order("sent_at", { ascending: false }).limit(20);
++  if (result.error) throw result.error;
++  const jobs = (result.data || []).filter((job: any) => {
++    const appointment = Array.isArray(job.appointment) ? job.appointment[0] : job.appointment;
++    return appointment?.patient_id === patientId && !appointment.deleted_at && new Date(appointment.starts_at).getTime() > Date.now() && !["cancelled", "cancelada", "completed", "completada"].includes(String(appointment.status || "").toLowerCase());
++  });
++  // Conservar el recordatorio exacto, o el día del envío más reciente si se respondió por texto.
++  const latestDay = jobs[0]?.sent_at && madridDate(jobs[0].sent_at);
++  return contextId ? jobs : jobs.filter((job: any) => job.sent_at && madridDate(job.sent_at) === latestDay);
++}
++
++async function handleInboundAutomations(connection: any, conversation: any, inbound: any, message: any) {
++  const priorityJobs = await reminderJobsDuringRebook(connection, conversation, inbound);
++  if (priorityJobs.length) {
++    await handleReminderConfirmation(connection, conversation, inbound, priorityJobs);
++    return;
++  }
++  await handleSelection(connection, conversation, inbound, message);
++  await handleSelectedReply(connection, conversation, inbound);
++  await handleCancellationRebook(connection, conversation, inbound);
++  await handleReminderConfirmation(connection, conversation, inbound);
++}
++
+ Deno.serve(async (req) => {
+   const url = new URL(req.url);
+   if (req.method === "GET") { const mode = url.searchParams.get("hub.mode"), token = url.searchParams.get("hub.verify_token"), challenge = url.searchParams.get("hub.challenge"); if (mode === "subscribe" && token && token === Deno.env.get("META_WHATSAPP_VERIFY_TOKEN")) return new Response(challenge || "", { status: 200 }); return new Response("Verification failed", { status: 403 }); }
+@@ -394,10 +440,7 @@
+     for (const entry of payload.entry || []) for (const change of entry.changes || []) { const value = change.value || {}, phoneNumberId = String(value?.metadata?.phone_number_id || ""); if (!phoneNumberId) continue; const connection = await connectionFor(phoneNumberId); if (!connection) continue; for (const message of value.messages || []) {
+       const saved = await saveInbound(connection, value, message);
+       if (connection.clinic_id === CLINIC && saved?.message) {
+-        await handleSelection(connection, saved.conversation, saved.message, message);
+-        await handleSelectedReply(connection, saved.conversation, saved.message);
+-        await handleCancellationRebook(connection, saved.conversation, saved.message);
+-        await handleReminderConfirmation(connection, saved.conversation, saved.message);
++        await handleInboundAutomations(connection, saved.conversation, saved.message, message);
+       }
+     } for (const status of value.statuses || []) await updateStatus(connection, status); await db.from("whatsapp_connections").update({ status: "connected", webhook_verified_at: new Date().toISOString(), last_error: null, updated_at: new Date().toISOString() }).eq("id", connection.id); }
+     return new Response(JSON.stringify({ ok: true }), { status: 200, headers: jsonHeaders });
+--- a/reminder-confirmation.mjs
++++ b/reminder-confirmation.mjs
+@@ -5,6 +5,7 @@
+   if (confirmedByButton) return true;
+   const text = String(normalizedText || "").trim();
+   if (!text || negativeWords.test(text)) return false;
++  if (text === "confirmar") return true;
+   if (/^(si|ok|vale|correcto|correcta)(?:\b|$)/.test(text)) return true;
+   if (confirmationWords.test(text)) return true;
+   return /\b(?:alli|ahi)\s+(?:estare|estaremos)\b/.test(text);
+@@ -64,3 +65,15 @@
+   }
+   return [unique[0]];
+ }
++
++// Los «sí/ok/vale» sin contexto pertenecen al flujo que ya estaba abierto.
++export function isExplicitReminderConfirmation(text, actionId = "") {
++  return reminderResponseKind(text, actionId) === "confirmed" &&
++    (/^(?:atlas[-_:])?confirm(?:ar)?[-_:]?cita$/i.test(String(actionId).trim()) || String(text).trim() === "confirmar" || confirmationWords.test(String(text)));
++}
++
++export function isActiveRebook(rebook, now = Date.now()) {
++  if (!rebook?.state || rebook.state === "closed") return false;
++  const expiresAt = Date.parse(rebook.expiresAt || "");
++  return !Number.isFinite(expiresAt) || expiresAt >= now;
++}

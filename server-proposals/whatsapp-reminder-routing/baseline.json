@@ -1,0 +1,10 @@
+{
+  "project_id": "zaskiakmwicvhkwyleof",
+  "function_slug": "whatsapp-webhook",
+  "version": 22,
+  "ezbr_sha256": "d4462fcfe5b14b2b8723804ef378884c527eb468b87316bc318600960b791e40",
+  "files_sha256": {
+    "index.ts": "4537a93a2354ef2d67c9a4f62f9f182a2397e74f47b039c60b1866b8e3847025",
+    "reminder-confirmation.mjs": "c97165e9dcc8ec053e80cc11ad90ae479c6b092bf4fdc7736d4a145c0975bad1"
+  }
+}
