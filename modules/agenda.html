@@ -712,8 +712,12 @@ function initSelect(id,arr,blank=''){
 initSelect('patientFilter',patients,'Todos los pacientes');
 initSelect('mTherapy',therapies); initSelect('mResource',resources); initSelect('mProfessional',['',...professionals]);
 initSelect('wProfessional',['Cualquiera',...professionals]);initSelect('wService',['Cualquiera',...therapies]);initSelect('pfService',therapies,'Todos los servicios');
+function orderedAppointmentTherapies(names){
+ const collator=new Intl.Collator('es',{sensitivity:'base',numeric:true}),priority=name=>{const value=String(name||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toLowerCase();return /^(?:1[ªºao]?\s*|primera\s+)consulta(?:\s|$)/.test(value)?0:/^valoracion(?:\s|$)/.test(value)?1:2};
+ return [...names].sort((a,b)=>priority(a)-priority(b)||collator.compare(a,b));
+}
 function buildMultiSelectors(){
- document.getElementById('mServicesOptions').innerHTML=therapies.map(t=>`<label><input type="checkbox" value="${t}">${t}</label>`).join('');
+ document.getElementById('mServicesOptions').innerHTML=orderedAppointmentTherapies(therapies).map(t=>`<label><input type="checkbox" value="${t}">${t}</label>`).join('');
  const checks=resources.map(r=>`<label><input type="checkbox" value="${r}">${r}</label>`).join('');
  document.getElementById('mResourcesOptions').innerHTML='';document.getElementById('blockResources').innerHTML=checks;
 }
@@ -6288,7 +6292,7 @@ body.side-collapsed #sideEdge{display:block}
  window.renderServiceChecks=function(){
   const box=document.getElementById('mServicesOptions');if(!box||typeof therapies==='undefined')return;
   const checked=new Set(checkedValues('#mServices input')),extra=[...checked].filter(value=>!therapies.includes(value));
-  box.innerHTML=[...therapies,...extra].map(name=>'<label><input type="checkbox" value="'+esc(name)+'"'+(checked.has(name)?' checked':'')+'>'+esc(name)+'</label>').join('');
+  box.innerHTML=orderedAppointmentTherapies([...therapies,...extra]).map(name=>'<label><input type="checkbox" value="'+esc(name)+'"'+(checked.has(name)?' checked':'')+'>'+esc(name)+'</label>').join('');
   if(typeof initSelect==='function'){const keep=['mTherapy','wService','pfService'].map(id=>[id,document.getElementById(id)?.value]);initSelect('mTherapy',therapies);initSelect('wService',['Cualquiera',...therapies]);initSelect('pfService',therapies,'Todos los servicios');keep.forEach(([id,value])=>{const select=document.getElementById(id);if(select&&value&&[...select.options].some(option=>option.value===value))select.value=value})}
   if(typeof updateMultiSummaries==='function')updateMultiSummaries();
  };
