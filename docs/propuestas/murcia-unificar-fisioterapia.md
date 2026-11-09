@@ -1,6 +1,8 @@
 # Propuesta: retirar servicios y unificar Fisioterapia en Murcia
 
-Estado: PROPUESTA PARA REVISIÓN. No aplicada.
+Estado: CAMBIO APLICADO EN LA BASE DE DATOS, con comprobación posterior. Pendiente de validación visual en ATLAS.
+
+Tras la revisión de la propuesta y la confirmación expresa de Rubén en la conversación, se aplicó el ajuste de catálogo y la conversión acordada de citas futuras pendientes. La operación comprobó que solo se cambiaron los servicios previstos, conservando los horarios y los demás campos de las citas, así como las demás citas de la clínica. No se modificaron código de ejecución, protecciones del servidor ni FlowAtlas.
 Este documento no ejecuta cambios. Su fusión no modifica la base de datos ni FlowAtlas.
 
 ## Resultado solicitado por el equipo
@@ -25,9 +27,9 @@ modules/agenda.html contiene el catálogo sales.services:
 
 Por ello, la propuesta es desactivar las entradas existentes, conservando sus referencias para el historial, y cambiar la duración predeterminada de FISIOAVANZADA. No borrar el registro de Fisioterapia, porque el inicializador puede recrearlo.
 
-## Aplicación pendiente de revisión humana
+## Procedimiento acordado
 
-Las instrucciones de CLAUDE.md reservan a Rubén los cambios de datos.
+Las instrucciones de CLAUDE.md reservan a Rubén los cambios de datos. Rubén confirmó la aplicación del alcance revisado. Los puntos 1 a 4 se aplicaron con comprobaciones transaccionales; los puntos 5 y 6 y la validación visual quedan pendientes.
 
 1. Revisar el catálogo de Murcia en el sistema autorizado y desactivar ACUPUNTURA y Fisioterapia. Mantener FISIOAVANZADA activo con duration=30 y conservar las condiciones económicas existentes.
 2. Revisar las citas futuras pendientes del servicio exacto Fisioterapia y sustituir exclusivamente ese servicio por FISIOAVANZADA. Conservar sus horas de inicio y fin, profesionales, recursos y demás servicios.
@@ -45,4 +47,4 @@ Las instrucciones de CLAUDE.md reservan a Rubén los cambios de datos.
 - El historial, los demás servicios, cobros y facturas permanecen iguales.
 - Completar la revisión visual con datos sintéticos y la verificación posterior en el sistema autorizado.
 
-Este PR contiene únicamente la propuesta operativa. No incluye datos extraídos de pacientes, recuentos de actividad ni identificadores internos de la base de datos. No se han realizado escrituras en Supabase.
+Este PR contiene únicamente la propuesta operativa. No incluye datos extraídos de pacientes, recuentos de actividad ni identificadores internos de la base de datos. El ajuste se aplicó en el sistema autorizado; este documento no lo ejecuta ni contiene datos privados de actividad.
