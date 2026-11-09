@@ -4608,12 +4608,13 @@ function printInvoice(x,openedWindow){const issuer=x.issuer||{},recipient=x.reci
   field.querySelector('b').textContent='Terapeutas disponibles';
   field.querySelector('.small.muted').textContent='Al seleccionar un terapeuta se reservará automáticamente el tiempo necesario en su columna.';
   box.innerHTML=selected.map(service=>{
-   let options=qualifiedProfessionals(service).filter(professional=>professionalAvailableForService(professional,service));
+   const physicalmDynamic=physicalmMode(service)==='dynamic';
+   let options=qualifiedProfessionals(service).filter(professional=>physicalmDynamic||professionalAvailableForService(professional,service));
    const primaryService=service===document.getElementById('mTherapy').value;
-   if(lockedProfessionalContext&&primaryService)options=options.filter(professional=>professional===lockedProfessionalContext);
+   if(lockedProfessionalContext&&primaryService&&!physicalmDynamic)options=options.filter(professional=>professional===lockedProfessionalContext);
    const requested=assignments[service]||previous[service]||(primaryService?lockedProfessionalContext:'')||'',chosen=options.includes(requested)?requested:'';
    const duration=therapyProfessionalDurations[service]??Number(document.getElementById('mDuration').value||0);
-   return `<label class="therapist-row"><span><b>${service}</b><br><span class="atlas-therapist-availability">${options.length?options.length+' terapeuta(s) disponible(s) · '+(duration>0?'reserva de '+duration+' min':'no bloquea la agenda del fisio'):'No hay terapeutas disponibles en este horario'}</span></span><select data-service="${service}"><option value="">Seleccionar terapeuta disponible</option>${options.map(professional=>`<option value="${professional}" ${professional===chosen?'selected':''}>${professional}</option>`).join('')}</select></label>`;
+   return `<label class="therapist-row"><span><b>${service}</b><br><span class="atlas-therapist-availability">${options.length?options.length+(physicalmDynamic?' profesionales · ':' terapeuta(s) disponible(s) · ')+(duration>0?'reserva de '+duration+' min':'no bloquea la agenda del fisio'):'No hay terapeutas disponibles en este horario'}</span></span><select data-service="${service}"><option value="">Seleccionar terapeuta disponible</option>${options.map(professional=>`<option value="${professional}" ${professional===chosen?'selected':''}>${professional}</option>`).join('')}</select></label>`;
   }).join('');
   box.querySelectorAll('select').forEach(select=>select.addEventListener('change',()=>{if(professionalSelect)professionalSelect.value=select.value;syncNonBlockingTherapistColumns();refreshProfessionalReservationInfo();refreshForceWarning()}));
   syncNonBlockingTherapistColumns();
