@@ -169,7 +169,7 @@ header{height:58px!important;background:#fff!important;border-bottom:1px solid #
     </div>
   </div>
   <div class="actions">
-    <button class="primary" id="openPatientRecordBtn">👤 Abrir ficha del paciente</button><button class="primary" id="chargeAppointmentBtn">💳 Cobrar</button><button id="appointmentReceiptBtn" class="hidden">🧾 Justificante</button><button class="primary" id="doneBtn">✓ Realizada</button>
+    <button class="primary" id="openPatientRecordBtn">👤 Abrir ficha del paciente</button><button type="button" class="primary" id="openAppointmentBodyMapBtn" title="Consultar dónde va cada equipo en el mapa guardado del paciente">📍 Mapa corporal</button><button class="primary" id="chargeAppointmentBtn">💳 Cobrar</button><button id="appointmentReceiptBtn" class="hidden">🧾 Justificante</button><button class="primary" id="doneBtn">✓ Realizada</button>
     <button id="pendingBtn">↶ Marcar pendiente</button>
     <button id="moveBtn">✏️ Mover / editar cita</button>
     <button id="receiveBtn">🔔 Ha llegado</button>
@@ -2011,6 +2011,21 @@ document.getElementById('newBtn').onclick=()=>{
  openModal();
 };
 document.getElementById('openPatientRecordBtn').onclick=()=>{const appointment=appointments.find(x=>x.id===selectedId);if(!appointment)return;const patient=linkedPatientForAppointment(appointment);if(!patient)return alert('Esta cita no tiene una ficha de paciente vinculada.');document.getElementById('drawer').classList.remove('open');openPatientRecord(patient.code)};
+document.getElementById('openAppointmentBodyMapBtn').onclick=async function(){
+ const a=appointments.find(item=>String(item.id)===String(selectedId));if(!a)return;
+ const remoteId=String(a.patientRemoteId||a.patient_id||''),code=String(a.patientCode||'');
+ if(!remoteId&&!code)return alert('Esta cita no tiene un identificador de paciente. Vincula primero su ficha para consultar el mapa corporal.');
+ this.disabled=true;
+ try{
+  let patient=remoteId?patientMaster.find(p=>String(p.remoteId||'')===remoteId):patientByCode(code);
+  if(!patient?.remoteId){if(typeof window.atlasCentralRequest!=='function')throw new Error('El servidor todavía no está conectado. Vuelve a intentarlo.');const row=await window.atlasCentralRequest('patients:resolve',remoteId?{id:remoteId}:{patientNumber:code});patient=patientFromResolvedRow(row)}
+  if(!patient?.remoteId||(remoteId&&String(patient.remoteId)!==remoteId)||(!remoteId&&String(patient.code)!==code))throw new Error('No se ha podido confirmar la ficha vinculada a esta cita.');
+  if(String(selectedId)!==String(a.id))return;
+  const list=appointments.filter(item=>String(item.patientRemoteId||item.patient_id||'')===String(patient.remoteId)||(!item.patientRemoteId&&!item.patient_id&&patient.code&&String(item.patientCode||'')===String(patient.code)));
+  document.getElementById('drawer').classList.remove('open');
+  parent.postMessage({type:'atlas:patient-selected',openFicha:true,patient:{...patient},appointments:list,targetPanel:'mapaCorporal'},'*');
+ }catch(error){if(String(selectedId)===String(a.id))alert('No se pudo abrir el mapa corporal: '+error.message)}finally{this.disabled=false}
+};
 document.getElementById('saveAppointmentCommentBtn').onclick=async function(){
  const a=appointments.find(x=>String(x.id)===String(selectedId));if(!a)return;
  const comment=document.getElementById('appointmentCommentInput').value.trim(),status=document.getElementById('appointmentCommentStatus'),button=this;
