@@ -245,13 +245,30 @@ async function atlasAllRows(make){const rows=[];for(let from=0;from<30000;from+=
         result={data:{ok:result.data?.ok,message:result.data?.message},error:null};
       }else if(m.action==='whatsapp:send'){
         if(isAgendaReminderReply&&(!(['owner','administrator','reception'].includes(context.role)||context.permissions?.patients_write===true)||!p.patientId))throw new Error('No tienes permiso para responder desde los recordatorios.');
+        const murciaReopenTemplate=!isAgendaReminderReply&&context.clinicId==='0b741520-b7dc-48a2-9f79-3ef6b74258d4'&&p.template?.name==='atlas_murcia_contacto_lead_v2'&&!!p.leadId;
+        if(p.template&&!murciaReopenTemplate)throw new Error('La plantilla solicitada no está autorizada para esta conversación.');
         if(p.aiDraftId){const checked=await db.functions.invoke('atlas-ai-draft',{body:{action:'validate',clinicId:context.clinicId,leadId:p.leadId,conversationId:p.conversationId,runId:p.aiDraftId}});if(checked.error||checked.data?.valid!==true)throw new Error('La conversación ha cambiado o el borrador ya no está disponible. Actualiza y revisa una nueva respuesta.');}
-        const text=String(p.text||'').trim();if(!text||text.length>4096)throw new Error('Escribe un mensaje de hasta 4096 caracteres.');
+        let text=String(p.text||'').trim();if(!murciaReopenTemplate&&(!text||text.length>4096))throw new Error('Escribe un mensaje de hasta 4096 caracteres.');
         const conv=await scoped(db.from('whatsapp_conversations').select('id,contact_phone,contact_name,patient_id,metadata')).eq('id',p.conversationId).single();if(conv.error)throw conv.error;
-        if(isAgendaReminderReply&&(String(conv.data.patient_id)!==String(p.patientId)||conv.data.metadata?.no_contact===true))throw new Error('La conversación no corresponde al paciente o no permite nuevos contactos.');
+        if(conv.data.metadata?.no_contact===true)throw new Error('Este contacto ha pedido que no le contactemos.');
+        if(isAgendaReminderReply&&String(conv.data.patient_id)!==String(p.patientId))throw new Error('La conversación no corresponde al paciente o no permite nuevos contactos.');
+        let template=null;
+        if(murciaReopenTemplate){
+          const linked=await db.rpc('atlas_wa_lead_context',{target_lead:p.leadId});if(linked.error)throw linked.error;
+          if(linked.data?.lead?.clinic_id!==context.clinicId||linked.data?.lead?.organization_id!==context.organizationId||linked.data?.conversation?.id!==conv.data.id)throw new Error('La conversación no corresponde a este lead de Murcia.');
+          if(linked.data.lead.metadata?.no_contact===true)throw new Error('Este contacto ha pedido que no le contactemos.');
+          const rawName=String(linked.data.lead.first_name||'').trim().split(/\s+/)[0],normalizedName=rawName.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase(),badNames=new Set(['te','test','prueba','hola','si','no','lead','meta','desconocido','desconocida']);
+          const name=rawName.length>=2&&rawName.length<=30&&!badNames.has(normalizedName)&&!/\d|@|https?:/i.test(rawName)&&/\p{L}/u.test(rawName)?rawName.charAt(0).toUpperCase()+rawName.slice(1).toLowerCase():'👋';
+          text=`Hola ${name}, soy del equipo de FisioSport Murcia. Hemos recibido tu solicitud de información y queremos ayudarte. Te llamaremos en breve; si prefieres, dinos aquí el mejor momento para hacerlo.`;
+          template={name:'atlas_murcia_contacto_lead_v2',language:'es_ES',components:[{type:'body',parameters:[{type:'text',text:name}]}]};
+          const recent=await scoped(db.from('whatsapp_messages').select('payload,created_at')).eq('conversation_id',conv.data.id).eq('direction','outbound').eq('message_type','template').gte('created_at',new Date(Date.now()-600000).toISOString()).order('created_at',{ascending:false}).limit(1).maybeSingle();if(recent.error)throw recent.error;
+          if(recent.data?.payload?.request?.template?.name==='atlas_murcia_contacto_lead_v2')throw new Error('La plantilla ya se ha enviado. Espera la respuesta del paciente antes de repetirla.');
+        }
         const incoming=await scoped(db.from('whatsapp_messages').select('created_at,sent_at')).eq('conversation_id',conv.data.id).eq('direction','inbound').order('created_at',{ascending:false}).limit(1).maybeSingle();if(incoming.error)throw incoming.error;
-        if(!incoming.data||Date.now()-new Date(incoming.data.sent_at||incoming.data.created_at).getTime()>=86400000)throw new Error('Han pasado 24 horas desde el último mensaje recibido. Hace falta una plantilla aprobada para iniciar otro contacto.');
-        result=await db.functions.invoke('whatsapp-send',{body:{clinicId:context.clinicId,to:conv.data.contact_phone,patientId:conv.data.patient_id,patientName:conv.data.contact_name,leadId:p.leadId||null,conversationId:conv.data.id,text,interactive:p.interactive||null}});
+        const openWindow=!!incoming.data&&Date.now()-new Date(incoming.data.sent_at||incoming.data.created_at).getTime()<86400000;
+        if(!openWindow&&!murciaReopenTemplate)throw new Error('Han pasado 24 horas desde el último mensaje recibido. Hace falta una plantilla aprobada para iniciar otro contacto.');
+        if(openWindow&&murciaReopenTemplate)throw new Error('La conversación ya está abierta: responde con un mensaje normal.');
+        result=await db.functions.invoke('whatsapp-send',{body:{clinicId:context.clinicId,to:conv.data.contact_phone,patientId:conv.data.patient_id,patientName:conv.data.contact_name,leadId:p.leadId||null,conversationId:conv.data.id,text,template,interactive:murciaReopenTemplate?null:p.interactive||null}});
         if(result.error){let detail;try{detail=await result.error.context?.json()}catch{}throw new Error(detail?.error||result.error.message||'No se ha podido confirmar el envío. Revisa el historial antes de repetirlo.');}
         result={data:{ok:result.data?.ok,message:result.data?.message},error:null};
       }else throw new Error('Acción de mensajería no disponible.');
