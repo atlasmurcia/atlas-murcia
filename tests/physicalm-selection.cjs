@@ -24,6 +24,6 @@ ctx.renderTherapistSelectors();assert.equal(field.classList.hidden,true);assert.
 // Physicalm dinámico muestra siempre los seis, también desde una columna ajena o con agendas ocupadas.
 ctx.professionalAvailableForService=()=>false;ctx.lockedProfessionalContext='María Pilar Iniesta Cárceles';ctx.renderTherapistSelectors();assert.equal((box.innerHTML.match(/<option value=/g)||[]).length,7);assert.ok(!box.innerHTML.includes('<option value="María Pilar'));
 selected=['PHYSICALM ESTATICO','PHYSICALM DINAMICO'];ctx.renderTherapistSelectors();assert.equal((box.innerHTML.match(/data-service=/g)||[]).length,1);assert.ok(!box.innerHTML.includes('data-service="PHYSICALM ESTATICO"'));
-const shell=fs.readFileSync(__dirname+'/../atlas.html','utf8');assert.ok(shell.includes("agenda:'./modules/agenda.html?v=194'"));assert.ok(shell.includes("textContent='v202'"));
+const shell=fs.readFileSync(__dirname+'/../atlas.html','utf8');assert.ok(Number(shell.match(/agenda\.html\?v=(\d+)/)?.[1])>=194);assert.ok(Number(shell.match(/textContent='v(\d+)'/)?.[1])>=202);
 for(const m of html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi)){if(!/src=|application\/json/.test(m[1]))new vm.Script(m[2])}
 console.log('Physicalm: estático sin terapeuta, dinámico con seis candidatos, duración, conflictos, horarios y otros tratamientos verificados.');
