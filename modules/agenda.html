@@ -3139,19 +3139,19 @@ window.sendPaymentDocumentsAutomatically=function(paymentId,patientName){central
  for(const type of ['pointerdown','click','dblclick','keydown','change','drop','submit'])document.addEventListener(type,()=>{userEditing=true;setTimeout(()=>{userEditing=false},0)},true);
  // Un tiempo agotado no demuestra que una escritura haya fallado. Consultar su huella exacta.
  function request(action,payload={}){return new Promise((resolve,reject)=>{
-  const requestId='appointment-'+Date.now()+'-'+(++seq);
+  const requestId='appointment-'+Date.now()+'-'+(++seq);let probeTimer=null,verification=null;
   const uncertain=()=>Object.assign(new Error('El servidor aún no ha confirmado la operación. Mantén el formulario abierto y comprueba el estado antes de repetirla.'),{code:'APPOINTMENT_SAVE_UNCONFIRMED'});
-  const finish=(ok,value)=>{if(!pending.has(requestId))return;const item=pending.get(requestId);pending.delete(requestId);clearTimeout(item.timer);ok?resolve(value):reject(value)};
+  const finish=(ok,value)=>{if(!pending.has(requestId))return;const item=pending.get(requestId);pending.delete(requestId);clearTimeout(item.timer);clearTimeout(probeTimer);ok?resolve(value):reject(value)};
+  const verify=()=>verification||(verification=request('appointments:verifyWrite',{rows:payload.rows||[]}).then(saved=>{
+   if(Array.isArray(saved)&&saved.length===(payload.rows||[]).length&&saved.length&&saved.every(row=>row.id&&row.updated_at)){finish(true,saved);return true}return false;
+  }).catch(()=>false).finally(()=>{verification=null}));
   const timer=setTimeout(async()=>{
    if(action!=='appointments:upsertMany'){finish(false,new Error('La agenda central no respondió a tiempo.'));return}
    tell('El servidor está tardando. Comprobando si la cita ya está guardada…','warn');
-   try{
-    const saved=await request('appointments:verifyWrite',{rows:payload.rows||[]});
-    if(Array.isArray(saved)&&saved.length===(payload.rows||[]).length&&saved.length&&saved.every(row=>row.id&&row.updated_at))finish(true,saved);
-    else finish(false,uncertain());
-   }catch(error){finish(false,uncertain())}
-  },60000);
+   if(!await verify())finish(false,uncertain());
+  },action==='appointments:verifyWrite'?10000:60000);
   pending.set(requestId,{resolve:value=>finish(true,value),reject:error=>finish(false,error),timer});
+  if(action==='appointments:upsertMany')probeTimer=setTimeout(()=>{if(!pending.has(requestId))return;tell('Comprobando el guardado de la cita…','warn');void verify()},15000);
   parent.postMessage({type:'atlas:central-db-request',requestId,action,payload},'*');
  })}
 
