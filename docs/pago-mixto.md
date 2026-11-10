@@ -2,6 +2,10 @@
 
 Cambio preparado para Murcia. Requiere validación e instalación del soporte de servidor antes de fusionar/publicar.
 
+## Solo nuevos cobros
+
+La activación se limita a registros de cobro nuevos. No hay migración, recálculo ni actualización de pacientes ya cobrados, importes, métodos, fechas, autoría, recibos o facturas anteriores. Al reintentar una venta ya registrada, el puente solo recupera su recibo y su factura: no vuelve a atribuir ni actualizar el pago existente. La fecha de una cita anterior no convierte un cobro ya registrado en un cobro nuevo.
+
 ## Alcance
 
 «Cobrar cita», «Pagar presupuesto» y «Generar venta independiente» permiten «Pago mixto»: dos métodos diferentes y dos importes positivos, de hasta dos decimales. La suma tiene que coincidir exactamente con lo que se cobra ahora, después de descuentos y anticipos.
