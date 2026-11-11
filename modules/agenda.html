@@ -4480,6 +4480,7 @@ if(window.ATLAS_CHILD_CENTRAL_CONTEXT)apply(window.ATLAS_CHILD_CENTRAL_CONTEXT);
  const baseRefreshWaitlist=window.refreshWaitlist;let editingWaitId='';
  window.refreshWaitlist=function(){baseRefreshWaitlist();const sorted=[...waitlist].sort((a,b)=>(a.status==='Activa'?0:1)-(b.status==='Activa'?0:1)||b.createdAt.localeCompare(a.createdAt));document.querySelectorAll('#waitlistList .waitlist-row').forEach((row,i)=>{const actions=row.querySelector('.actions'),x=sorted[i];if(actions&&x&&!actions.querySelector('.atlas-edit-wait')){const b=document.createElement('button');b.className='atlas-edit-wait';b.textContent='Modificar preferencias';b.onclick=()=>atlasEditWaitlist(x.id);actions.prepend(b)}})};
  window.atlasEditWaitlist=function(id){const x=waitlist.find(w=>w.id===id);if(!x)return;editingWaitId=id;wPatient.value=x.patient;wPatientCode.value=x.patientCode||'';wProfessional.value=x.professional;wService.value=x.service;renderWaitlistServiceOptions(waitlistServices(x));wStartDate.value=x.startDate;wEndDate.value=x.endDate;wStartTime.value=x.startTime;wEndTime.value=x.endTime;wDuration.value=x.duration;wBookedDate.value=x.bookedDate||'';wNotes.value=x.notes||'';waitForm.classList.remove('hidden');waitForm.scrollIntoView({behavior:'smooth',block:'start'})};
+ window.atlasGetEditingWaitlistId=()=>editingWaitId;window.atlasClearEditingWaitlistId=()=>{editingWaitId=''};
  const originalWaitSave=window.saveWaitlistEntry;
  window.saveWaitlistEntry=function(){if(!editingWaitId)return originalWaitSave();const x=waitlist.find(w=>w.id===editingWaitId);if(!x)return;Object.assign(x,{patientCode:wPatientCode.value,patient:wPatient.value.trim(),professional:wProfessional.value,service:readWaitlistServices()[0]||'Cualquiera',services:readWaitlistServices(),startDate:wStartDate.value,endDate:wEndDate.value||wStartDate.value,startTime:wStartTime.value,endTime:wEndTime.value,duration:Number(wDuration.value),bookedDate:wBookedDate.value,notes:wNotes.value.trim(),updatedAt:new Date().toISOString()});editingWaitId='';save();waitForm.classList.add('hidden');refreshWaitlist()};saveWaitBtn.onclick=window.saveWaitlistEntry;
 
@@ -6366,4 +6367,5 @@ body.side-collapsed #sideEdge{display:block}
 })();
 </script>
 <script src="./centre-presence.js?v=1"></script>
+<script src="./agenda-waitlist-central.js?v=1"></script>
 </body></html>
