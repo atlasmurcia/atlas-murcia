@@ -22,6 +22,7 @@ create index if not exists atlas_waitlist_entries_clinic_active_idx
   where deleted_at is null;
 
 alter table public.atlas_waitlist_entries enable row level security;
+revoke all on public.atlas_waitlist_entries from anon, public;
 grant select, insert, update on public.atlas_waitlist_entries to authenticated;
 
 drop policy if exists atlas_waitlist_entries_read on public.atlas_waitlist_entries;

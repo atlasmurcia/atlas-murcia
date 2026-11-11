@@ -46,7 +46,7 @@
   loadShared().catch(error=>{console.error('No se pudo cargar la lista compartida',error);if(!syncReady)list.innerHTML='<div class="callout">No se ha podido cargar la lista desde el servidor. No se muestra como vacía. Comprueba la conexión y vuelve a abrir la lista.</div>';setNotice('Error de conexión: no se han confirmado los datos compartidos.',true)});
  }
  const baseBookFromWaitlist=window.bookFromWaitlist;
- window.openWaitlist=showOpen;
+ window.openWaitlist=showOpen;const waitlistButton=document.getElementById('waitlistBtn');if(waitlistButton)waitlistButton.onclick=showOpen;
  window.saveWaitlistEntry=async function(){
   if(!syncReady||writeBusy)return alert('Espera a que termine de cargar la lista compartida.');
   const editingId=window.atlasGetEditingWaitlistId?.()||'',previous=waitlist.find(entry=>String(entry.id)===String(editingId)),code=document.getElementById('wPatientCode').value,patient=patientByCode(code),patientText=document.getElementById('wPatient').value.trim();

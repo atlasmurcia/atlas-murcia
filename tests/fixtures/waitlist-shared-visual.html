@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Prueba visual sintética · ATLAS Murcia</title>
+<style>
+body{margin:0;font:14px system-ui,sans-serif;background:#f2f6f7;color:#163742}
+header{padding:12px 18px;background:#fff;border-bottom:1px solid #cbd5d8;position:sticky;top:0;z-index:10}
+header strong{display:block;font-size:16px}header span{color:#52666c}
+iframe{width:100%;height:calc(100vh - 57px);border:0;background:#fff}
+</style>
+</head>
+<body>
+<header><strong>Prueba visual aislada</strong><span>Entorno simulado · solo datos sintéticos · sin conexión a Supabase</span></header>
+<iframe id="atlasAgenda" src="/modules/agenda.html?v=198" title="Agenda ATLAS de prueba"></iframe>
+<script>
+(()=>{
+ const frame=document.getElementById('atlasAgenda');
+ const context={organizationId:'org-synthetic-visual',clinicId:'clinic-synthetic-visual',userId:'user-synthetic-visual'};
+ const entries=[{id:'W-SYN-001',patientCode:'SYN-001',patient:'Paciente sintético de prueba',phone:'000000000',professional:'Cualquiera',service:'Fisioterapia',services:['Fisioterapia'],startDate:'2026-11-11',endDate:'2026-11-12',startTime:'09:00',endTime:'13:00',duration:30,bookedDate:'',notes:'Preferencia de prueba visual',status:'Activa',createdAt:'2026-11-11T08:00:00.000Z'}];
+ frame.addEventListener('load',()=>frame.contentWindow.postMessage({type:'atlas:central-ready',...context},'*'));
+ window.addEventListener('message',event=>{
+  if(event.source!==frame.contentWindow||event.data?.type!=='atlas:central-db-request')return;
+  const message=event.data,payload=message.payload||{};let data=[];
+  if(message.action==='waitlist:list')data=entries.filter(entry=>!entry.deleted).map(entry=>({...entry}));
+  else if(message.action==='waitlist:import'){for(const entry of payload.entries||[])if(!entries.some(row=>row.id===entry.id))entries.push({...entry});}
+  else if(message.action==='waitlist:save'){const i=entries.findIndex(entry=>entry.id===payload.entry?.id);if(i<0)entries.push({...payload.entry});else entries[i]={...payload.entry};}
+  else if(message.action==='waitlist:delete'){const entry=entries.find(row=>row.id===payload.id);if(entry)entry.deleted=true;}
+  else if(message.action==='patients:list')data=[];
+  event.source.postMessage({type:'atlas:central-db-response',requestId:message.requestId,ok:true,data},'*');
+ });
+})();
+</script>
+</body>
+</html>
