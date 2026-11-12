@@ -206,7 +206,7 @@ async function atlasAllRows(make){const rows=[];for(let from=0;from<30000;from+=
       const isAgendaTest=m.action==='whatsapp:testConfirmationButton'&&e.source===agenda?.contentWindow&&e.origin===location.origin;
       const isAgendaReminderConversation=m.action==='whatsapp:reminderConversation'&&e.source===agenda?.contentWindow&&e.origin===location.origin;
       const isAgendaReminderReply=m.action==='whatsapp:send'&&e.source===agenda?.contentWindow&&e.origin===location.origin&&m.payload?.reminderReply===true;
-      if(!isAgendaTest&&!isAgendaReminderConversation&&!isAgendaReminderReply&&(e.source!==capture?.contentWindow||e.origin!=='https://flowatlas-embudo-captacion.green-fern-6456.chatgpt.site'))throw new Error('Origen de mensajería no autorizado.');
+      if(!isAgendaTest&&!isAgendaReminderConversation&&!isAgendaReminderReply&&(e.source!==capture?.contentWindow||e.origin!=='https://flowatlas-murcia.green-fern-6456.chatgpt.site'))throw new Error('Origen de mensajería no autorizado.');
       const scoped=q=>q.eq('organization_id',context.organizationId).eq('clinic_id',context.clinicId),p=m.payload||{};
       if(['whatsapp:aiStatus','whatsapp:aiCatalog','whatsapp:aiHistory','whatsapp:aiTest','whatsapp:aiReview','whatsapp:aiDraft','whatsapp:aiValidate'].includes(m.action)){
         const actions={'whatsapp:aiStatus':'status','whatsapp:aiCatalog':'catalog','whatsapp:aiHistory':'history','whatsapp:aiTest':'test','whatsapp:aiReview':'review','whatsapp:aiDraft':'draft','whatsapp:aiValidate':'validate'};
@@ -275,7 +275,7 @@ async function atlasAllRows(make){const rows=[];for(let from=0;from<30000;from+=
     }
     else if(String(m.action||'').startsWith('agenda:')){
       const capture=document.getElementById('atlasCaptureFrame');
-      if(e.source!==capture?.contentWindow||e.origin!=='https://flowatlas-embudo-captacion.green-fern-6456.chatgpt.site')throw new Error('Origen de agenda no autorizado.');
+      if(e.source!==capture?.contentWindow||e.origin!=='https://flowatlas-murcia.green-fern-6456.chatgpt.site')throw new Error('Origen de agenda no autorizado.');
       if(m.action==='agenda:book'&&!context.permissions?.patients_write&&!context.ownerAccess&&!context.managementAccess)throw new Error('Tu perfil no tiene permiso para reservar citas desde Captación.');
       const p=m.payload||{};
       if(m.action==='agenda:availability')result={data:await findAgendaSlots(p),error:null};
@@ -367,7 +367,7 @@ async function atlasAllRows(make){const rows=[];for(let from=0;from<30000;from+=
     }
     else if(['internalTasks:list','internalTasks:create','internalTasks:update'].includes(m.action)){
       const capture=document.getElementById('atlasCaptureFrame'),agenda=document.getElementById('agendaFrame');
-      const fromCapture=e.source===capture?.contentWindow&&e.origin==='https://flowatlas-embudo-captacion.green-fern-6456.chatgpt.site';
+      const fromCapture=e.source===capture?.contentWindow&&e.origin==='https://flowatlas-murcia.green-fern-6456.chatgpt.site';
       const fromAgenda=e.source===agenda?.contentWindow&&e.origin===location.origin;
       if(!fromCapture&&!fromAgenda)throw new Error('Origen de tareas no autorizado.');
       const scoped=q=>q.eq('organization_id',context.organizationId).eq('clinic_id',context.clinicId),p=m.payload||{},taskTypes=['recepcion','seguimiento','llamada','whatsapp','aviso','otro'],taskStatuses=['pending','in_progress','completed','snoozed','cancelled'],taskAreas=['fisio','recepcion','auxiliar'];
@@ -722,7 +722,7 @@ const loadAll=async makeQuery=>{const data=[],size=1000,parallel=8;for(let offse
   frame.id='atlasCaptureFrame';
   frame.className='module';
   frame.title='Embudo de leads FlowAtlas';
-  frame.dataset.src='https://flowatlas-embudo-captacion.green-fern-6456.chatgpt.site/?embed=atlas&section=leads&build=20261010-leads-menu';
+  frame.dataset.src='https://flowatlas-murcia.green-fern-6456.chatgpt.site/?embed=atlas&section=leads&build=20261112-murcia-v4';
   stageEl.appendChild(frame);
 
   const openButton=document.createElement('button');
@@ -1048,7 +1048,7 @@ window.addEventListener('message',event=>{
 (()=>{
   const stage=document.getElementById('stage');
   if(!stage)return;
-  const flowUrl='https://flowatlas-embudo-captacion.green-fern-6456.chatgpt.site/?embed=atlas&section=leads&build=20261010-leads-menu';
+  const flowUrl='https://flowatlas-murcia.green-fern-6456.chatgpt.site/?embed=atlas&section=leads&build=20261112-murcia-v4';
   let frame=document.getElementById('atlasCaptureFrame');
   if(!frame){
     frame=document.createElement('iframe');
