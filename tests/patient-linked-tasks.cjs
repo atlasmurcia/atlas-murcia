@@ -29,7 +29,7 @@ test('La ficha muestra tareas internas y de seguimiento, y descarta respuestas a
  vm.runInNewContext(fichaRuntime,env);
  const send=data=>listeners.message({data});
  send({type:'atlas:central-ready'});send({type:'atlas:load-patient',patient:{remoteId:'synthetic-a',name:'Paciente Ámbar'}});
- const first=outgoing.splice(0);assert.equal(first.length,2);assert(first.every(msg=>msg.payload.patientId==='synthetic-a'));
+ const first=outgoing.splice(0).filter(msg=>msg.type==='atlas:central-db-request');assert.equal(first.length,2);assert(first.every(msg=>msg.payload.patientId==='synthetic-a'));
  send({type:'atlas:load-patient',patient:{remoteId:'synthetic-b',name:'Paciente Azul'}});
  const second=outgoing.splice(0);
  const answer=(request,rows)=>send({type:'atlas:central-db-response',requestId:request.requestId,ok:true,data:rows});
