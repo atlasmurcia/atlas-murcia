@@ -1,0 +1,30 @@
+diff --git a/atlas.html b/atlas.html
+index a563388..beb43eb 100644
+--- a/atlas.html
++++ b/atlas.html
+@@ -41 +41 @@ const agendaFrame=document.getElementById('agendaFrame'),fichaFrame=document.get
+-const atlasModulePaths={agenda:'./modules/agenda.html?v=193',ficha:'./modules/ficha.html?v=125',finance:'./modules/finance.html?v=100',commissions:'./modules/commissions.html?v=99',marketing:'./modules/marketing.html?v=3'};
++const atlasModulePaths={agenda:'./modules/agenda.html?v=194',ficha:'./modules/ficha.html?v=125',finance:'./modules/finance.html?v=100',commissions:'./modules/commissions.html?v=99',marketing:'./modules/marketing.html?v=3'};
+diff --git a/modules/agenda.html b/modules/agenda.html
+index 699124c..7a0210e 100644
+--- a/modules/agenda.html
++++ b/modules/agenda.html
+@@ -912,0 +913,3 @@ function ensureCalendarDelegation(cal){
++// La cuadrícula mantiene filas de 15 minutos; los bloques conservan su minuto real de inicio.
++function agendaStartSlot(a){return Math.floor(mins(a.time)/15)*15}
++function positionAgendaBlock(html,a,slotStart){const top=3+(mins(a.time)-slotStart)*32/15;return html.replace('style="',`style="top:${top}px;`)}
+@@ -949 +952 @@ function render(){
+-     let arr=dayApps.filter(a=>(Array.isArray(a.resources)?a.resources:[a.resource]).includes(r) && mins(a.time)===m && (units<=1||laneOf.get(r+'|'+a.id)===lane));
++     let arr=dayApps.filter(a=>(Array.isArray(a.resources)?a.resources:[a.resource]).includes(r) && agendaStartSlot(a)===m && (units<=1||laneOf.get(r+'|'+a.id)===lane));
+@@ -951 +954 @@ function render(){
+-       ? dayApps.filter(a=>appointmentTherapists(a).includes(r) && !(a.resources||[a.resource]).includes(r) && mins(a.time)===m && professionalDuration(a)>0)
++       ? dayApps.filter(a=>appointmentTherapists(a).includes(r) && !(a.resources||[a.resource]).includes(r) && agendaStartSlot(a)===m && professionalDuration(a)>0)
+@@ -953 +956 @@ function render(){
+-     let sim=simulation.filter(a=>a.date===currentDate&&(Array.isArray(a.resources)?a.resources:[a.resource]).includes(r)&&mins(a.time)===m&&lane===0);
++     let sim=simulation.filter(a=>a.date===currentDate&&(Array.isArray(a.resources)?a.resources:[a.resource]).includes(r)&&agendaStartSlot(a)===m&&lane===0);
+@@ -958 +961 @@ function render(){
+-       let block=item.kind==='hold'?professionalHoldHtml(item.a,r):apptHtml(item.a,false,r);
++       let block=positionAgendaBlock(item.kind==='hold'?professionalHoldHtml(item.a,r):apptHtml(item.a,false,r),item.a,m);
+@@ -966 +969 @@ function render(){
+-     sim.forEach(a=>html+=apptHtml(a,true,r));
++     sim.forEach(a=>html+=positionAgendaBlock(apptHtml(a,true,r),a,m));
