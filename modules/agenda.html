@@ -2270,12 +2270,34 @@ window.addEventListener('message',function(event){const msg=event.data||{};if(ms
  }
  searchResults.addEventListener('click',function(ev){setTimeout(()=>openPatientFromSearch(ev.target),0)});
  searchResults.addEventListener('keydown',function(ev){if(ev.key==='Enter')setTimeout(()=>openPatientFromSearch(ev.target),0)});
- window.addEventListener('message',function(ev){
+ // Keep only the latest navigation request active while its date is loading.
+ let patientNavigationSequence=0;
+ window.addEventListener('message',async function(ev){
    const msg=ev.data||{};if(msg.type!=='atlasAlicante:show-patient'||!msg.patient)return;
+   const navigation=++patientNavigationSequence;
    document.getElementById('patientsBack')?.classList.remove('open');
    const filter=document.getElementById('patientFilter');if(filter)filter.value=msg.patient.name;
-   const canonical=window.atlasPlanningHelpersV136?.canonicalPlanService||((value)=>String(value||'')),list=appointments.filter(a=>(String(a.patientCode||'')===String(msg.patient.code||'')||normalizeSearch(a.patient)===normalizeSearch(msg.patient.name))&&a.status!=='Cancelada').sort((a,b)=>(a.date+a.time).localeCompare(b.date+b.time)),today=typeof cashToday==='function'?cashToday():new Date().toISOString().slice(0,10),requested=msg.appointmentId?list.find(a=>String(a.id)===String(msg.appointmentId)):null,dated=!requested&&msg.date?list.find(a=>a.date===msg.date&&(!msg.time||a.time===msg.time)&&(!msg.service||canonical(a.therapy)===canonical(msg.service))):null,target=requested||dated||list.find(a=>a.date>=today)||list[0];
-   if(!target)return;currentDate=target.date;if(target.status==='Conflicto'||target.planConflict===true||/CONFLICTO DE PLANIFICACIÓN/i.test(String(target.notes||''))){const status=document.getElementById('statusFilter');if(status)status.value='Conflicto'}save();render();setTimeout(()=>{const exact=appointments.find(a=>String(a.id)===String(target.id));if(!exact)return;currentDate=exact.date;save();render();setTimeout(()=>{openDrawer(exact.id);if(msg.appointmentAction&&String(exact.id)===String(msg.appointmentId)&&exact.status!=='Cancelada')document.getElementById(msg.appointmentAction==='cancel'?'deleteBtn':'moveBtn')?.click()},60)},80);
+   const belongs=a=>msg.patient.remoteId&&a.patientRemoteId?String(a.patientRemoteId)===String(msg.patient.remoteId):msg.patient.code&&a.patientCode?String(a.patientCode)===String(msg.patient.code):!!msg.patient.name&&normalizeSearch(a.patient)===normalizeSearch(msg.patient.name);
+   const matches=a=>[a.id,a.centralId,a.centralRef].some(id=>id!=null&&String(id)===String(msg.appointmentId));
+   if(msg.appointmentId){
+     try{
+       const cached=appointments.find(a=>belongs(a)&&matches(a)),date=msg.date||cached?.date;
+       if(!/^\d{4}-\d{2}-\d{2}$/.test(String(date||'')))throw new Error('No se ha podido identificar la fecha de la cita. Actualiza la ficha y vuelve a intentarlo.');
+       if(typeof window.atlasLoadAppointmentDate!=='function')throw new Error('La agenda todavía se está preparando. Vuelve a intentarlo en unos segundos.');
+       await window.atlasLoadAppointmentDate(date);
+       if(navigation!==patientNavigationSequence)return;
+       const exact=appointments.find(a=>belongs(a)&&matches(a));
+       if(!exact)throw new Error('La cita seleccionada ya no está disponible. Actualiza la ficha y vuelve a intentarlo.');
+       if(msg.appointmentAction&&(exact.historico===true||exact.metadata?.historico===true||['Realizada','completed','done','Cancelada','cancelled','Eliminada'].includes(exact.status)||exact.deletedAt))throw new Error('Esta cita es histórica, está realizada, anulada o eliminada y no se puede modificar desde este botón.');
+       currentDate=exact.date;
+       const status=document.getElementById('statusFilter');if(status)status.value=exact.status==='Conflicto'||exact.planConflict===true?'Conflicto':'';
+       save();render();openDrawer(exact.id);
+       if(msg.appointmentAction){const button=document.getElementById(msg.appointmentAction==='cancel'?'deleteBtn':'moveBtn');if(!button||button.disabled)throw new Error('La acción no está disponible para esta cita.');button.click()}
+     }catch(error){if(navigation===patientNavigationSequence)alert('No se ha abierto la cita: '+String(error.message||error))}
+     return;
+   }
+   const canonical=window.atlasPlanningHelpersV136?.canonicalPlanService||((value)=>String(value||'')),list=appointments.filter(a=>belongs(a)&&a.status!=='Cancelada').sort((a,b)=>(a.date+a.time).localeCompare(b.date+b.time)),today=typeof cashToday==='function'?cashToday():new Date().toISOString().slice(0,10),dated=msg.date?list.find(a=>a.date===msg.date&&(!msg.time||a.time===msg.time)&&(!msg.service||canonical(a.therapy)===canonical(msg.service))):null,target=dated||list.find(a=>a.date>=today)||list[0];
+   if(!target)return;currentDate=target.date;if(target.status==='Conflicto'||target.planConflict===true||/CONFLICTO DE PLANIFICACIÓN/i.test(String(target.notes||''))){const status=document.getElementById('statusFilter');if(status)status.value='Conflicto'}save();render();setTimeout(()=>{if(navigation!==patientNavigationSequence)return;const exact=appointments.find(a=>String(a.id)===String(target.id));if(!exact)return;currentDate=exact.date;save();render();setTimeout(()=>{if(navigation===patientNavigationSequence)openDrawer(exact.id)},60)},80);
  });
  window.addEventListener('message',function(ev){
    const msg=ev.data||{};if(msg.type!=='atlas:new-appointment'||!msg.patient)return;
@@ -3278,7 +3300,18 @@ window.sendPaymentDocumentsAutomatically=function(paymentId,patientName){central
  async function loadCentral(anchor=currentDate,remoteRefresh=false){if(!moduleVisible)return;if(loading||syncing||cancelling||dirtyRefs.size){if(ready)requestCentralRefresh(700);return}loading=true;const start=addDays(anchor,-21),end=addDays(anchor,21),endExclusive=addDays(end,1);if(!remoteRefresh)tell('Cargando agenda central…');try{const rows=await request('appointments:list',{from:isoStart(start),to:isoStart(endExclusive)});if(dirtyRefs.size){remoteRefreshPending=true;syncRequested=true;tell('Guardando tus cambios antes de actualizar la agenda…');return}const signature=(rows||[]).map(row=>String(row.id)+':'+String(row.updated_at||'')).join('|');if(remoteRefresh&&signature===lastCentralSignature){lastCentralRefreshAt=Date.now();return}const locals=ready?appointments.filter(a=>!a.centralId):[],merged=[];remoteByRef.clear();withPatientIndex(()=>{for(const row of rows||[]){const mapped=fromRow(row);
 // Reconcile by stable identity; distinct central appointments must remain distinct.
 for(let i=locals.length-1;i>=0;i--){const a=locals[i];if(clientRef(a)===mapped.centralRef||sameAppointmentSlot(a,mapped))locals.splice(i,1)}
-merged.push(mapped);const central=toRow(mapped);remoteByRef.set(mapped.centralRef,{...row,_fingerprint:central?fingerprint(central):''})}});appointments=[...merged,...locals];loadedWindowStart=start;loadedWindowEnd=end;lastCentralRefreshAt=Date.now();lastCentralSignature=signature;baseSave();ready=true;if(typeof render==='function')render();window.dispatchEvent(new Event('atlas:central-appointments-loaded'));if(typeof window.atlasReconcileWhatsappQueue==='function')window.atlasReconcileWhatsappQueue();tell(remoteRefresh?'Agenda actualizada con los cambios de otros usuarios':appointments.length+' citas cargadas · '+start+' a '+end,'ok')}catch(error){console.error(error);const detail=[error?.code,error?.message].filter(Boolean).join(' · ');tell('No se pudo cargar la agenda central'+(detail?' · '+detail:''),'error')}finally{loading=false;if(syncRequested)queueSync();else if(remoteRefreshPending)requestCentralRefresh(250)}}
+merged.push(mapped);const central=toRow(mapped);remoteByRef.set(mapped.centralRef,{...row,_fingerprint:central?fingerprint(central):''})}});appointments=[...merged,...locals];loadedWindowStart=start;loadedWindowEnd=end;lastCentralRefreshAt=Date.now();lastCentralSignature=signature;baseSave();ready=true;if(typeof render==='function')render();window.dispatchEvent(new Event('atlas:central-appointments-loaded'));if(typeof window.atlasReconcileWhatsappQueue==='function')window.atlasReconcileWhatsappQueue();tell(remoteRefresh?'Agenda actualizada con los cambios de otros usuarios':appointments.length+' citas cargadas · '+start+' a '+end,'ok');return true}catch(error){console.error(error);const detail=[error?.code,error?.message].filter(Boolean).join(' · ');tell('No se pudo cargar la agenda central'+(detail?' · '+detail:''),'error')}finally{loading=false;if(syncRequested)queueSync();else if(remoteRefreshPending)requestCentralRefresh(250)}}
+ // Load the selected date before resolving an appointment from the full patient history.
+ window.atlasLoadAppointmentDate=async function(date){
+  if(!moduleVisible||!window.ATLAS_CHILD_CENTRAL_CONTEXT)throw new Error('La agenda no está conectada. Vuelve a intentarlo.');
+  const deadline=Date.now()+65000;
+  if(dirtyRefs.size&&!loading&&!syncing&&!cancelling)queueSync();
+  while(loading||syncing||cancelling||dirtyRefs.size){
+   if(Date.now()>deadline)throw new Error('La agenda no ha terminado de sincronizarse. Vuelve a intentarlo.');
+   await new Promise(resolve=>setTimeout(resolve,100));
+  }
+  if(!await loadCentral(date))throw new Error('No se pudo cargar la fecha de la cita. Vuelve a intentarlo.');
+ };
  const baseCentralRender=render;render=function(){baseCentralRender();if(ready&&!loading&&(currentDate<loadedWindowStart||currentDate>loadedWindowEnd))requestCentralRefresh(120)};
  function activate(){if(!moduleVisible||ready||loading)return;if(!window.ATLAS_CHILD_CENTRAL_CONTEXT)return;if(!patientMaster.some(p=>p.remoteId)){setTimeout(activate,350);return}loadCentral()}
  window.addEventListener('message',event=>{const m=event.data||{};if(m.type==='atlas:central-db-response'&&pending.has(m.requestId)){const item=pending.get(m.requestId);m.ok?item.resolve(m.data):item.reject(Object.assign(new Error(m.error||'Error central'),{code:m.code||''}));return}if(m.type==='atlas:module-visibility'){moduleVisible=m.visible!==false;if(moduleVisible){activate();if(ready)requestCentralRefresh(80)}return}if(m.type==='atlas:server-recovered'&&m.action==='appointments:upsertMany'){for(const row of m.payload?.rows||[])dirtyRefs.delete(row.client_ref);requestCentralRefresh(120);return}if(m.type==='atlas:central-ready')activate();if(m.type==='atlas:central-appointments-changed'&&ready&&moduleVisible)requestCentralRefresh(300)});
