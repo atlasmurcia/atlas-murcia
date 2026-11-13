@@ -32,7 +32,11 @@
   async function load() {
     const token = ++generation, patientId = patient?.remoteId;
     if (!patientId) return message('Selecciona un paciente para consultar sus tareas.');
-    if (!ready) return message('Esperando la conexión con ATLAS…');
+    if (!ready) {
+      message('Esperando la conexión con ATLAS…');
+      parent.postMessage({type:'atlas:central-module-ready', module:'ficha'}, '*');
+      return;
+    }
     message('Cargando las tareas de este paciente…');
     try {
       const [internal, communications] = await Promise.all([request('internalTasks:list', patientId), request('communications:list', patientId)]);
@@ -55,4 +59,7 @@
   });
   document.querySelector('[data-t="tareasPaciente"]')?.addEventListener('click', load);
   message('Selecciona un paciente para consultar sus tareas.');
+  // This external script can load after the ficha has already received its context.
+  // Announce readiness after installing the listener so ATLAS resends both context and patient.
+  parent.postMessage({type:'atlas:module-ready', module:'ficha'}, '*');
 })();
