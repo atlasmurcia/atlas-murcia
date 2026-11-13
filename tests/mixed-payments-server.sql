@@ -4,8 +4,16 @@ begin;
 
 select to_regprocedure('public.atlas_validate_mixed_payment_write()') is not null as trigger_function_must_exist;
 
-select has_function_privilege('anon', 'public.atlas_create_patient_sale_mixed(uuid,uuid,uuid,text,text,jsonb,numeric,text,text,text,date,jsonb)', 'EXECUTE') as anon_must_be_false,
-       has_function_privilege('authenticated', 'public.atlas_create_patient_sale_mixed(uuid,uuid,uuid,text,text,jsonb,numeric,text,text,text,date,jsonb)', 'EXECUTE') as authenticated_must_be_true;
+do $$
+begin
+  if has_function_privilege('anon', 'public.atlas_create_patient_sale_mixed(uuid,uuid,uuid,text,text,jsonb,numeric,text,text,text,date,jsonb)', 'EXECUTE') then
+    raise exception 'El rol anónimo no debe poder ejecutar la venta con pago mixto.';
+  end if;
+  if not has_function_privilege('authenticated', 'public.atlas_create_patient_sale_mixed(uuid,uuid,uuid,text,text,jsonb,numeric,text,text,text,date,jsonb)', 'EXECUTE') then
+    raise exception 'El rol autenticado debe poder ejecutar la venta con pago mixto.';
+  end if;
+end;
+$$;
 
 create temporary table mixed_payment_contract (
   amount numeric not null,
