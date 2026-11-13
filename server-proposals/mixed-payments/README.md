@@ -2,6 +2,8 @@
 
 Esta carpeta contiene una propuesta revisable. No se ha ejecutado contra producción y no modifica cobros existentes.
 
+`rollback.sql` elimina únicamente la función y el disparador nuevos. No toca cobros, justificantes ni facturas.
+
 ## Objetivo
 
 - Validar en servidor que todo pago `mixed` tenga exactamente dos métodos distintos.
