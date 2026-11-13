@@ -5268,7 +5268,7 @@ const kind=bombaKind(appointment);if(!kind)return;const nextResources=[...new Se
 </script>
 <script id="atlas-v136-patient-photo-thumbnails">
 (()=>{
- window.addEventListener('message',event=>{const message=event.data||{};if(message.type!=='atlas:patient-photo-updated'||!message.data)return;const patient=patientMaster.find(item=>(message.patientId&&String(item.remoteId)===String(message.patientId))||(message.patientCode&&String(item.code)===String(message.patientCode)));if(!patient)return;patient.photo=message.data;if(typeof renderPatientsTable==='function')renderPatientsTable()});
+ window.addEventListener('message',event=>{const message=event.data||{};if(message.type!=='atlas:patient-photo-updated'||typeof message.data!=='string')return;const patient=patientMaster.find(item=>(message.patientId&&String(item.remoteId)===String(message.patientId))||(message.patientCode&&String(item.code)===String(message.patientCode)));if(!patient)return;patient.photo=message.data;if(typeof renderPatientsTable==='function')renderPatientsTable()});
 })();
 </script>
 <style id="atlas-v136-statistics-totals-style">
