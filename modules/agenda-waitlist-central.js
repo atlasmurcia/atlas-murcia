@@ -5,7 +5,15 @@
  const importMarker=()=>{const context=window.ATLAS_CHILD_CENTRAL_CONTEXT||{};return 'atlasMurciaSharedWaitlistImported_V1:'+String(context.organizationId||'')+':'+String(context.clinicId||'')};
  const imported=()=>{try{return localStorage.getItem(importMarker())==='1'}catch(error){return false}};
  const markImported=()=>{try{localStorage.setItem(importMarker(),'1')}catch(error){console.warn('No se pudo guardar la marca de importación local',error)}};
- const pending=new Map();let requestSeq=0,loadingPromise=null,syncReady=false,writeBusy=false;
+ const pending=new Map();let requestSeq=0,loadingPromise=null,syncReady=false,syncFailed=false,writeBusy=false;
+ function paintSyncBadge(){
+  const badge=document.getElementById('waitlistBadge');if(!badge)return;
+  if(syncFailed){badge.textContent='?';badge.title='No se ha podido confirmar la lista compartida. Abre la lista para reintentar.'}
+  else if(!syncReady){badge.textContent='…';badge.title='Cargando la lista compartida de Murcia…'}
+  else badge.title='Preferencias activas o contactadas de la lista compartida';
+ }
+ const baseRefreshWaitlist=window.refreshWaitlist;
+ window.refreshWaitlist=function(){baseRefreshWaitlist();paintSyncBadge()};
  const notice=()=>document.getElementById('waitlistSyncNotice');
  function setNotice(message,error=false){
   let box=notice();
@@ -33,7 +41,7 @@
    }
    if(!Array.isArray(shared))throw new Error('La respuesta de la lista compartida no es válida.');
    const matched=new Set(waitlistMatchedIds.map(String));waitlist=shared.map(entry=>({...entry,createdAt:entry.createdAt||new Date().toISOString()}));
-   waitlistMatchedIds=waitlist.filter(entry=>matched.has(String(entry.id))&&entry.status==='Activa').map(entry=>entry.id);save();refreshWaitlist();syncReady=true;
+   waitlistMatchedIds=waitlist.filter(entry=>matched.has(String(entry.id))&&entry.status==='Activa').map(entry=>entry.id);save();syncReady=true;syncFailed=false;refreshWaitlist();
    setNotice('Lista de espera compartida · actualizada '+new Date().toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'}));
    return waitlist;
   })().finally(()=>{loadingPromise=null});
@@ -43,7 +51,18 @@
   const back=document.getElementById('waitlistBack'),list=document.getElementById('waitlistList'),badge=document.getElementById('waitlistBadge');
   back.classList.add('open');if(!syncReady){badge.textContent='…';list.innerHTML='<div class="callout">Cargando la lista compartida de Murcia…</div>'}
   setNotice('Consultando la lista compartida de Murcia…');
-  loadShared().catch(error=>{console.error('No se pudo cargar la lista compartida',error);if(!syncReady)list.innerHTML='<div class="callout">No se ha podido cargar la lista desde el servidor. No se muestra como vacía. Comprueba la conexión y vuelve a abrir la lista.</div>';setNotice('Error de conexión: no se han confirmado los datos compartidos.',true)});
+  syncShared();
+ }
+ function syncShared(){
+  return loadShared().catch(error=>{
+   console.warn('No se pudo actualizar la lista compartida',error);syncFailed=true;paintSyncBadge();
+   if(!syncReady)document.getElementById('waitlistList').innerHTML='<div class="callout">No se ha podido cargar la lista desde el servidor. Comprueba la conexión y vuelve a abrir la lista.</div>';
+   setNotice(syncReady?'No se ha podido actualizar. Se conserva la última lista confirmada.':'Error de conexión: no se han confirmado los datos compartidos.',true);
+  });
+ }
+ function refreshInBackground(){
+  const context=window.ATLAS_CHILD_CENTRAL_CONTEXT,form=document.getElementById('waitForm');
+  if(context?.organizationId&&context?.clinicId&&context?.userId&&!document.hidden&&form?.classList.contains('hidden')&&!loadingPromise&&!writeBusy)return syncShared();
  }
  const baseBookFromWaitlist=window.bookFromWaitlist;
  window.openWaitlist=showOpen;const waitlistButton=document.getElementById('waitlistBtn');if(waitlistButton)waitlistButton.onclick=showOpen;
@@ -86,13 +105,15 @@
   finally{writeBusy=false}
  };
  window.addEventListener('message',event=>{
-  const message=event.data||{},item=pending.get(message.requestId);
+  const message=event.data||{};
+  if(event.source===parent&&message.type==='atlas:central-ready'){refreshInBackground();return}
+  const item=pending.get(message.requestId);
   if(message.type!=='atlas:central-db-response'||!item)return;
   pending.delete(message.requestId);clearTimeout(item.timer);
   message.ok?item.resolve(message.data):item.reject(Object.assign(new Error(message.error||'Error en el servidor central'),{code:message.code||''}));
  });
- setInterval(()=>{
-  const back=document.getElementById('waitlistBack'),form=document.getElementById('waitForm');
-  if(!document.hidden&&back?.classList.contains('open')&&form?.classList.contains('hidden')&&!loadingPromise&&!writeBusy)loadShared().catch(error=>{console.warn('No se pudo actualizar la lista compartida',error);setNotice('No se ha podido actualizar. Se conserva la última lista confirmada.',true)});
- },20000);
+ paintSyncBadge();
+ refreshInBackground();
+ document.addEventListener('visibilitychange',refreshInBackground);
+ setInterval(refreshInBackground,20000);
 })();
