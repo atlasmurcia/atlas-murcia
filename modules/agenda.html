@@ -967,11 +967,11 @@ function render(){
  for(let m=8*60;m<22*60;m+=15){
    const t=timeStr(m); calendarHtml+=`<div class="cell time">${t}</div>`;
    columns.forEach(({r,lane,units})=>{
-     let arr=dayApps.filter(a=>(Array.isArray(a.resources)?a.resources:[a.resource]).includes(r) && mins(a.time)===m && (units<=1||laneOf.get(r+'|'+a.id)===lane));
+     let arr=dayApps.filter(a=>(Array.isArray(a.resources)?a.resources:[a.resource]).includes(r) && appointmentStartSlot(a)===m && (units<=1||laneOf.get(r+'|'+a.id)===lane));
      let proHolds=professionals.includes(r)
-       ? dayApps.filter(a=>appointmentTherapists(a).includes(r) && !(a.resources||[a.resource]).includes(r) && mins(a.time)===m && professionalDuration(a)>0)
+       ? dayApps.filter(a=>appointmentTherapists(a).includes(r) && !(a.resources||[a.resource]).includes(r) && appointmentStartSlot(a)===m && professionalDuration(a)>0)
        : [];
-     let sim=simulation.filter(a=>a.date===currentDate&&(Array.isArray(a.resources)?a.resources:[a.resource]).includes(r)&&mins(a.time)===m&&lane===0);
+     let sim=simulation.filter(a=>a.date===currentDate&&(Array.isArray(a.resources)?a.resources:[a.resource]).includes(r)&&appointmentStartSlot(a)===m&&lane===0);
      let html='';
      const allAtStart=[...arr.map(a=>({a,kind:'appt'})),...proHolds.map(a=>({a,kind:'hold'}))];
      const n=allAtStart.length;
@@ -1005,6 +1005,9 @@ function render(){
 }
 const renderWithoutPatientIndex=render;render=function(){if(patientCodeIndex)return renderWithoutPatientIndex.apply(this,arguments);const index=new Map();for(const p of patientMaster)if(typeof p.code==='string'&&!index.has(p.code))index.set(p.code,p);patientCodeIndex=index;try{return renderWithoutPatientIndex.apply(this,arguments)}finally{patientCodeIndex=null}};
 function effectiveStatus(a){return a.status==='Cancelada'?'Cancelada':conflictsFor(a,a.id).length?'Conflicto':a.status==='Conflicto'?'Pendiente':a.status}
+// La cuadrícula usa cuartos de hora; la cita conserva su hora exacta.
+function appointmentStartSlot(a){return Math.floor(mins(a.time)/15)*15}
+function appointmentTop(a){return 3+(mins(a.time)-appointmentStartSlot(a))*32/15}
 function professionalHoldHtml(a,column=''){
  const dur=professionalDuration(a);
  const slots=Math.max(1,Math.ceil(dur/15));
@@ -1014,7 +1017,7 @@ function professionalHoldHtml(a,column=''){
  const forced=a.forced?' forced':'';
  let statusClass=effectiveStatus(a)==='Conflicto'?' conflict':a.status==='Pendiente'?' pending':'';
  if(a.status==='Cancelada')statusClass+=' cancelled';
- return `<div class="appt${statusClass}${forced}" style="height:${height}px" data-id="${a.id}" data-column="${column}">
+ return `<div class="appt${statusClass}${forced}" style="top:${appointmentTop(a)}px;height:${height}px" data-id="${a.id}" data-column="${column}">
    <b title="${a.patient}">${shortPatient(a.patient)}</b>${label}<div class="small">${a.time} · ${dur}m profesional</div>
  </div>`;
 }
@@ -1031,7 +1034,7 @@ function apptHtml(a,sim,column=''){
  const height=(slots*32)-4;
  const forcedMark=a.forced?'<div class="small">⚠ FORZADA</div>':'';
  const services=Array.isArray(a.services)&&a.services.length?a.services:[a.therapy];const summary=services.length>2?`${services[0]} + ${services.length-1} más`:services.join(' + ');const ficha=patientByCode(a.patientCode);const phone=ficha?.phone||'';
- return `<div class="appt ${st}" tabindex="0" style="height:${height}px" data-id="${sim?'':a.id}" data-column="${column}"><b title="${a.patient}">${shortPatient(a.patient)}</b><span title="${summary}">${summary}</span><div class="small">${a.time} · ${a.duration}m</div>${services.length>1?`<span class="multi-badge">＋${services.length}</span>`:''}${forcedMark}<div class="appt-tooltip" role="tooltip"><b>${a.patient}</b><div>${phone||'Sin teléfono'}</div><div>${services.join(' · ')}</div><div>${(a.notes||'Sin observaciones').slice(0,180)}${(a.notes||'').length>180?'…':''}</div></div></div>`;
+ return `<div class="appt ${st}" tabindex="0" style="top:${appointmentTop(a)}px;height:${height}px" data-id="${sim?'':a.id}" data-column="${column}"><b title="${a.patient}">${shortPatient(a.patient)}</b><span title="${summary}">${summary}</span><div class="small">${a.time} · ${a.duration}m</div>${services.length>1?`<span class="multi-badge">＋${services.length}</span>`:''}${forcedMark}<div class="appt-tooltip" role="tooltip"><b>${a.patient}</b><div>${phone||'Sin teléfono'}</div><div>${services.join(' · ')}</div><div>${(a.notes||'Sin observaciones').slice(0,180)}${(a.notes||'').length>180?'…':''}</div></div></div>`;
 }
 
 function mergeIntervals(intervals){
