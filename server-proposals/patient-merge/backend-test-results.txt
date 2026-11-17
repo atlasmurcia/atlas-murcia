@@ -23,5 +23,9 @@ OK cambios posteriores bloquean reversión sin sobrescribir
 OK reversión retira el alias y conserva los historiales originales
 OK escritura atrasada con UUID antiguo se reasigna en servidor
 OK ámbito de otra clínica y actor no autenticado rechazados
+OK escenario separado: presupuesto de alias tras fusión sintética
+OK presupuesto histórico se puede guardar en su ficha principal sin reescribir el UUID guardado
+OK el guardado de presupuesto sin control de versión también conserva el UUID histórico
+OK el presupuesto histórico pasa la comprobación exacta de cobro y el pago nuevo se normaliza al UUID principal
 
-25 pruebas PostgreSQL superadas. Motor PGlite 0.3.14; esquema y datos sintéticos. No certifica el servidor clínico ni concurrencia entre conexiones.
+29 pruebas PostgreSQL superadas. Motor PGlite 0.3.14; esquema y datos sintéticos. No certifica el servidor clínico ni concurrencia entre conexiones.

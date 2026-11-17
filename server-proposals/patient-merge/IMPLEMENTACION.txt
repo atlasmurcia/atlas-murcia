@@ -73,13 +73,28 @@ módulo, permisos por rol, acceso a objetos de Storage y recuperación tras pér
 de conexión. La UI, invalidación de cachés y actualización inmediata en otros
 ordenadores tampoco están integradas aún.
 
-Bloqueo concreto de presupuestos: las funciones actuales atlas_upsert_budget y
-atlas_upsert_budget_checked exigen un paciente activo y reescriben patient_id al
-actualizar. atlas_charge_budget_checked compara el paciente del presupuesto con
-el UUID de la ficha de forma exacta. Tras archivar un alias, estos flujos pueden
-rechazar el cobro o cambiar la referencia histórica. No se han modificado las
-funciones fiscales ni se ha probado una solución; hay que resolverlo antes de
-activar la fusión y cobrar desde presupuestos antiguos.
+Compatibilidad de presupuestos — propuesta local, aún sin aplicar: se verificó en
+la base Murcia que atlas_upsert_budget y atlas_upsert_budget_checked son
+invocadoras, comprueban budgets_write y reescriben patient_id al actualizar; la
+segunda exige además coincidencia exacta del UUID. atlas_charge_budget_checked
+también compara el UUID exacto del presupuesto y el cobro. El diseño candidato
+mantiene el patient_id histórico del presupuesto, acepta guardarlo desde la ficha
+principal solo si el UUID antiguo resuelve a esa misma familia, y adapta el
+payload del cobro para enviar a la función existente el UUID almacenado en ese
+presupuesto. El trigger de referencia normalizaría el nuevo pago a la ficha
+principal antes del disparador de facturación. No se cambió la función de cobro,
+la numeración, los datos fiscales, las facturas ni VeriFactu.
+
+La política RLS de budgets y los permisos de ejecución se leyeron en modo solo
+lectura en el proyecto Murcia: la lectura/escritura se limita a permisos de
+clínica y las tres funciones actuales se ejecutan como invocador. La propuesta
+usa un ayudante SECURITY DEFINER en esquema privado, con comprobación de sesión y
+membresía. También se verificaron la política RLS de budget_lines y la rutina
+privada que reemplaza sus líneas; el fixture sintético reproduce su permiso,
+validaciones y campos requeridos. Esto no sustituye una prueba de integración
+contra una rama de Supabase: no se han probado RLS real después de instalar los
+alias, los triggers de producción, los cobros/facturas automáticos ni la
+concurrencia.
 
 Los importes históricos que no pueden conciliarse, posibles duplicados exactos,
 JSON con UUID incrustados, referencias indirectas y fusiones encadenadas bloquean
@@ -89,17 +104,26 @@ actividad nueva, el deshacer automático queda bloqueado y requiere revisión.
 
 PRUEBAS LOCALES
 
-- 25 escenarios PostgreSQL sintéticos en PGlite 0.3.14, incluidos los 20
+- 29 escenarios PostgreSQL sintéticos en PGlite 0.3.14, incluidos los 20
   registros de relación y el bloqueo si se desactiva RLS.
-- 12 pruebas del controlador y 6 del ayudante de resolución e indexación de alias.
+- Presupuestos históricos: guardado con control de versión y sin él, reintento
+  idempotente, conservación del UUID del presupuesto, coincidencia exacta del
+  cobro y normalización del nuevo pago en una base sintética separada.
+- 12 pruebas del controlador y 7 comprobaciones del ayudante de alias.
 - Sintaxis comprobada en 30 bloques inline de atlas.html y 49 de ficha.html,
   además de los módulos JavaScript modificados.
 - Los escenarios verifican preservación de IDs y contenido clínico/fiscal,
   alias, escritura nueva, permisos, rollback, idempotencia y reversión.
+- Los casos fiscales conservan facturas sintéticas ya existentes; el fixture no
+  ejecuta el disparador real de facturación automática.
+- La pantalla local se recorrió en Chrome con datos ficticios: búsqueda,
+  comparación de las 20 relaciones, resolución de campos, confirmación, fusión
+  verificada y reversión verificada. Se corrigió el catálogo incompleto de
+  relaciones en el servidor de demostración.
 
-No es una prueba del esquema real ni de la infraestructura de Supabase. No se
-repitió una revisión visual del ATLAS completo después de adaptar sus rutas. La
-pantalla candidata del PR original no está integrada en la ficha real.
+No es una prueba del esquema real ni de la infraestructura de Supabase. Tampoco
+es una revisión visual dentro del ATLAS en producción: la pantalla candidata del
+PR original aún no está integrada en la ficha real.
 
 SIGUIENTE PASO
 

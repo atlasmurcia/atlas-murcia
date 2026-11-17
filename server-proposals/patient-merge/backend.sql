@@ -152,6 +152,15 @@ BEGIN
  RETURN target;
 END $$;
 
+-- Adaptador de presupuesto: ejecuta la resolución con permisos del propietario
+-- de la función, pero exige que el usuario conserve acceso a la clínica.
+CREATE FUNCTION atlas_merge_private.canonical_budget_patient(p uuid,o uuid,c uuid) RETURNS uuid
+LANGUAGE plpgsql SECURITY DEFINER SET search_path='' AS $$
+BEGIN
+ PERFORM atlas_merge_private.authorize(o,c,false);
+ RETURN atlas_merge_private.canonical(p,o,c);
+END $$;
+
 CREATE FUNCTION atlas_merge_private.record_ids(p uuid,o uuid,c uuid) RETURNS jsonb
 LANGUAGE plpgsql SECURITY DEFINER SET search_path='' AS $$
 DECLARE target uuid; ids jsonb;
@@ -447,10 +456,98 @@ CREATE FUNCTION public.atlas_patient_merge(action text,payload jsonb) RETURNS js
 LANGUAGE sql SECURITY INVOKER SET search_path='' AS $$
  SELECT atlas_merge_private.worker(action,payload)
 $$;
+
+-- Mantiene el patient_id original de un presupuesto existente. Las líneas,
+-- importes, descuentos, estado e idempotencia conservan el flujo vigente.
+CREATE OR REPLACE FUNCTION public.atlas_upsert_budget(p_patient_id uuid,p_client_ref text,p_budget jsonb,p_lines jsonb DEFAULT '[]'::jsonb)
+RETURNS jsonb LANGUAGE plpgsql SET search_path TO 'public','pg_temp' AS $function$
+DECLARE
+ v_org uuid; v_clinic uuid; v_user uuid:=auth.uid(); v_budget public.budgets; v_saved_lines integer;
+BEGIN
+ IF v_user IS NULL THEN RAISE EXCEPTION 'Se requiere una sesión autenticada'; END IF;
+ IF p_patient_id IS NULL OR nullif(btrim(p_client_ref),'') IS NULL THEN
+  RAISE EXCEPTION 'Paciente y referencia del presupuesto son obligatorios';
+ END IF;
+ SELECT organization_id,clinic_id INTO v_org,v_clinic
+ FROM public.patients WHERE id=p_patient_id AND deleted_at IS NULL;
+ IF v_org IS NULL OR v_clinic IS NULL THEN RAISE EXCEPTION 'Paciente no encontrado'; END IF;
+ IF NOT public.has_permission(v_org,'budgets_write') THEN RAISE EXCEPTION 'Sin permiso para modificar presupuestos'; END IF;
+ SELECT * INTO v_budget FROM public.budgets
+  WHERE clinic_id=v_clinic AND client_ref=btrim(p_client_ref) FOR UPDATE;
+ IF FOUND THEN
+  IF v_budget.organization_id IS DISTINCT FROM v_org THEN RAISE EXCEPTION 'Presupuesto no disponible'; END IF;
+  IF v_budget.patient_id IS NOT NULL AND atlas_merge_private.canonical_budget_patient(v_budget.patient_id,v_org,v_clinic) IS DISTINCT FROM p_patient_id
+  THEN RAISE EXCEPTION 'Presupuesto no disponible'; END IF;
+ END IF;
+ INSERT INTO public.budgets AS current_budget(
+  organization_id,clinic_id,patient_id,client_ref,name,status,discount,total,
+  payment_terms,accepted_at,created_by,metadata,deleted_at,updated_at
+ ) VALUES(
+  v_org,v_clinic,coalesce(v_budget.patient_id,p_patient_id),btrim(p_client_ref),
+  coalesce(nullif(btrim(p_budget->>'name'),''),'Presupuesto'),
+  coalesce(nullif(p_budget->>'status',''),'draft'),
+  greatest(0,least(100,coalesce((p_budget->>'discount')::numeric,0))),
+  greatest(0,coalesce((p_budget->>'total')::numeric,0)),
+  coalesce(p_budget->'payment_terms','{}'::jsonb),
+  case when coalesce(p_budget->>'accepted_at','')='' then null else (p_budget->>'accepted_at')::timestamptz end,
+  v_user,coalesce(p_budget->'metadata','{}'::jsonb),null,now()
+ ) ON CONFLICT (clinic_id,client_ref) WHERE client_ref IS NOT NULL
+ DO UPDATE SET patient_id=current_budget.patient_id,name=excluded.name,status=excluded.status,
+  discount=excluded.discount,total=excluded.total,payment_terms=excluded.payment_terms,
+  accepted_at=excluded.accepted_at,metadata=excluded.metadata,deleted_at=null,updated_at=now()
+ WHERE current_budget.organization_id=v_org
+  AND CASE WHEN current_budget.patient_id IS NULL THEN true
+    ELSE atlas_merge_private.canonical_budget_patient(current_budget.patient_id,v_org,v_clinic)=p_patient_id END
+ RETURNING * INTO v_budget;
+ IF v_budget.id IS NULL THEN RAISE EXCEPTION 'Presupuesto no disponible'; END IF;
+ v_saved_lines:=private.atlas_replace_budget_lines(v_budget.id,p_lines);
+ RETURN jsonb_build_object('id',v_budget.id,'budget_number',v_budget.budget_number,
+  'client_ref',v_budget.client_ref,'updated_at',v_budget.updated_at,'saved_lines',v_saved_lines);
+END;
+$function$;
+
+-- El control optimista reconoce que un presupuesto histórico puede apuntar a
+-- una ficha archivada de la misma familia, sin cambiar esa referencia al guardar.
+CREATE OR REPLACE FUNCTION public.atlas_upsert_budget_checked(
+ p_patient_id uuid,p_client_ref text,p_budget jsonb,p_lines jsonb,
+ p_expected_updated_at timestamptz,p_operation_id text
+) RETURNS jsonb LANGUAGE plpgsql SET search_path TO 'public','pg_temp' AS $function$
+DECLARE v_org uuid; v_clinic uuid; v_old public.budgets;
+BEGIN
+ IF auth.uid() IS NULL OR nullif(p_operation_id,'') IS NULL THEN
+  RAISE EXCEPTION 'Se requiere una sesión y referencia de guardado';
+ END IF;
+ SELECT organization_id,clinic_id INTO v_org,v_clinic FROM public.patients
+  WHERE id=p_patient_id AND deleted_at IS NULL;
+ IF v_clinic IS NULL THEN RAISE EXCEPTION 'Paciente no disponible'; END IF;
+ IF NOT pg_try_advisory_xact_lock(hashtextextended(v_clinic::text||':'||p_client_ref,0)) THEN
+  RAISE EXCEPTION 'Otro guardado de este presupuesto sigue en curso. Vuelve a intentarlo.' USING errcode='40001';
+ END IF;
+ SELECT * INTO v_old FROM public.budgets
+  WHERE organization_id=v_org AND clinic_id=v_clinic AND client_ref=p_client_ref FOR UPDATE;
+ IF FOUND THEN
+  IF v_old.deleted_at IS NOT NULL THEN RAISE EXCEPTION 'Presupuesto no disponible'; END IF;
+  IF v_old.patient_id IS NOT NULL AND atlas_merge_private.canonical_budget_patient(v_old.patient_id,v_org,v_clinic) IS DISTINCT FROM p_patient_id
+  THEN RAISE EXCEPTION 'Presupuesto no disponible'; END IF;
+  IF v_old.metadata->>'last_server_operation'=p_operation_id THEN
+   RETURN jsonb_build_object('id',v_old.id,'budget_number',v_old.budget_number,
+    'client_ref',v_old.client_ref,'updated_at',v_old.updated_at);
+  END IF;
+  IF p_expected_updated_at IS NULL OR v_old.updated_at IS DISTINCT FROM p_expected_updated_at THEN
+   RAISE EXCEPTION 'Otro usuario ha actualizado este presupuesto. Revisa la versión del servidor antes de guardar.' USING errcode='40001';
+  END IF;
+ END IF;
+ RETURN public.atlas_upsert_budget(p_patient_id,p_client_ref,
+  jsonb_set(p_budget,'{metadata}',coalesce(p_budget->'metadata','{}'::jsonb)||jsonb_build_object('last_server_operation',p_operation_id),true),
+  p_lines);
+END;
+$function$;
+
 REVOKE ALL ON ALL TABLES IN SCHEMA atlas_merge_private FROM PUBLIC;
 REVOKE ALL ON ALL FUNCTIONS IN SCHEMA atlas_merge_private FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.atlas_patient_merge(text,jsonb) FROM PUBLIC;
 GRANT USAGE ON SCHEMA atlas_merge_private TO authenticated;
 GRANT EXECUTE ON FUNCTION atlas_merge_private.worker(text,jsonb) TO authenticated;
+GRANT EXECUTE ON FUNCTION atlas_merge_private.canonical_budget_patient(uuid,uuid,uuid) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.atlas_patient_merge(text,jsonb) TO authenticated;
 COMMIT;

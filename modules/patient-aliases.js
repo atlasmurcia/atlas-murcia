@@ -32,6 +32,10 @@
   }
   return {groups,error:null};
  }
+ function familyRecordId(ids,recordId){
+  const id=String(recordId||'').trim();
+  return id&&(Array.isArray(ids)?ids:[]).some(value=>String(value||'').trim()===id)?id:'';
+ }
  function indexGroups(groups){
   const canonicalById=new Map(),recordsById=new Map();
   for(const group of Array.isArray(groups)?groups:[]){
@@ -41,7 +45,7 @@
   }
   return {canonicalId:id=>canonicalById.get(String(id||''))||String(id||''),recordIds:id=>recordsById.get(String(id||''))||[String(id||'')].filter(Boolean)};
  }
- const api={recordIds,groups,indexGroups};
+ const api={recordIds,groups,familyRecordId,indexGroups};
  if(typeof module!=='undefined'&&module.exports)module.exports=api;
  if(root)root.AtlasPatientAliases=api;
 })(typeof window!=='undefined'?window:null);
