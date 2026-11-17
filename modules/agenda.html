@@ -173,6 +173,7 @@ header{height:58px!important;background:#fff!important;border-bottom:1px solid #
     <button class="primary" id="openPatientRecordBtn">👤 Abrir ficha del paciente</button><button type="button" class="primary" id="openAppointmentBodyMapBtn" title="Consultar dónde va cada equipo en el mapa guardado del paciente">📍 Mapa corporal</button><button class="primary" id="chargeAppointmentBtn">💳 Cobrar</button><button id="appointmentReceiptBtn" class="hidden">🧾 Justificante</button><button class="primary" id="doneBtn">✓ Realizada</button>
     <button id="pendingBtn">↶ Marcar pendiente</button>
     <button id="moveBtn">✏️ Mover / editar cita</button>
+    <button type="button" id="duplicateAppointmentBtn">⧉ Duplicar cita</button>
     <button id="receiveBtn">🔔 Ha llegado</button>
     <button id="waAppointmentBtn">💬 WhatsApp</button>
     <button class="danger" id="deleteBtn">Cancelar</button>
@@ -194,7 +195,7 @@ header{height:58px!important;background:#fff!important;border-bottom:1px solid #
 </label>
       <div class="field full"><b>Terapias y servicios incluidos</b><details id="mServices" class="multi-dropdown"><summary>Seleccionar terapias y servicios <span id="mServicesSummary" class="small muted"></span></summary><div id="mServicesOptions" class="checkgrid"></div></details><span class="small muted">Selecciona uno o varios tratamientos para esta cita.</span></div>
       <div class="field full" id="mTherapistsField"><b>Terapeuta de cada tratamiento</b><div id="mTherapists"></div><span class="small muted">Solo se muestran profesionales habilitados para cada servicio. Los equipos sin intervención clínica no necesitan terapeuta.</span></div>
-      <div class="field full"><b>Columnas y recursos reservados</b><details id="mResources" class="multi-dropdown"><summary>Seleccionar columnas y recursos <span id="mResourcesSummary" class="small muted"></span></summary><div id="mResourcesOptions" class="checkgrid"></div></details><span class="small muted">Selecciona todas las columnas y recursos que debe ocupar la cita.</span></div>
+      <div class="field full"><b>Columnas y recursos reservados</b><details id="mResources" class="multi-dropdown"><summary>Seleccionar columnas y recursos <span id="mResourcesSummary" class="small muted"></span></summary><div id="mResourcesOptions" class="checkgrid"></div></details><span class="small muted">Desmarcar un equipo también quitará de esta cita los tratamientos que lo necesitan; podrás reagendarlos manualmente.</span></div>
       <label class="field">Profesional disponible<select id="mProfessional"></select><span class="small muted">Si entras desde la agenda de un fisio, queda fijado ese profesional</span></label>
       <label class="field">Fecha<input id="mDate" type="date"></label>
       <label class="field">Hora de inicio<input id="mTime" type="time" step="300"></label>
@@ -409,6 +410,8 @@ const resourceDefaultTherapies={"BOMBA":"Bomba Estática",
 // El equipo/paciente puede seguir ocupado más tiempo.
 const therapyProfessionalDurations={
  'BRAINS':15,
+ 'Brains Way':15,
+ 'BRAINS WAY (TERAPIA TRANSCRANEAL)':15,
  'Robot':15,
  'Physicalm':15,
  'DPA':45,
@@ -717,21 +720,46 @@ function orderedAppointmentTherapies(names){
  const collator=new Intl.Collator('es',{sensitivity:'base',numeric:true}),priority=name=>{const value=String(name||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toLowerCase();return /^(?:1[ªºao]?\s*|primera\s+)consulta(?:\s|$)/.test(value)?0:/^valoracion(?:\s|$)/.test(value)?1:2};
  return [...names].sort((a,b)=>priority(a)-priority(b)||collator.compare(a,b));
 }
+function renderServiceChecks(){
+ const selected=new Set(checkedValues('#mServices input'));
+ const box=document.getElementById('mServicesOptions');
+ box.replaceChildren();
+ orderedAppointmentTherapies(therapies).forEach(name=>{const label=document.createElement('label'),input=document.createElement('input');input.type='checkbox';input.value=name;input.checked=selected.has(name);label.append(input,document.createTextNode(name));box.append(label)});
+ for(const [id,values,blank] of [['mTherapy',therapies,''],['wService',['Cualquiera',...therapies],''],['pfService',therapies,'Todos los servicios']]){
+  const select=document.getElementById(id),previous=select.value;
+  select.replaceChildren();
+  const add=(value,text)=>{const option=document.createElement('option');option.value=value;option.textContent=text;select.append(option)};
+  if(blank)add('',blank);
+  values.forEach(name=>add(name,name));
+  if([...select.options].some(option=>option.value===previous))select.value=previous;
+ }
+ updateMultiSummaries();
+}
 function buildMultiSelectors(){
- document.getElementById('mServicesOptions').innerHTML=orderedAppointmentTherapies(therapies).map(t=>`<label><input type="checkbox" value="${t}">${t}</label>`).join('');
+ renderServiceChecks();
  const checks=resources.map(r=>`<label><input type="checkbox" value="${r}">${r}</label>`).join('');
  document.getElementById('mResourcesOptions').innerHTML='';document.getElementById('blockResources').innerHTML=checks;
 }
 function checkedValues(selector){return [...document.querySelectorAll(selector+':checked')].map(x=>x.value)}
 function refreshResourceOptionsForTherapy(therapy,preserveCurrent=true){const select=document.getElementById('mResource'),current=preserveCurrent?select.value:'',allowed=resourcesForTherapy(therapy);select.innerHTML=allowed.map(r=>`<option value="${r}">${r}</option>`).join('');select.value=current&&allowed.includes(current)?current:(allowed[0]||'');document.getElementById('mResourcesOptions').innerHTML=allowed.map(r=>`<label><input type="checkbox" value="${r}" ${r===select.value?'checked':''}>${r}</label>`).join('');return allowed}
 function updateMultiSummaries(){const services=checkedValues('#mServices input'),resourcesSelected=checkedValues('#mResources input');document.getElementById('mServicesSummary').textContent=services.length?`· ${services.length} seleccionado${services.length===1?'':'s'}`:'· Ninguno';document.getElementById('mResourcesSummary').textContent=resourcesSelected.length?`· ${resourcesSelected.length} seleccionado${resourcesSelected.length===1?'':'s'}`:'· Ninguno'}
+function removeServicesForDeselectedEquipment(resource){
+ if(!equipment.includes(resource))return [];
+ const affected=[...document.querySelectorAll('#mServices input:checked')].filter(input=>resourcesForTherapy(input.value).includes(resource));
+ affected.forEach(input=>input.checked=false);
+ if(!affected.length)return [];
+ const remaining=checkedValues('#mServices input'),therapy=document.getElementById('mTherapy');
+ if(!remaining.includes(therapy.value))therapy.value=remaining[0]||'';
+ applySelectedServicesDuration(remaining);
+ return affected.map(input=>input.value);
+}
 buildMultiSelectors();refreshResourceOptionsForTherapy(therapies[0],false);updateMultiSummaries();
 
 function serviceCompetency(service){
  const physicalm=physicalmMode(service);if(physicalm)return physicalm==='dynamic'?'poner Physicalm':'';
  const s=normalizeSearch(service);
  if(s.includes('consulta')||s.includes('valoracion')) return 'fisioterapia';
- if(s.includes('fisioterapia')||s.includes('fisioavanzada')) return 'fisioterapia';
+ if(s.includes('fisioterapia')||s.includes('fisioavanzada')||s.includes('masaje')) return 'fisioterapia';
  if(s.includes('osteopatia')) return 'osteopatía';
  if(s.includes('neuromodulacion')) return 'neuromodulación';
  if(s.includes('readaptacion')) return 'readaptación';
@@ -956,11 +984,11 @@ function render(){
  for(let m=8*60;m<22*60;m+=15){
    const t=timeStr(m); calendarHtml+=`<div class="cell time">${t}</div>`;
    columns.forEach(({r,lane,units})=>{
-     let arr=dayApps.filter(a=>(Array.isArray(a.resources)?a.resources:[a.resource]).includes(r) && mins(a.time)===m && (units<=1||laneOf.get(r+'|'+a.id)===lane));
+     let arr=dayApps.filter(a=>(Array.isArray(a.resources)?a.resources:[a.resource]).includes(r) && appointmentStartSlot(a)===m && (units<=1||laneOf.get(r+'|'+a.id)===lane));
      let proHolds=professionals.includes(r)
-       ? dayApps.filter(a=>appointmentTherapists(a).includes(r) && !(a.resources||[a.resource]).includes(r) && mins(a.time)===m && professionalDuration(a)>0)
+       ? dayApps.filter(a=>appointmentTherapists(a).includes(r) && !(a.resources||[a.resource]).includes(r) && appointmentStartSlot(a)===m && professionalDuration(a)>0)
        : [];
-     let sim=simulation.filter(a=>a.date===currentDate&&(Array.isArray(a.resources)?a.resources:[a.resource]).includes(r)&&mins(a.time)===m&&lane===0);
+     let sim=simulation.filter(a=>a.date===currentDate&&(Array.isArray(a.resources)?a.resources:[a.resource]).includes(r)&&appointmentStartSlot(a)===m&&lane===0);
      let html='';
      const allAtStart=[...arr.map(a=>({a,kind:'appt'})),...proHolds.map(a=>({a,kind:'hold'}))];
      const n=allAtStart.length;
@@ -994,6 +1022,9 @@ function render(){
 }
 const renderWithoutPatientIndex=render;render=function(){if(patientCodeIndex)return renderWithoutPatientIndex.apply(this,arguments);const index=new Map();for(const p of patientMaster)if(typeof p.code==='string'&&!index.has(p.code))index.set(p.code,p);patientCodeIndex=index;try{return renderWithoutPatientIndex.apply(this,arguments)}finally{patientCodeIndex=null}};
 function effectiveStatus(a){return a.status==='Cancelada'?'Cancelada':conflictsFor(a,a.id).length?'Conflicto':a.status==='Conflicto'?'Pendiente':a.status}
+// La cuadrícula usa cuartos de hora; la cita conserva su hora exacta.
+function appointmentStartSlot(a){return Math.floor(mins(a.time)/15)*15}
+function appointmentTop(a){return 3+(mins(a.time)-appointmentStartSlot(a))*32/15}
 function professionalHoldHtml(a,column=''){
  const dur=professionalDuration(a);
  const slots=Math.max(1,Math.ceil(dur/15));
@@ -1003,7 +1034,7 @@ function professionalHoldHtml(a,column=''){
  const forced=a.forced?' forced':'';
  let statusClass=effectiveStatus(a)==='Conflicto'?' conflict':a.status==='Pendiente'?' pending':'';
  if(a.status==='Cancelada')statusClass+=' cancelled';
- return `<div class="appt${statusClass}${forced}" style="height:${height}px" data-id="${a.id}" data-column="${column}">
+ return `<div class="appt${statusClass}${forced}" style="top:${appointmentTop(a)}px;height:${height}px" data-id="${a.id}" data-column="${column}">
    <b title="${a.patient}">${shortPatient(a.patient)}</b>${label}<div class="small">${a.time} · ${dur}m profesional</div>
  </div>`;
 }
@@ -1020,7 +1051,7 @@ function apptHtml(a,sim,column=''){
  const height=(slots*32)-4;
  const forcedMark=a.forced?'<div class="small">⚠ FORZADA</div>':'';
  const services=Array.isArray(a.services)&&a.services.length?a.services:[a.therapy];const summary=services.length>2?`${services[0]} + ${services.length-1} más`:services.join(' + ');const ficha=patientByCode(a.patientCode);const phone=ficha?.phone||'';
- return `<div class="appt ${st}" tabindex="0" style="height:${height}px" data-id="${sim?'':a.id}" data-column="${column}"><b title="${a.patient}">${shortPatient(a.patient)}</b><span title="${summary}">${summary}</span><div class="small">${a.time} · ${a.duration}m</div>${services.length>1?`<span class="multi-badge">＋${services.length}</span>`:''}${forcedMark}<div class="appt-tooltip" role="tooltip"><b>${a.patient}</b><div>${phone||'Sin teléfono'}</div><div>${services.join(' · ')}</div><div>${(a.notes||'Sin observaciones').slice(0,180)}${(a.notes||'').length>180?'…':''}</div></div></div>`;
+ return `<div class="appt ${st}" tabindex="0" style="top:${appointmentTop(a)}px;height:${height}px" data-id="${sim?'':a.id}" data-column="${column}"><b title="${a.patient}">${shortPatient(a.patient)}</b><span title="${summary}">${summary}</span><div class="small">${a.time} · ${a.duration}m</div>${services.length>1?`<span class="multi-badge">＋${services.length}</span>`:''}${forcedMark}<div class="appt-tooltip" role="tooltip"><b>${a.patient}</b><div>${phone||'Sin teléfono'}</div><div>${services.join(' · ')}</div><div>${(a.notes||'Sin observaciones').slice(0,180)}${(a.notes||'').length>180?'…':''}</div></div></div>`;
 }
 
 function mergeIntervals(intervals){
@@ -1889,9 +1920,9 @@ function openModal(a=null){
 }
 function readModal(){
  const services=checkedValues('#mServices input');const selectedResources=checkedValues('#mResources input');const old=appointments.find(x=>x.id===editingId);
- const selectedServices=services.length?services:(mTherapy.value?[mTherapy.value]:(old?.services||[old?.therapy]).filter(Boolean));const needsProfessional=selectedServices.some(service=>!therapiesWithoutProfessional.has(service));
+ const hasServiceOptions=!!document.querySelector('#mServices input'),hasResourceOptions=!!document.querySelector('#mResources input');const selectedServices=hasServiceOptions?services:(mTherapy.value?[mTherapy.value]:(old?.services||[old?.therapy]).filter(Boolean));const needsProfessional=selectedServices.some(service=>!therapiesWithoutProfessional.has(service));
  const knownProfessionals=typeof professionals==='undefined'?[]:professionals;const existingProfessionalColumn=(old?.resources||[old?.resource]).find(resource=>knownProfessionals.includes(resource))||'';const noticeProfessional=!needsProfessional&&selectedServices.includes('Aviso')?((typeof lockedProfessionalContext!=='undefined'&&knownProfessionals.includes(lockedProfessionalContext)?lockedProfessionalContext:'')||existingProfessionalColumn||''):'';
- const therapists=needsProfessional?readTherapistAssignments():{};const therapistNames=[...new Set(Object.values(therapists))];const equipmentResources=selectedServices.flatMap(service=>resourcesForTherapy(service).filter(resource=>equipment.includes(resource)));const selectedColumns=(selectedResources.length?selectedResources:[mResource.value]).filter(resource=>(!noticeProfessional||resource!=='Seguimientos')&&(needsProfessional||!knownProfessionals.includes(resource)||resource===noticeProfessional));const allResources=[...new Set([...selectedColumns,...equipmentResources,noticeProfessional].filter(Boolean))];
+ const therapists=needsProfessional?readTherapistAssignments():{};const therapistNames=[...new Set(Object.values(therapists))];const equipmentResources=selectedServices.flatMap(service=>resourcesForTherapy(service).filter(resource=>equipment.includes(resource)));const selectedColumns=(hasResourceOptions?selectedResources:(mResource.value?[mResource.value]:[])).filter(resource=>(!noticeProfessional||resource!=='Seguimientos')&&(needsProfessional||!knownProfessionals.includes(resource)||resource===noticeProfessional));const allResources=[...new Set([...selectedColumns,...equipmentResources,noticeProfessional].filter(Boolean))];
  return {...old,id:editingId||Date.now(),patient:mPatient.value.trim(),patientCode:document.getElementById('mPatientCode').value||selectedPatientCode,
  therapy:selectedServices[0],services:selectedServices,resource:allResources[0]||'',resources:allResources,professional:needsProfessional?(therapistNames[0]||mProfessional.value):noticeProfessional,therapists,
  date:mDate.value,time:mTime.value,duration:Number(mDuration.value),endTime:timeStr(mins(mTime.value)+Number(mDuration.value)),status:mStatus.value,notes:mNotes.value,history:[...(old?.history||[])],forced:old?.forced||false,forceReason:old?.forceReason||'',conflictOverride:old?.conflictOverride||false,leadContext:old?.leadContext||leadBookingContext||null,reprogrammedFrom:old?.reprogrammedFrom||(reprogrammingAppointment?{id:reprogrammingAppointment.centralId||reprogrammingAppointment.id,date:reprogrammingAppointment.date,time:reprogrammingAppointment.time||reprogrammingAppointment.start}:null),planId:old?.planId||'',budgetId:old?.budgetId||'',planConflict:false,_serverSavePending:false,_serverSaveError:''};
@@ -1954,6 +1985,7 @@ function refreshForceWarning(){
 }
 function validateModal(a){
  const blocked=blockFor(a);const w=document.getElementById('modalWarning');if(!a.patientCode||!patientByCode(a.patientCode)){w.innerHTML='<b>Falta asignar el paciente.</b><br>Busca por nombre, código o teléfono y selecciona una ficha de los resultados.';w.classList.remove('hidden');return false}
+ if(!(a.services||[]).length){w.innerHTML='<b>Falta seleccionar un tratamiento.</b><br>La cita debe conservar al menos un servicio.';w.classList.remove('hidden');return false}
  const missing=(a.services||[]).filter(s=>serviceCompetency(s)&&!a.therapists?.[s]);
  if(missing.length){w.innerHTML=`<b>Falta seleccionar terapeuta.</b><br>${missing.join(', ')}`;w.classList.remove('hidden');return false}
  if(blocked){w.innerHTML=`<b>Horario bloqueado.</b><br>${blocked.reason||'No se pueden crear citas en este tramo.'}`;w.classList.remove('hidden');return false}
@@ -2207,7 +2239,7 @@ document.addEventListener('click',e=>{
 // Sincronización de selectores múltiples con los selectores principales.
 document.getElementById('mTherapy').addEventListener('change',()=>{const x=[...document.querySelectorAll('#mServices input')].find(x=>x.value===mTherapy.value);if(x)x.checked=true;refreshResourceOptionsForTherapy(mTherapy.value,false);document.getElementById('mProfessional').value=professionals.includes(mResource.value)?mResource.value:'';updateMultiSummaries();renderTherapistSelectors();refreshProfessionalOptions();refreshProfessionalReservationInfo();refreshForceWarning()});
 document.getElementById('mResource').addEventListener('change',()=>{document.querySelectorAll('#mResources input').forEach(x=>x.checked=x.value===mResource.value);document.getElementById('mProfessional').value=professionals.includes(mResource.value)?mResource.value:'';updateMultiSummaries();renderTherapistSelectors();refreshProfessionalReservationInfo();refreshForceWarning()});
-document.getElementById('mServices').addEventListener('change',()=>{const selected=checkedValues('#mServices input'),therapy=document.getElementById('mTherapy');if(selected.length&&!selected.includes(therapy.value)){const next=selected.find(value=>[...therapy.options].some(option=>option.value===value));if(next){therapy.value=next;const allowed=refreshResourceOptionsForTherapy(next,false),resource=document.getElementById('mResource');if(!allowed.includes(resource.value))resource.value=allowed[0]||''}}applySelectedServicesDuration(selected);updateMultiSummaries();renderTherapistSelectors();refreshProfessionalOptions();refreshProfessionalReservationInfo();refreshForceWarning()});document.getElementById('mResources').addEventListener('change',()=>{const selected=checkedValues('#mResources input'),resource=document.getElementById('mResource');if(selected.length&&!selected.includes(resource.value)){const next=selected.find(value=>[...resource.options].some(option=>option.value===value));if(next)resource.value=next}updateMultiSummaries();renderTherapistSelectors();refreshProfessionalReservationInfo();refreshForceWarning()});
+document.getElementById('mServices').addEventListener('change',()=>{const selected=checkedValues('#mServices input'),therapy=document.getElementById('mTherapy');if(selected.length&&!selected.includes(therapy.value)){const next=selected.find(value=>[...therapy.options].some(option=>option.value===value));if(next){therapy.value=next;const allowed=refreshResourceOptionsForTherapy(next,normalizeSearch(next).includes('masaje')),resource=document.getElementById('mResource');if(!allowed.includes(resource.value))resource.value=allowed[0]||''}}else if(!selected.length)therapy.value='';applySelectedServicesDuration(selected);updateMultiSummaries();renderTherapistSelectors();refreshProfessionalOptions();refreshProfessionalReservationInfo();refreshForceWarning()});document.getElementById('mResources').addEventListener('change',event=>{const changed=event.target,resource=document.getElementById('mResource');if(changed?.matches('input[type="checkbox"]')&&!changed.checked)removeServicesForDeselectedEquipment(changed.value);const selected=checkedValues('#mResources input');if(selected.length&&!selected.includes(resource.value)){const next=selected.find(value=>[...resource.options].some(option=>option.value===value));if(next)resource.value=next}updateMultiSummaries();renderTherapistSelectors();refreshProfessionalOptions();refreshProfessionalReservationInfo();refreshForceWarning()});
 
 function dropAppointmentToCell(target,time){
  if(!draggedAppointment)return;const a=appointments.find(x=>x.id===draggedAppointment.id);if(!a)return;
@@ -2388,7 +2420,7 @@ window.addEventListener('message',function(event){const msg=event.data||{};if(ms
  async function saveSettingConfirmed(section,payload){await waitForSettingsReady();const result=await settingsRequest('settings:upsert',{section,payload});const status=document.getElementById('cfgSaved');if(status)status.textContent='✓ Configuración confirmada en servidor';return result}
  window.saveSettingConfirmed=saveSettingConfirmed;
  function saveSetting(section,payload){const snapshot=JSON.parse(JSON.stringify(payload));saveSettingConfirmed(section,snapshot).catch(error=>{console.error(error);const status=document.getElementById('cfgSaved');if(status)status.textContent='Configuración NO confirmada en servidor. Mantén esta ventana abierta y reintenta guardar.'})}
- function applyRuntimeSettings(){document.documentElement.style.setProperty('--blue',company.design?.theme||'#0b7fab');const profiles=(company.professionals||[]).filter(x=>x.active!==false);professionals.splice(0,professionals.length,...profiles.map(x=>x.name));Object.keys(schedules).forEach(k=>delete schedules[k]);profiles.forEach(profile=>{schedules[profile.name]=Object.fromEntries(Object.entries(profile.schedule||{}).map(([day,spans])=>[day,(spans||[]).filter(x=>x[0]&&x[1]&&x[0]<x[1]).map(([a,b])=>[mins(a),mins(b)])]))});Object.keys(alicanteTherapyProfessionals).forEach(k=>delete alicanteTherapyProfessionals[k]);therapies.forEach(therapy=>alicanteTherapyProfessionals[therapy]=profiles.filter(x=>(x.therapies||[]).includes(therapy)).map(x=>x.name));parent.postMessage({type:'atlas:professionals',professionals:[...professionals],physioProfessionals:qualifiedProfessionals('Fisioterapia')},'*');if(typeof therapies!=='undefined'){const names=(sales.services||[]).filter(x=>x.active!==false&&normalizeSearch(x.name).trim()!=='physicalm').map(x=>x.name);if(names.length)therapies.splice(0,therapies.length,...names);for(const service of ['PHYSICALM DINAMICO','PHYSICALM ESTATICO'])if(!therapies.some(name=>normalizeSearch(name)===normalizeSearch(service)))therapies.push(service);(sales.services||[]).forEach(x=>therapyDurations[x.name]=Number(x.duration)||30);if(typeof renderServiceChecks==='function')renderServiceChecks()}if(typeof equipment!=='undefined'&&typeof resources!=='undefined'){const names=(others.resources||[]).filter(x=>x.active!==false).map(x=>x.name);if(names.length)equipment.splice(0,equipment.length,...names);resources.splice(0,resources.length,...specialColumns,...professionals,...equipment)}if(typeof render==='function')render()}
+ function applyRuntimeSettings(){document.documentElement.style.setProperty('--blue',company.design?.theme||'#0b7fab');const profiles=(company.professionals||[]).filter(x=>x.active!==false);professionals.splice(0,professionals.length,...profiles.map(x=>x.name));Object.keys(schedules).forEach(k=>delete schedules[k]);profiles.forEach(profile=>{schedules[profile.name]=Object.fromEntries(Object.entries(profile.schedule||{}).map(([day,spans])=>[day,(spans||[]).filter(x=>x[0]&&x[1]&&x[0]<x[1]).map(([a,b])=>[mins(a),mins(b)])]))});Object.keys(alicanteTherapyProfessionals).forEach(k=>delete alicanteTherapyProfessionals[k]);therapies.forEach(therapy=>alicanteTherapyProfessionals[therapy]=profiles.filter(x=>(x.therapies||[]).includes(therapy)).map(x=>x.name));parent.postMessage({type:'atlas:professionals',professionals:[...professionals],physioProfessionals:qualifiedProfessionals('Fisioterapia')},'*');if(typeof therapies!=='undefined'){const names=(sales.services||[]).filter(x=>x.active!==false&&normalizeSearch(x.name).trim()!=='physicalm').map(x=>x.name);therapies.splice(0,therapies.length,...names);for(const service of ['PHYSICALM DINAMICO','PHYSICALM ESTATICO'])if(!therapies.some(name=>normalizeSearch(name)===normalizeSearch(service)))therapies.push(service);(sales.services||[]).forEach(x=>therapyDurations[x.name]=Number(x.duration)||30);if(typeof renderServiceChecks==='function')renderServiceChecks()}if(typeof equipment!=='undefined'&&typeof resources!=='undefined'){const names=(others.resources||[]).filter(x=>x.active!==false).map(x=>x.name);if(names.length)equipment.splice(0,equipment.length,...names);resources.splice(0,resources.length,...specialColumns,...professionals,...equipment)}if(typeof render==='function')render()}
  async function loadCentralSettings(){if(settingsLoading){settingsReloadPending=true;return}settingsLoading=true;const blockLoadEpoch=agendaBlocksWriteEpoch,blockLoadMayApply=!agendaBlocksWritePending;try{const rows=await settingsRequest('settings:list');const applyBlocksFromCentral=blockLoadMayApply&&blockLoadEpoch===agendaBlocksWriteEpoch&&!agendaBlocksWritePending;let migrateProfessionals=false,migrateSales=false,migrateAgendaBlocks=false,migrateAiReceptionist=false;if(rows.length){const by=Object.fromEntries(rows.map(x=>[x.section,x.payload||{}]));if(by.agenda){migrateAgendaBlocks=!Array.isArray(by.agenda.blocks);cfg=Object.assign({},cfg,by.agenda,{hours:Object.assign({},defaults.hours,by.agenda.hours||{}),settings:Object.assign({},defaults.settings,by.agenda.settings||{}),blocks:Array.isArray(by.agenda.blocks)&&applyBlocksFromCentral?by.agenda.blocks:agendaBlocks,availabilityOverrides:Array.isArray(by.agenda.availabilityOverrides)?by.agenda.availabilityOverrides:agendaAvailabilityOverrides});if(Array.isArray(by.agenda.blocks)&&applyBlocksFromCentral){agendaBlocks=by.agenda.blocks}agendaAvailabilityOverrides=Array.isArray(by.agenda.availabilityOverrides)?by.agenda.availabilityOverrides:[];save()}if(by.company){migrateProfessionals=!Array.isArray(by.company.professionals)||!by.company.professionals.length;company=Object.assign({},company,by.company,{center:Object.assign({},companyDefaults.center,company.center||{},by.company.center||{}),design:Object.assign({},companyDefaults.design,company.design||{},by.company.design||{})})}if(by.sales){sales=Object.assign({},sales,by.sales);migrateSales=normalizeAlicanteServiceCatalog()}
 if(by.ai_receptionist){marketingConfigs['Recepcionista IA']={...aiReceptionConfig(),...by.ai_receptionist};persistMarketing()}else if(window.ATLAS_CHILD_CENTRAL_CONTEXT?.ownerAccess||window.ATLAS_CHILD_CENTRAL_CONTEXT?.managementAccess)migrateAiReceptionist=true;
 if(by.other){others=Object.assign({},others,by.other,{attendance:others.attendance});others.resources=(others.resources||[]).filter(item=>normalizeSearch(item.name)!=='camilla fd');if(others.resources.length&&!others.resources.some(item=>normalizeSearch(item.name)==='traccion'))others.resources.push({id:Date.now(),name:'Traccion',capacity:1,color:'#2b7fb0',active:true})}window.atlasCacheWrite('atlasAlicanteAgendaConfig_V1',JSON.stringify(cfg));window.atlasCacheWrite('atlasAlicanteCompanyConfig_V1',JSON.stringify(company));window.atlasCacheWrite('atlasAlicanteSalesConfig_V1',JSON.stringify(sales));window.atlasCacheWrite('atlasAlicanteOtherConfig_V1',JSON.stringify(others));applyRuntimeSettings()}settingsReady=true;if(!rows.length)await Promise.all([settingsRequest('settings:upsert',{section:'agenda',payload:cfg}),settingsRequest('settings:upsert',{section:'company',payload:company}),settingsRequest('settings:upsert',{section:'sales',payload:sales}),settingsRequest('settings:upsert',{section:'other',payload:others})]);else{if(migrateProfessionals)await settingsRequest('settings:upsert',{section:'company',payload:company});if(migrateSales)await settingsRequest('settings:upsert',{section:'sales',payload:sales});if(migrateAgendaBlocks){cfg.blocks=agendaBlocks;await settingsRequest('settings:upsert',{section:'agenda',payload:cfg})}if(migrateAiReceptionist)await settingsRequest('settings:upsert',{section:'ai_receptionist',payload:aiReceptionConfig()})}document.getElementById('cfgSaved').textContent='Configuración central sincronizada'}catch(error){console.error(error);document.getElementById('cfgSaved').textContent='Configuración local disponible'}finally{settingsLoading=false;if(settingsReloadPending){settingsReloadPending=false;queueMicrotask(loadCentralSettings)}}}
@@ -2421,7 +2453,7 @@ if(by.other){others=Object.assign({},others,by.other,{attendance:others.attendan
   finally{agendaBlocksWritePending=false}
  };
  function persistCompany(msg='Configuración de empresa guardada'){window.atlasCacheWrite('atlasAlicanteCompanyConfig_V1',JSON.stringify(company));saveSetting('company',company);document.documentElement.style.setProperty('--blue',company.design.theme||'#0b7fab');const brand=document.querySelector('.brand');if(brand&&company.center.name)brand.innerHTML='<b>ATLAS</b> '+esc(company.center.name);document.getElementById('cfgSaved').textContent='Guardando en servidor…'}
- function persistSales(msg='Configuración de ventas guardada'){window.atlasCacheWrite('atlasAlicanteSalesConfig_V1',JSON.stringify(sales));saveSetting('sales',sales);if(typeof therapies!=='undefined'){const names=sales.services.filter(x=>x.active!==false).map(x=>x.name);therapies.splice(0,therapies.length,...names);sales.services.forEach(x=>therapyDurations[x.name]=Number(x.duration)||30);if(typeof initSelect==='function'){initSelect('mTherapy',therapies);initSelect('wService',['Cualquiera',...therapies]);initSelect('pfService',therapies,'Todos los servicios')}if(typeof renderServiceChecks==='function')renderServiceChecks()}document.getElementById('cfgSaved').textContent='Guardando en servidor…'}
+ function persistSales(msg='Configuración de ventas guardada'){window.atlasCacheWrite('atlasAlicanteSalesConfig_V1',JSON.stringify(sales));saveSetting('sales',sales);if(typeof therapies!=='undefined'){const names=sales.services.filter(x=>x.active!==false).map(x=>x.name);therapies.splice(0,therapies.length,...names);sales.services.forEach(x=>therapyDurations[x.name]=Number(x.duration)||30);if(typeof renderServiceChecks==='function')renderServiceChecks()}document.getElementById('cfgSaved').textContent='Guardando en servidor…'}
  function persistOthers(msg='Configuración guardada'){window.atlasCacheWrite('atlasAlicanteOtherConfig_V1',JSON.stringify(others));saveSetting('other',others);if(typeof equipment!=='undefined'&&typeof resources!=='undefined'){const names=others.resources.filter(x=>x.active!==false).map(x=>x.name);equipment.splice(0,equipment.length,...names);resources.splice(0,resources.length,...specialColumns,...professionals,...names)}document.getElementById('cfgSaved').textContent='Guardando en servidor…'}
  window.addEventListener('message',event=>{const msg=event.data||{};if(msg.type==='atlas:central-db-response'&&settingsPending.has(msg.requestId)){const item=settingsPending.get(msg.requestId);settingsPending.delete(msg.requestId);clearTimeout(item.timer);msg.ok?item.resolve(msg.data||[]):item.reject(Object.assign(new Error(msg.error||'Error central'),{code:msg.code||''}));return}if(msg.type==='atlas:central-ready'||msg.type==='atlas:central-settings-changed')loadCentralSettings()});
  window.addEventListener('focus',()=>{if(settingsReady)loadCentralSettings()});
@@ -4673,7 +4705,9 @@ function printInvoice(x,openedWindow){const issuer=x.issuer||{},recipient=x.reci
    let options=qualifiedProfessionals(service).filter(professional=>physicalmDynamic||professionalAvailableForService(professional,service));
    const primaryService=service===document.getElementById('mTherapy').value;
    if(lockedProfessionalContext&&primaryService&&!physicalmDynamic)options=options.filter(professional=>professional===lockedProfessionalContext);
-   const requested=assignments[service]||previous[service]||(primaryService?lockedProfessionalContext:'')||'',chosen=options.includes(requested)?requested:'';
+   const original=primaryService&&normalizeSearch(service).includes('masaje')?appointments.find(appointment=>String(appointment.id)===String(editingId)):null;
+   const retained=original?.professional||Object.values(original?.therapists||{}).filter(Boolean)[0]||'';
+   const requested=assignments[service]||previous[service]||(primaryService?lockedProfessionalContext:'')||retained,chosen=options.includes(requested)?requested:'';
    const duration=therapyProfessionalDurations[service]??Number(document.getElementById('mDuration').value||0);
    return `<label class="therapist-row"><span><b>${service}</b><br><span class="atlas-therapist-availability">${options.length?options.length+(physicalmDynamic?' profesionales · ':' terapeuta(s) disponible(s) · ')+(duration>0?'reserva de '+duration+' min':'no bloquea la agenda del fisio'):'No hay terapeutas disponibles en este horario'}</span></span><select data-service="${service}"><option value="">Seleccionar terapeuta disponible</option>${options.map(professional=>`<option value="${professional}" ${professional===chosen?'selected':''}>${professional}</option>`).join('')}</select></label>`;
   }).join('');
@@ -6422,4 +6456,5 @@ body.side-collapsed #sideEdge{display:block}
 </script>
 <script src="./centre-presence.js?v=1"></script>
 <script src="./agenda-waitlist-central.js?v=2"></script>
+<script src="./appointment-duplicates.js?v=1"></script>
 </body></html>
