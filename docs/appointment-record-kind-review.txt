@@ -1,0 +1,74 @@
+Citas y pagos independientes — implementación y validación, 17/11/2026
+
+MODELO COMPATIBLE CON LOS REGISTROS EXISTENTES
+No se crean tablas duplicadas ni se migran, borran o reclasifican filas.
+- Paciente: patients.id; todas las lecturas se limitan a organización y clínica.
+- Cita: appointments.id, patient_id, starts_at, ends_at, services, resources,
+  professionals, status, notes, client_ref y metadata (historial/cancelación).
+- Pago: payments.id, patient_id, appointment_id opcional, budget_id opcional,
+  amount, method, paid_at, status, payment_type, referencia/recibo y metadata.
+- Vínculos: appointment_id para el vínculo directo; group_appointments en la
+  metadata existente permite varios vínculos con importes expresos. Un pago
+  sin vínculo de cita sigue siendo exclusivamente una operación financiera.
+- Cargos vigentes: presupuestos aceptados (budgets.total) y deuda registrada
+  (patient_debts.amount_remaining). No se inventan cargos a partir de las citas.
+  El saldo mostrado se identifica expresamente con ese alcance. No es una
+  migración a un nuevo libro mayor de cargos independientes.
+
+ESTADOS Y ACCIONES
+La vista conserva la diferencia entre pendiente, confirmada, en atención,
+realizada, cancelada por paciente/clínica, no presentada y reagendada. La
+reagendación conserva los identificadores e historial del flujo existente;
+no se crean copias ni se borran reservas como parte de este cambio.
+La asistencia solo procede de appointments.status; nunca del estado del pago.
+La transacción conserva pendiente, pagada, devuelta, anulada o fallida.
+Pagado parcialmente se calcula para la obligación, a partir de varios pagos.
+Los nuevos cobros guardan en metadata el estado asistencial en el momento
+del pago y si corresponden a anticipo, consulta, servicio atendido u otro caso.
+Estos campos no cambian el estado de la cita ni el importe, fecha o recibo.
+
+CAMBIOS
+1. Todas las actualizaciones financieras locales que utilizaban Object.assign(a,
+   {paymentStatus:...}) pasan por una lista cerrada de campos económicos.
+   No pueden sobrescribir status, fecha, servicios ni profesionales.
+2. Cancelar conserva el cobro y ofrece revisar si corresponde una devolución.
+   Aceptar esa revisión abre Facturación; nunca registra devolución/anulación.
+3. La ficha añade filtros de historial, próximas, pendientes, realizadas y
+   canceladas, preservando estados como Confirmada y No presentada.
+   Los informes reflejan los filtros; no se cambia la selección de destinatarios
+   ni los textos del envío de calendario existente.
+4. Pagos y devoluciones tiene un historial propio, estados, importes, método,
+   tipo de operación, referencias y vínculos; incluye anticipos sin cita.
+5. Un nuevo resumen financiero de solo lectura calcula presupuestos pendientes
+   y deuda registrada; no consulta appointments. No modifica el saldo almacenado.
+6. Los registros expresamente identificados como ventas se excluyen de las
+   lecturas de citas. No se ocultan registros ambiguos por hora o tratamiento.
+
+VALIDACIÓN
+- 12 ejecuciones aisladas por clínica de las funciones reales de cobro individual,
+  cobro conjunto y cancelación, con adaptador de datos ficticio. Se cobran citas
+  pendientes, confirmadas, realizadas, canceladas y no presentadas sin alterar
+  su asistencia; cancelar una cita pagada conserva íntegro el pago y el vínculo.
+- Confirmación y rechazo de la revisión de devolución; fallo de cancelación.
+- Lista cerrada de campos: una respuesta financiera con status contaminado no
+  modifica la cita. Anticipo sin cita no genera sesiones ni realizadas.
+- Dos pagos parciales, devolución, anulación, deuda saldada, más de 1.000 pagos,
+  aislamiento por organización/clínica y fallos de conexión en el resumen.
+- Renderizado de las funciones reales del listado y el panel financiero en Chrome
+  temporal, sin red: filtros, anticipo, cancelada pagada, devolución, saldo,
+  borrado de la pantalla al cambiar de paciente y adaptación ordenador/móvil.
+- Sintaxis de portada, Agenda, Ficha y módulos nuevos correcta.
+- Murcia: pasan las pruebas existentes de importes/descuentos, pagos mixtos,
+  fecha de pago, cobro de sesiones realizadas, navegación e indicadores.
+- Alicante: pasa también la prueba existente de ventas estándar/mixtas y
+  visualización de descuentos de factura, sin registrar ventas reales.
+
+LÍMITES
+La estructura de tablas se comprobó solo en el proyecto de pruebas sintéticas.
+No se consultó ni alteró producción. La revisión automática había rechazado
+la consulta técnica autorizada del registro original; no se elude ese bloqueo.
+Un registro histórico de venta importado como cita ordinaria y sin procedencia
+expresa no puede identificarse con esta captura. No se ha reparado ese tipo de
+registro ni se garantiza que la fila concreta de la captura quede excluida.
+Este cambio no borra ni rectifica documentos fiscales, pagos ni citas, ni
+registra una devolución. No se cambian permisos, secretos o proyectos.
