@@ -3185,7 +3185,8 @@ window.sendPaymentDocumentsAutomatically=function(paymentId,patientName){central
 </script>
 
 <style id="atlas-central-appointments-style">
-.atlas-agenda-sync{position:fixed;left:18px;bottom:18px;z-index:9998;border-radius:999px;padding:9px 13px;background:#17313d;color:#fff;font-size:12px;font-weight:800;box-shadow:0 5px 18px #0003}.atlas-agenda-sync.ok{background:#137a45}.atlas-agenda-sync.warn{background:#9a6700}.atlas-agenda-sync.error{background:#b42318}
+.atlas-agenda-sync{position:fixed;right:18px;bottom:18px;z-index:19;max-width:calc(100vw - 260px);pointer-events:none;overflow-wrap:anywhere;border-radius:999px;padding:9px 13px;background:#17313d;color:#fff;font-size:12px;font-weight:800;box-shadow:0 5px 18px #0003}.atlas-agenda-sync.ok{background:#137a45}.atlas-agenda-sync.warn{background:#9a6700}.atlas-agenda-sync.error{background:#b42318}
+@media(max-width:600px){.atlas-agenda-sync{max-width:calc(100vw - 36px)}}
 </style>
 <script id="atlas-central-appointments-v17">
 (()=>{
