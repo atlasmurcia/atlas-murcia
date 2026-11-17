@@ -1,48 +1,74 @@
-Corrección candidata: separar registros de venta del listado de citas
+Citas y pagos independientes — implementación y validación, 17/11/2026
 
-Alcance: filtro de lectura en Agenda y Ficha; no modifica registros, cobros,
-facturas, importes ni justificantes. Las citas reales cobradas se conservan.
-Solo excluye registros con metadata.kind (o kind trasladado al modelo local)
-igual a direct_sale/historical_sale, o referencias de venta conocidas.
-No se infiere que algo sea venta por su hora, servicios, duración o profesional.
+MODELO COMPATIBLE CON LOS REGISTROS EXISTENTES
+No se crean tablas duplicadas ni se migran, borran o reclasifican filas.
+- Paciente: patients.id; todas las lecturas se limitan a organización y clínica.
+- Cita: appointments.id, patient_id, starts_at, ends_at, services, resources,
+  professionals, status, notes, client_ref y metadata (historial/cancelación).
+- Pago: payments.id, patient_id, appointment_id opcional, budget_id opcional,
+  amount, method, paid_at, status, payment_type, referencia/recibo y metadata.
+- Vínculos: appointment_id para el vínculo directo; group_appointments en la
+  metadata existente permite varios vínculos con importes expresos. Un pago
+  sin vínculo de cita sigue siendo exclusivamente una operación financiera.
+- Cargos vigentes: presupuestos aceptados (budgets.total) y deuda registrada
+  (patient_debts.amount_remaining). No se inventan cargos a partir de las citas.
+  El saldo mostrado se identifica expresamente con ese alcance. No es una
+  migración a un nuevo libro mayor de cargos independientes.
 
-Validación completada con fixtures exclusivamente sintéticos:
-- Cita realizada y cobrada: visible.
-- Cita histórica de Koibox, sin profesional o con varios servicios: visible.
-- Registro marcado como venta: excluido de lista, contador y exportaciones.
-- Las respuestas payments:list y payments:listClinic conservan todos sus pagos.
-- No se filtran escrituras ni se modifica el objeto original.
-- Sintaxis de scripts de portada, Agenda y Ficha: correcta.
-- Listado real renderizado en Chrome temporal, sin conexión: una cita real,
-  cero ventas; comprobado por separado para cada clínica.
+ESTADOS Y ACCIONES
+La vista conserva la diferencia entre pendiente, confirmada, en atención,
+realizada, cancelada por paciente/clínica, no presentada y reagendada. La
+reagendación conserva los identificadores e historial del flujo existente;
+no se crean copias ni se borran reservas como parte de este cambio.
+La asistencia solo procede de appointments.status; nunca del estado del pago.
+La transacción conserva pendiente, pagada, devuelta, anulada o fallida.
+Pagado parcialmente se calcula para la obligación, a partir de varios pagos.
+Los nuevos cobros guardan en metadata el estado asistencial en el momento
+del pago y si corresponden a anticipo, consulta, servicio atendido u otro caso.
+Estos campos no cambian el estado de la cita ni el importe, fecha o recibo.
 
-PENDIENTE, IMPRESCINDIBLE ANTES DE PUBLICAR:
-La captura aportada no muestra los identificadores técnicos ni el origen del
-registro. No se han consultado datos reales. No está demostrado que el cobro
-mostrado tenga alguna de las marcas anteriores. Un responsable autorizado
-debe proporcionar un ejemplo técnico anonimizado de su client_ref y de los
-campos de procedencia de metadata, sin nombre, contacto ni datos clínicos.
-Si fue importado como cita ordinaria sin marca de venta, este filtro por sí
-solo no lo excluye: hace falta identificar el criterio real en el importador
-y ampliar la prueba de regresión. No ocultar citas por falta de profesional.
-Comprobar asimismo que ese cobro ya existe en Pagos; ocultarlo de Citas no
-crea ni traslada pagos.
+CAMBIOS
+1. Todas las actualizaciones financieras locales que utilizaban Object.assign(a,
+   {paymentStatus:...}) pasan por una lista cerrada de campos económicos.
+   No pueden sobrescribir status, fecha, servicios ni profesionales.
+2. Cancelar conserva el cobro y ofrece revisar si corresponde una devolución.
+   Aceptar esa revisión abre Facturación; nunca registra devolución/anulación.
+3. La ficha añade filtros de historial, próximas, pendientes, realizadas y
+   canceladas, preservando estados como Confirmada y No presentada.
+   Los informes reflejan los filtros; no se cambia la selección de destinatarios
+   ni los textos del envío de calendario existente.
+4. Pagos y devoluciones tiene un historial propio, estados, importes, método,
+   tipo de operación, referencias y vínculos; incluye anticipos sin cita.
+5. Un nuevo resumen financiero de solo lectura calcula presupuestos pendientes
+   y deuda registrada; no consulta appointments. No modifica el saldo almacenado.
+6. Los registros expresamente identificados como ventas se excluyen de las
+   lecturas de citas. No se ocultan registros ambiguos por hora o tratamiento.
 
-No fusionar ni publicar hasta validar esa procedencia. Se entrega como
-borrador de revisión para evitar afirmar que la incidencia real está resuelta.
+VALIDACIÓN
+- 12 ejecuciones aisladas por clínica de las funciones reales de cobro individual,
+  cobro conjunto y cancelación, con adaptador de datos ficticio. Se cobran citas
+  pendientes, confirmadas, realizadas, canceladas y no presentadas sin alterar
+  su asistencia; cancelar una cita pagada conserva íntegro el pago y el vínculo.
+- Confirmación y rechazo de la revisión de devolución; fallo de cancelación.
+- Lista cerrada de campos: una respuesta financiera con status contaminado no
+  modifica la cita. Anticipo sin cita no genera sesiones ni realizadas.
+- Dos pagos parciales, devolución, anulación, deuda saldada, más de 1.000 pagos,
+  aislamiento por organización/clínica y fallos de conexión en el resumen.
+- Renderizado de las funciones reales del listado y el panel financiero en Chrome
+  temporal, sin red: filtros, anticipo, cancelada pagada, devolución, saldo,
+  borrado de la pantalla al cambiar de paciente y adaptación ordenador/móvil.
+- Sintaxis de portada, Agenda, Ficha y módulos nuevos correcta.
+- Murcia: pasan las pruebas existentes de importes/descuentos, pagos mixtos,
+  fecha de pago, cobro de sesiones realizadas, navegación e indicadores.
+- Alicante: pasa también la prueba existente de ventas estándar/mixtas y
+  visualización de descuentos de factura, sin registrar ventas reales.
 
-ACLARACIÓN CONFIRMADA POR LA USUARIA, 17/11/2026:
-Agenda y pagos son independientes. Un anticipo puede existir antes de pautar
-sesiones. Una sesión pagada puede cancelarse sin anular automáticamente su
-cobro. No se crean citas a partir del pago ni se elimina el pago al cancelar.
-Pruebas adicionales: anticipo sin citas (agenda vacía), sesión futura pagada,
-sesión cancelada con pago conservado y devolución existente; se mantienen
-los estados y vínculos originales. No se ejecutan operaciones de cobro,
-cancelación, devolución ni cambios de saldo.
-
-La usuaria autorizó expresamente consultar únicamente identificadores y
-campos técnicos de origen del registro señalado, sin historia clínica ni
-modificaciones. La revisión automática rechazó incluso la consulta al catálogo
-de columnas de producción por la prohibición de este espacio. No se accedió
-a los datos reales y no se intenta eludir ese bloqueo por otra vía.
-Por tanto, sigue pendiente validar la procedencia real en un entorno autorizado.
+LÍMITES
+La estructura de tablas se comprobó solo en el proyecto de pruebas sintéticas.
+No se consultó ni alteró producción. La revisión automática había rechazado
+la consulta técnica autorizada del registro original; no se elude ese bloqueo.
+Un registro histórico de venta importado como cita ordinaria y sin procedencia
+expresa no puede identificarse con esta captura. No se ha reparado ese tipo de
+registro ni se garantiza que la fila concreta de la captura quede excluida.
+Este cambio no borra ni rectifica documentos fiscales, pagos ni citas, ni
+registra una devolución. No se cambian permisos, secretos o proyectos.
