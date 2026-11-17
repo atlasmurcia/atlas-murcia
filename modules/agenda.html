@@ -1651,6 +1651,9 @@ function updateStats(force=false){
  const panel=document.getElementById('statsBack');
  if(force||panel?.classList.contains('open'))renderStatisticsDashboard();
 }
+function appointmentDrawerRoute(a){
+ return appointments.filter(x=>!['cancelada','cancelled','canceled','anulada','anulado','eliminada','deleted'].includes(normalizeSearch(x.status))&&!x.deletedAt&&!x.deleted_at&&x.date===a.date&&((a.patientRemoteId&&String(x.patientRemoteId||'')===String(a.patientRemoteId))||(a.patientCode&&x.patientCode===a.patientCode)||(!a.patientCode&&normalizeSearch(x.patient)===normalizeSearch(a.patient)))).sort((x,y)=>mins(x.time)-mins(y.time));
+}
 function openDrawer(id){
  const a=appointments.find(x=>String(x.id)===String(id));if(!a)return;selectedId=a.id;
  document.getElementById('dName').textContent=a.patient;
@@ -1669,7 +1672,7 @@ function openDrawer(id){
  (a.notes?`<br><span class="small"><b>Obs.:</b> ${hesc(a.notes)}</span>`:'')+
  (a.forced?`<br><b>⚠ CITA FORZADA FUERA DE HORARIO</b><br><span class="small">Motivo: ${a.forceReason||'Sin motivo'}</span>`:'')+
  ((a.history||[]).length?`<br><br><b>Historial</b><div class="history-list">${a.history.slice().reverse().map(h=>`<div class="history-row">${new Date(h.at).toLocaleString('es-ES')} · ${h.user||'Usuario'} · ${h.action}</div>`).join('')}</div>`:'');
- let route=appointments.filter(x=>x.date===a.date&&((a.patientRemoteId&&String(x.patientRemoteId||'')===String(a.patientRemoteId))||(a.patientCode&&x.patientCode===a.patientCode)||(!a.patientCode&&normalizeSearch(x.patient)===normalizeSearch(a.patient)))).sort((x,y)=>mins(x.time)-mins(y.time));
+ const route=appointmentDrawerRoute(a);
  document.getElementById('route').innerHTML=route.map(x=>`<div><b>${x.time}</b> · ${x.therapy} <span class="muted">(${x.resource})</span></div>`).join('');
  document.getElementById('openPatientRecordBtn').classList.toggle('hidden',!ficha);document.getElementById('doneBtn').classList.toggle('hidden',a.status!=='Pendiente');
  document.getElementById('pendingBtn').classList.toggle('hidden',a.status!=='Realizada');
