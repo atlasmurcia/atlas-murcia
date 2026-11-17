@@ -47,7 +47,7 @@
 })();
 </script><script>
 const agendaFrame=document.getElementById('agendaFrame'),fichaFrame=document.getElementById('fichaFrame'),financeFrame=document.getElementById('financeFrame'),commissionsFrame=document.getElementById('commissionsFrame'),marketingFrame=document.getElementById('marketingFrame'),stage=document.getElementById('stage');
-const atlasModulePaths={agenda:'./modules/agenda.html?v=205',ficha:'./modules/ficha.html?v=131',finance:'./modules/finance.html?v=100',commissions:'./modules/commissions.html?v=99',marketing:'./modules/marketing.html?v=3'};
+const atlasModulePaths={agenda:'./modules/agenda.html?v=206',ficha:'./modules/ficha.html?v=132',finance:'./modules/finance.html?v=100',commissions:'./modules/commissions.html?v=99',marketing:'./modules/marketing.html?v=3'};
 const atlasModuleFrames={agenda:agendaFrame,ficha:fichaFrame,finance:financeFrame,commissions:commissionsFrame,marketing:marketingFrame};
 const atlasLoadedModules=new Set();
 let atlasVisibleModule='';
@@ -950,6 +950,14 @@ const loadAll=async makeQuery=>{const data=[],size=1000,parallel=8;for(let offse
   if(action==='internal-chat:list'){
    const result=await client.from('internal_chat_messages').select('id,client_ref,sender_user_id,recipient_user_id,sender_name,recipient_name,body,created_at,read_at,deleted_at,deleted_by_user_id,deleted_by_name').eq('organization_id',me().organizationId).eq('clinic_id',me().clinicId).gte('created_at',new Date(Date.now()-CHAT_RETENTION_MS).toISOString()).order('created_at');
    if(result.error)throw result.error;return (result.data||[]).map(row=>({payload:chatRowToMessage(row),updated_at:row.created_at}));
+  }
+  if(action==='internal-chat:task-assigned'){
+   const recipientId=String(payload?.recipientId||'');if(!recipientId)throw new Error('No se ha identificado a la persona asignada.');if(recipientId===String(me().userId))return null;
+   const directoryResult=await client.rpc('atlas_chat_directory',{p_organization_id:me().organizationId,p_clinic_id:me().clinicId});if(directoryResult.error)throw directoryResult.error;
+   const recipient=(directoryResult.data||[]).find(item=>String(item.user_id)===recipientId);if(!recipient?.full_name)throw new Error('La persona asignada no está disponible en el chat interno.');
+   const areaLabel=({fisio:'Fisio',recepcion:'Recepción',auxiliar:'Auxiliar',gestion:'Gestión'})[String(payload?.area||'')]||'equipo',text='📋 Te han asignado una tarea nueva de '+areaLabel+'. En ATLAS, abre el área '+areaLabel+' y selecciona «Mis tareas». Si no aparece, quita los filtros de fecha.',id=crypto.randomUUID?crypto.randomUUID():Date.now()+'-'+Math.random().toString(36).slice(2),createdAt=new Date().toISOString();
+   const saved=await client.from('internal_chat_messages').insert({client_ref:id,organization_id:me().organizationId,clinic_id:me().clinicId,sender_user_id:me().userId,recipient_user_id:recipientId,sender_name:currentName(),recipient_name:recipient.full_name,body:text,created_at:createdAt}).select('id,client_ref,sender_user_id,recipient_user_id,sender_name,recipient_name,body,created_at,read_at,deleted_at,deleted_by_user_id,deleted_by_name').single();
+   if(saved.error)throw saved.error;return {payload:chatRowToMessage(saved.data),updated_at:createdAt};
   }
   if(action==='internal-chat:delete'){
    const messageId=String(payload?.messageId||'');if(!messageId)throw new Error('No se ha identificado el mensaje.');
