@@ -30,3 +30,19 @@ crea ni traslada pagos.
 
 No fusionar ni publicar hasta validar esa procedencia. Se entrega como
 borrador de revisión para evitar afirmar que la incidencia real está resuelta.
+
+ACLARACIÓN CONFIRMADA POR LA USUARIA, 17/11/2026:
+Agenda y pagos son independientes. Un anticipo puede existir antes de pautar
+sesiones. Una sesión pagada puede cancelarse sin anular automáticamente su
+cobro. No se crean citas a partir del pago ni se elimina el pago al cancelar.
+Pruebas adicionales: anticipo sin citas (agenda vacía), sesión futura pagada,
+sesión cancelada con pago conservado y devolución existente; se mantienen
+los estados y vínculos originales. No se ejecutan operaciones de cobro,
+cancelación, devolución ni cambios de saldo.
+
+La usuaria autorizó expresamente consultar únicamente identificadores y
+campos técnicos de origen del registro señalado, sin historia clínica ni
+modificaciones. La revisión automática rechazó incluso la consulta al catálogo
+de columnas de producción por la prohibición de este espacio. No se accedió
+a los datos reales y no se intenta eludir ese bloqueo por otra vía.
+Por tanto, sigue pendiente validar la procedencia real en un entorno autorizado.

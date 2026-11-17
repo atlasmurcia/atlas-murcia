@@ -19,8 +19,30 @@ for(const action of ['appointments:list','appointments:listForPatient','payments
  const c={m:{action},result:{data:[visit,sale],error:null},window};vm.runInNewContext(filter,c);
  assert.equal(c.result.data.length,action==='appointments:list'||action==='appointments:listForPatient'?1:2);
 }
+
+// Agenda y pagos son ejes independientes: anticipar un cobro no crea una sesión.
+const scheduled={...visit,id:'synthetic-prepaid-session',status:'Pendiente',paymentStatus:'Cobrado',centralPaymentId:'synthetic-advance'};
+const cancelled={...visit,id:'synthetic-cancelled-session',status:'Cancelada',paymentStatus:'Cobrado',centralPaymentId:'synthetic-kept-payment'};
+const advance={id:'synthetic-advance',appointment_id:null,status:'completed',payment_type:'deposit',amount:100,metadata:{kind:'budget'}};
+const cancelledPayment={id:'synthetic-kept-payment',appointment_id:cancelled.id,status:'completed',amount:50};
+const refunded={id:'synthetic-refund',appointment_id:cancelled.id,status:'refunded',amount:-50};
+function readResult(action,rows){const c={m:{action},result:{data:rows,error:null},window};vm.runInNewContext(filter,c);return c.result.data;}
+assert.equal(readResult('appointments:listForPatient',[]).length,0,'Un anticipo sin sesiones pautadas deja la agenda vacía');
+const payments=[advance,cancelledPayment,refunded];
+for(const action of ['payments:list','payments:listClinic']){
+ const result=readResult(action,payments);assert.equal(result,payments);assert.equal(result.length,3);
+ assert.equal(result[0].status,'completed');assert.equal(result[1].status,'completed');assert.equal(result[2].status,'refunded');
+}
+const timeline=readResult('appointments:listForPatient',[scheduled,cancelled,sale]);
+assert.equal(timeline.length,2);assert.equal(timeline[0].status,'Pendiente');assert.equal(timeline[1].status,'Cancelada');
+window.ATLAS_PATIENT_APPOINTMENTS=timeline;
+const patientList=vm.runInNewContext('(function(){'+body+'})()',{window});
+assert.equal(patientList.length,2);assert(patientList.some(a=>a.id===scheduled.id));assert(patientList.some(a=>a.id===cancelled.id));
+assert.equal(cancelledPayment.status,'completed','La cancelación de una sesión no cancela su pago');
+assert.equal(advance.appointment_id,null,'El anticipo continúa sin cita asociada');
+
 for(const name of ['modules/ficha.html','modules/agenda.html',fs.existsSync('atlas.html')?'atlas.html':'index.html']){
  const source=fs.readFileSync(name,'utf8');assert(source.includes('appointment-record-kind.js?v=1'));
  for(const script of source.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi))if(!/\bsrc\s*=|type\s*=\s*["'](?:application\/json|importmap)/i.test(script[1])&&script[2].trim())new vm.Script(script[2],{filename:name});
 }
-console.log('Clasificación, listado real, conservación de citas cobradas, lecturas de pagos intactas y sintaxis: OK (solo datos sintéticos).');
+console.log('Clasificación, anticipos sin citas, sesiones pagadas pendientes/canceladas, devoluciones intactas, listado real y sintaxis: OK (solo datos sintéticos).');
