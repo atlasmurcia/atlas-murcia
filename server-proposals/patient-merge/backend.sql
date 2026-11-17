@@ -147,12 +147,38 @@ BEGIN
  RETURN target;
 END $$;
 
+CREATE FUNCTION atlas_merge_private.record_ids(p uuid,o uuid,c uuid) RETURNS jsonb
+LANGUAGE plpgsql SECURITY DEFINER SET search_path='' AS $$
+DECLARE target uuid; ids jsonb;
+BEGIN
+ target:=atlas_merge_private.canonical(p,o,c);
+ WITH RECURSIVE family(id) AS (
+   SELECT target
+   UNION
+   SELECT l.secondary_id FROM atlas_merge_private.links l
+     JOIN atlas_merge_private.operations op ON op.id=l.operation_id
+     JOIN family f ON l.primary_id=f.id
+    WHERE op.organization_id=o AND op.clinic_id=c AND op.reverted_at IS NULL
+ )
+ SELECT coalesce(jsonb_agg(id ORDER BY id::text),'[]'::jsonb) INTO ids FROM family;
+ RETURN jsonb_build_object('canonicalId',target,'patientIds',ids);
+END $$;
+
+CREATE FUNCTION atlas_merge_private.families(o uuid,c uuid) RETURNS jsonb
+LANGUAGE sql SECURITY DEFINER SET search_path='' AS $$
+ SELECT coalesce(jsonb_agg(atlas_merge_private.record_ids(roots.primary_id,o,c) ORDER BY roots.primary_id::text),'[]'::jsonb)
+ FROM (SELECT DISTINCT l.primary_id FROM atlas_merge_private.links l
+   JOIN atlas_merge_private.operations op ON op.id=l.operation_id
+   WHERE op.organization_id=o AND op.clinic_id=c AND op.reverted_at IS NULL) roots
+$$;
+
 CREATE FUNCTION atlas_merge_private.reference_guard() RETURNS trigger
 LANGUAGE plpgsql SECURITY DEFINER SET search_path='' AS $$
 DECLARE doc jsonb:=to_jsonb(NEW); p uuid; target uuid;
 BEGIN
  p:=(doc->>TG_ARGV[0])::uuid;
  IF p IS NULL THEN RETURN NEW; END IF;
+ IF TG_OP='UPDATE' AND p IS NOT DISTINCT FROM (to_jsonb(OLD)->>TG_ARGV[0])::uuid THEN RETURN NEW; END IF;
  target:=atlas_merge_private.canonical(p,(doc->>'organization_id')::uuid,(doc->>'clinic_id')::uuid);
  IF target<>p THEN NEW:=jsonb_populate_record(NEW,jsonb_build_object(TG_ARGV[0],target)); END IF;
  RETURN NEW;
@@ -258,17 +284,12 @@ BEGIN
  RETURN jsonb_build_object('conflicts',conflicts,'categories',categories,'blockers',blockers,'coverageComplete',true);
 END $$;
 
-CREATE FUNCTION atlas_merge_private.verify_transfer(before_s jsonb,after_s jsonb,target uuid) RETURNS void
+CREATE FUNCTION atlas_merge_private.verify_preserved_relations(before_s jsonb,after_s jsonb) RETURNS void
 LANGUAGE plpgsql SET search_path='' AS $$
-DECLARE r record; wanted jsonb; actual jsonb;
 BEGIN
- FOR r IN SELECT * FROM atlas_merge_private.relations LOOP
-   SELECT coalesce(jsonb_agg((jsonb_set(x,ARRAY[r.patient_column::text],to_jsonb(target))-'updated_at') ORDER BY x->>r.pk_column),'[]')
-    INTO wanted FROM jsonb_array_elements(before_s->'relations'->r.relation::text) x;
-   SELECT coalesce(jsonb_agg((x-'updated_at') ORDER BY x->>r.pk_column),'[]')
-    INTO actual FROM jsonb_array_elements(after_s->'relations'->r.relation::text) x;
-   IF wanted IS DISTINCT FROM actual THEN RAISE EXCEPTION 'Verificación fallida: %. Se cancela toda la operación.',r.relation; END IF;
- END LOOP;
+ IF before_s->'relations' IS DISTINCT FROM after_s->'relations' THEN
+   RAISE EXCEPTION 'Un registro relacionado cambió durante la operación. Se cancela toda la operación.';
+ END IF;
 END $$;
 
 CREATE FUNCTION atlas_merge_private.worker(action text,payload jsonb) RETURNS jsonb
@@ -287,7 +308,7 @@ BEGIN
    a:=op.primary_id;b:=op.secondary_id;o:=op.organization_id;c:=op.clinic_id;
  ELSE
    a:=(payload->>'primaryId')::uuid;b:=(payload->>'secondaryId')::uuid;
-   IF action IN ('resolve','search','capabilities') THEN
+   IF action IN ('resolve','recordIds','families','search','capabilities') THEN
      o:=(payload->>'organizationId')::uuid;c:=(payload->>'clinicId')::uuid;
    ELSE
      SELECT * INTO p FROM public.patients WHERE id=a;
@@ -295,9 +316,15 @@ BEGIN
      o:=p.organization_id;c:=p.clinic_id;
    END IF;
  END IF;
- actor_id:=atlas_merge_private.authorize(o,c,action NOT IN ('resolve'));
+ actor_id:=atlas_merge_private.authorize(o,c,action NOT IN ('resolve','recordIds','families'));
  IF action='resolve' THEN
    RETURN jsonb_build_object('id',atlas_merge_private.canonical((payload->>'id')::uuid,o,c));
+ END IF;
+ IF action='recordIds' THEN
+   RETURN atlas_merge_private.record_ids((payload->>'id')::uuid,o,c);
+ END IF;
+ IF action='families' THEN
+   RETURN atlas_merge_private.families(o,c);
  END IF;
  IF action='capabilities' THEN
    PERFORM atlas_merge_private.ready(o,c);RETURN jsonb_build_object('enabled',true);
@@ -330,13 +357,6 @@ BEGIN
    IF atlas_merge_private.snapshot(a,b,o,c) IS DISTINCT FROM op.after_state
     THEN RAISE EXCEPTION 'Hay cambios posteriores. Reversión bloqueada para no sobrescribir información.'; END IF;
    DELETE FROM atlas_merge_private.links WHERE operation_id=op.id;
-   FOR r IN SELECT * FROM atlas_merge_private.relations ORDER BY relation::text LOOP
-     FOR rec IN SELECT x FROM jsonb_array_elements(op.before_state->'relations'->r.relation::text) x
-       WHERE x->>r.patient_column=b::text LOOP
-       EXECUTE format('UPDATE %s SET %I=$1 WHERE %I::text=$2 AND organization_id=$3 AND clinic_id=$4',r.relation,r.patient_column,r.pk_column)
-         USING b,rec->>r.pk_column,o,c;
-     END LOOP;
-   END LOOP;
    SELECT string_agg(format('%1$I=(jsonb_populate_record(NULL::public.patients,$1)).%1$I',attname),',') INTO clauses
      FROM pg_catalog.pg_attribute WHERE attrelid='public.patients'::regclass AND attnum>0
        AND NOT attisdropped AND attgenerated='' AND attname NOT IN ('id','organization_id','clinic_id');
@@ -346,11 +366,8 @@ BEGIN
      USING op.before_state->'secondary',b,o,c;
    s:=atlas_merge_private.snapshot(a,b,o,c);
    -- Los triggers de updated_at pueden cambiar la fecha técnica de actualización.
-   FOR r IN SELECT * FROM atlas_merge_private.relations LOOP
-     IF (SELECT jsonb_agg(x-'updated_at' ORDER BY x->>r.pk_column) FROM jsonb_array_elements(s->'relations'->r.relation::text) x)
-       IS DISTINCT FROM (SELECT jsonb_agg(x-'updated_at' ORDER BY x->>r.pk_column) FROM jsonb_array_elements(op.before_state->'relations'->r.relation::text) x)
-     THEN RAISE EXCEPTION 'No se ha podido verificar la reversión de %',r.relation; END IF;
-   END LOOP;
+   IF s->'relations' IS DISTINCT FROM op.before_state->'relations'
+   THEN RAISE EXCEPTION 'No se han podido conservar los registros relacionados.'; END IF;
    IF ((s->'primary')-'updated_at') IS DISTINCT FROM ((op.before_state->'primary')-'updated_at')
       OR ((s->'secondary')-'updated_at') IS DISTINCT FROM ((op.before_state->'secondary')-'updated_at')
    THEN RAISE EXCEPTION 'No se han podido restaurar las fichas.'; END IF;
@@ -403,16 +420,15 @@ BEGIN
  END LOOP;
  SELECT string_agg(format('%1$I=(jsonb_populate_record(NULL::public.patients,$1)).%1$I',field_name),',') INTO clauses FROM jsonb_object_keys(changes) AS fields_to_set(field_name);
  IF clauses IS NOT NULL THEN EXECUTE 'UPDATE public.patients SET '||clauses||' WHERE id=$2 AND organization_id=$3 AND clinic_id=$4' USING changes,a,o,c; END IF;
- FOR r IN SELECT * FROM atlas_merge_private.relations ORDER BY relation::text LOOP
-   EXECUTE format('UPDATE %s SET %I=$1 WHERE %I=$2 AND organization_id=$3 AND clinic_id=$4',r.relation,r.patient_column,r.patient_column) USING a,b,o,c;
- END LOOP;
+ -- El historial permanece bajo los UUID originales. Las lecturas resuelven la familia de alias;
+ -- las escrituras nuevas se canonicalizan en los triggers de referencia.
  UPDATE public.patients SET active=false,deleted_at=clock_timestamp() WHERE id=b AND organization_id=o AND clinic_id=c;
  after_s:=atlas_merge_private.snapshot(a,b,o,c);
  IF ((after_s->'primary')-'updated_at') IS DISTINCT FROM (((s->'primary')||changes)-'updated_at')
    OR ((after_s->'secondary')-ARRAY['active','deleted_at','updated_at'])
       IS DISTINCT FROM ((s->'secondary')-ARRAY['active','deleted_at','updated_at'])
  THEN RAISE EXCEPTION 'Una regla del servidor ha alterado datos de la ficha. Se cancela la operación.'; END IF;
- PERFORM atlas_merge_private.verify_transfer(s,after_s,a);
+ PERFORM atlas_merge_private.verify_preserved_relations(s,after_s);
  INSERT INTO atlas_merge_private.operations(actor,organization_id,clinic_id,primary_id,secondary_id,request_key,request_body,before_state,after_state)
  VALUES(actor_id,o,c,a,b,key_text,payload,s,after_s) RETURNING id INTO new_id;
  INSERT INTO atlas_merge_private.links(secondary_id,primary_id,operation_id) VALUES(b,a,new_id);

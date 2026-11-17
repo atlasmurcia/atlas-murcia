@@ -11,15 +11,15 @@ OK posibles duplicados exactos bloquean, sin borrar ni sumar
 OK importes históricos requieren conciliación específica
 OK UUID incrustado en JSON exige adaptador y bloquea
 OK una referencia existente de otra clínica se detecta sin transferirla
-OK más de 1000 citas se revisan y transfieren completas
-OK un trigger que altera contenido provoca rollback completo
-OK fusión real: UUID único, importes, fechas y relaciones preservados
+OK la comparación incluye todas las citas sin transferirlas
+OK un trigger que altera datos de la ficha provoca rollback completo
+OK fusión por alias conserva los historiales y los registros clínicos y fiscales originales
 OK reintento idempotente no repite ni duplica
-OK resolver el enlace antiguo y buscar el código anterior
+OK resolver ficha antigua, buscar código anterior y recuperar UUID de historiales
 OK protege ficha secundaria y evita borrado de la principal
 OK reversión exige confirmación, motivo y permiso
 OK cambios posteriores bloquean reversión sin sobrescribir
-OK reversión real restaura propietarios, campos y conserva auditoría
+OK reversión retira el alias y conserva los historiales originales
 OK escritura atrasada con UUID antiguo se reasigna en servidor
 OK ámbito de otra clínica y actor no autenticado rechazados
 
