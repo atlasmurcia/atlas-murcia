@@ -1248,16 +1248,19 @@ window.addEventListener('message',event=>{
  setTimeout(check,30000);
 })();
 </script>
-<style id="atlas-mobile-utility-space">
-/* En móvil, reservar una franja fuera del módulo para los accesos del equipo. */
+<style id="atlas-menu-utility-space">
+/* Reservar una franja para los accesos sin tapar el menú ni los módulos. */
+body:not(.atlas-capture-mode):not(:has(#atlasCaptureFrame.module.on)) .shell{
+ height:calc(100vh - var(--atlas-session-footer-height,48px) - 64px - env(safe-area-inset-bottom,0px))!important;
+ height:calc(100dvh - var(--atlas-session-footer-height,48px) - 64px - env(safe-area-inset-bottom,0px))!important;
+}
+body:not(.atlas-capture-mode):not(:has(#atlasCaptureFrame.module.on)) #atlasInternalChatLauncher,
+body:not(.atlas-capture-mode):not(:has(#atlasCaptureFrame.module.on)) #atlasRecordedCallsLauncher{
+ bottom:calc(var(--atlas-session-footer-height,48px) + 12px + env(safe-area-inset-bottom,0px));
+}
 @media(max-width:720px){
- body:not(.atlas-capture-mode):not(:has(#atlasCaptureFrame.module.on)) .shell{
-  height:calc(100vh - var(--atlas-session-footer-height,48px) - 64px - env(safe-area-inset-bottom,0px))!important;
-  height:calc(100dvh - var(--atlas-session-footer-height,48px) - 64px - env(safe-area-inset-bottom,0px))!important;
- }
  body:not(.atlas-capture-mode):not(:has(#atlasCaptureFrame.module.on)) #atlasInternalChatLauncher,
  body:not(.atlas-capture-mode):not(:has(#atlasCaptureFrame.module.on)) #atlasRecordedCallsLauncher{
-  bottom:calc(var(--atlas-session-footer-height,48px) + 12px + env(safe-area-inset-bottom,0px));
   max-width:calc(50vw - 20px);padding:11px 12px;font-size:13px;
  }
  body:not(.atlas-capture-mode):not(:has(#atlasCaptureFrame.module.on)) #atlasInternalChatLauncher{right:10px}
