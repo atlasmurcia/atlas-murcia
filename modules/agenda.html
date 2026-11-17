@@ -1878,8 +1878,11 @@ function openModalFromCell(resource,time){
  refreshProfessionalReservationInfo();
  refreshForceWarning();
 }
-let leadBookingContext=null,reprogrammingAppointment=null;
+let leadBookingContext=null,reprogrammingAppointment=null,reschedulingCancelledAppointment=null;
+function resetCancelledRescheduleMode(){reschedulingCancelledAppointment=null;document.getElementById('mEditScope').innerHTML='<b>Edición completa de esta cita</b><br>Puedes cambiar el servicio, el profesional, los recursos, la fecha y la hora. Los cambios se aplicarán únicamente a esta cita.';document.querySelectorAll('#mPatient,#mServices input,#mTherapists select,#mResources input,#mProfessional,#mEndTime,#mDuration,#mStatus,#mNotes').forEach(input=>input.disabled=false);document.querySelectorAll('#mServices,#mResources').forEach(details=>details.classList.remove('atlas-reschedule-readonly'))}
+function beginCancelledRescheduleMode(a){const services=(a.services||[a.therapy]).filter(Boolean).join(' + ')||'Sin tratamiento',assigned=[a.professional,...Object.values(a.therapists||{}),...(a.professionals||[])].filter(Boolean),professional=[...new Set(assigned)].join(' + ')||'Sin profesional asignado';reschedulingCancelledAppointment=a;document.getElementById('modalTitle').textContent='Reprogramar cita';document.getElementById('saveBtn').textContent='Guardar reprogramación';document.getElementById('mStatus').value='Pendiente';document.getElementById('mEditScope').innerHTML='<b>Información de la cita original</b><br><b>Paciente:</b> '+hesc(a.patient||'')+'<br><b>Tratamiento:</b> '+hesc(services)+'<br><b>Profesional:</b> '+hesc(professional)+'<br><b>Fecha y hora:</b> '+hesc(a.date||'')+' · '+hesc(a.time||a.start||'')+'<br><span class="small">Selecciona únicamente la nueva fecha y hora. La cita pasará a Pendiente sin crear una copia.</span>';document.getElementById('mEditScope').classList.remove('hidden');document.querySelectorAll('#mPatient,#mServices input,#mTherapists select,#mResources input,#mProfessional,#mEndTime,#mDuration,#mStatus,#mNotes').forEach(input=>input.disabled=true);document.querySelectorAll('#mServices,#mResources').forEach(details=>{details.open=false;details.classList.add('atlas-reschedule-readonly')});document.getElementById('mDate').disabled=false;document.getElementById('mTime').disabled=false;document.getElementById('mDate').focus()}
 function openModal(a=null){
+ resetCancelledRescheduleMode();
  if(!patientMaster.some(p=>p.remoteId)){alert('El directorio de pacientes sigue cargando. Espera unos segundos antes de crear o modificar una cita.');return}
  pendingModalAppointment=null;
  editingId=a?a.id:null; document.getElementById('modalTitle').textContent=a?'Editar cita aislada':'Nueva cita';document.getElementById('mEditScope').classList.toggle('hidden',!a);document.getElementById('saveBtn').textContent=a?'Guardar cambios de esta cita':'Guardar cita';
@@ -1903,6 +1906,7 @@ function openModal(a=null){
  document.getElementById('mDate').value=a?.date||today;
  document.getElementById('mTime').value=a?.time||'09:00';
  document.getElementById('mDuration').value=a?.duration||(therapyDurations[document.getElementById('mTherapy').value]||30);
+ document.getElementById('mEndTime').value=a?.endTime||timeStr(mins(document.getElementById('mTime').value)+Number(document.getElementById('mDuration').value));
  document.getElementById('mStatus').value=a?.status==='Conflicto'?'Pendiente':(a?.status||'Pendiente');
  document.getElementById('mNotes').value=a?.notes||'';
  const serviceBox=document.getElementById('mServicesOptions');legacyExtra.forEach(name=>{if(![...serviceBox.querySelectorAll('input')].some(x=>x.value===name))serviceBox.insertAdjacentHTML('beforeend','<label><input type="checkbox" value="'+hesc(name)+'">'+hesc(name)+' <span class="small muted">(Koibox)</span></label>')});
@@ -2020,18 +2024,18 @@ function validateModal(a){
 }
 document.getElementById('saveBtn').onclick=async function(){
  const a=readModal(); if(!validateModal(a)) return;
- const wasEditing=!!editingId,editedId=editingId,button=this,previousText=button.textContent;
+ const wasEditing=!!editingId,wasRescheduling=!!reschedulingCancelledAppointment,editedId=editingId,button=this,previousText=button.textContent;
  if(!wasEditing&&pendingModalAppointment){a.id=pendingModalAppointment.id;a.centralRef=pendingModalAppointment.centralRef;a.history=pendingModalAppointment.history}else a.history.push({at:new Date().toISOString(),user:agendaActorName(),action:wasEditing?'Cita actualizada':'Cita creada'});
  if(!wasEditing)pendingModalAppointment=a;
  button.disabled=true;button.textContent='Guardando en servidor…';
  try{
   if(typeof window.atlasPersistAppointmentCentral!=='function')throw new Error('La agenda central todavía no está preparada. Espera unos segundos y vuelve a pulsar Guardar.');
-  await window.atlasPersistAppointmentCentral(a);
-  logAgenda(wasEditing?'Cita actualizada':'Cita creada',a);
+  const confirmed=wasRescheduling?await window.atlasRescheduleCancelledAppointmentCentral(a):await window.atlasPersistAppointmentCentral(a);if(wasRescheduling&&confirmed)Object.assign(a,confirmed);
+  logAgenda(wasRescheduling?'Cita reprogramada':wasEditing?'Cita actualizada':'Cita creada',a);
   if(wasEditing){appointments=appointments.map(x=>x.id===editedId?a:x)}else{const existing=appointments.findIndex(x=>String(x.centralRef||x.id)===String(a.centralRef||a.id));if(existing>=0)appointments[existing]=a;else appointments.push(a)}
   save();document.getElementById('modalBack').classList.remove('open');render();
   if(!wasEditing&&a.leadContext?.id&&!a.leadContext?.continuation&&window.atlasMarkLeadBooked)window.atlasMarkLeadBooked(a).catch(function(error){console.error('La cita se guardó, pero no se pudo actualizar el lead',error);alert('La cita se ha guardado. Revisa el estado del lead: '+error.message)});
-  leadBookingContext=null;reprogrammingAppointment=null;pendingModalAppointment=null;
+  leadBookingContext=null;reprogrammingAppointment=null;reschedulingCancelledAppointment=null;pendingModalAppointment=null;
  }catch(error){
   console.error('Cita no confirmada por el servidor',error);
   alert((error?.code==='APPOINTMENT_SAVE_UNCONFIRMED'?'No se ha podido confirmar todavía el guardado. La cita puede haberse guardado; no crees otra cita para sustituirla. Conservamos el formulario y la misma referencia para comprobarla sin duplicarla.':'El servidor no ha confirmado el cambio. El formulario seguirá abierto para que no pierdas los datos.')+'\n\n'+(error?.message||'Error desconocido'));
@@ -2120,7 +2124,7 @@ document.getElementById('ccActual').oninput=calculateCashDifference;document.get
 document.getElementById('cashSearchInput').oninput=renderCashSearch;document.getElementById('closeCashSearchBtn').onclick=()=>document.getElementById('cashSearchBack').classList.remove('open');document.getElementById('exportCashBtn').onclick=exportCash;
 document.getElementById('captureNav').onclick=()=>openMarketingDetail('Bandeja de leads');document.getElementById('marketingNav').onclick=openMarketing;document.getElementById('closeMarketingBtn').onclick=()=>document.getElementById('marketingBack').classList.remove('open');document.getElementById('closeMarketingDetailBtn').onclick=()=>document.getElementById('marketingDetailBack').classList.remove('open');document.querySelectorAll('[data-marketing]').forEach(btn=>btn.onclick=()=>openMarketingDetail(btn.dataset.marketing));
 document.getElementById('closeDrawer').onclick=()=>document.getElementById('drawer').classList.remove('open');
-document.getElementById('cancelModal').onclick=()=>{reprogrammingAppointment=null;document.getElementById('modalBack').classList.remove('open')};
+document.getElementById('cancelModal').onclick=()=>{reprogrammingAppointment=null;reschedulingCancelledAppointment=null;document.getElementById('modalBack').classList.remove('open')};
 ['view','patientFilter','statusFilter'].forEach(id=>document.getElementById(id).onchange=render);
 {const fitButton=document.getElementById('fitView');let saved=null;try{saved=localStorage.getItem('atlasAgendaFit')}catch(e){}fitButton.setAttribute('aria-pressed',saved==='0'?'false':'true');fitButton.onclick=()=>{const on=fitButton.getAttribute('aria-pressed')!=='true';fitButton.setAttribute('aria-pressed',on?'true':'false');try{localStorage.setItem('atlasAgendaFit',on?'1':'0')}catch(e){}render()}}
 document.getElementById('exportPatientBtn').onclick=()=>{
@@ -2322,11 +2326,13 @@ window.addEventListener('message',function(event){const msg=event.data||{};if(ms
        if(navigation!==patientNavigationSequence)return;
        const exact=appointments.find(a=>belongs(a)&&matches(a));
        if(!exact)throw new Error('La cita seleccionada ya no está disponible. Actualiza la ficha y vuelve a intentarlo.');
-       if(msg.appointmentAction&&(exact.historico===true||exact.metadata?.historico===true||['Realizada','completed','done','Cancelada','cancelled','Eliminada'].includes(exact.status)||exact.deletedAt))throw new Error('Esta cita es histórica, está realizada, anulada o eliminada y no se puede modificar desde este botón.');
+       const cancelled=['Cancelada','cancelled'].includes(exact.status),protectedAppointment=exact.historico===true||exact.metadata?.historico===true||['Realizada','completed','done','Eliminada'].includes(exact.status)||exact.deletedAt;
+       if(msg.appointmentAction==='reschedule'&&(!cancelled||protectedAppointment))throw new Error('Solo se puede reprogramar una cita anulada y no histórica.');
+       if(msg.appointmentAction&&msg.appointmentAction!=='reschedule'&&(protectedAppointment||cancelled))throw new Error('Esta cita es histórica, está realizada, anulada o eliminada y no se puede modificar desde este botón.');
        currentDate=exact.date;
        const status=document.getElementById('statusFilter');if(status)status.value=exact.status==='Conflicto'||exact.planConflict===true?'Conflicto':'';
-       save();render();openDrawer(exact.id);
-       if(msg.appointmentAction){const button=document.getElementById(msg.appointmentAction==='cancel'?'deleteBtn':'moveBtn');if(!button||button.disabled)throw new Error('La acción no está disponible para esta cita.');button.click()}
+       save();render();
+       if(msg.appointmentAction==='reschedule'){openModal(exact);beginCancelledRescheduleMode(exact)}else{openDrawer(exact.id);if(msg.appointmentAction){const button=document.getElementById(msg.appointmentAction==='cancel'?'deleteBtn':'moveBtn');if(!button||button.disabled)throw new Error('La acción no está disponible para esta cita.');button.click()}}
      }catch(error){if(navigation===patientNavigationSequence)alert('No se ha abierto la cita: '+String(error.message||error))}
      return;
    }
@@ -3307,6 +3313,11 @@ window.sendPaymentDocumentsAutomatically=function(paymentId,patientName){central
   if(cancelling)throw new Error('Ya hay otra operación de agenda en curso.');if(!ready)throw new Error('Espera a que termine de cargar la agenda central.');cancelling=true;clearTimeout(syncTimer);clearTimeout(reloadTimer);
   try{const deadline=Date.now()+65000;while(syncing||loading){if(Date.now()>deadline)throw new Error('La sincronización anterior no ha terminado.');await new Promise(resolve=>setTimeout(resolve,100))}const current=appointments.find(x=>same(x.id,id));if(!current)throw new Error('No se encuentra la cita cancelada.');assertWritable(current);tell('Restableciendo cita en la agenda central…');const saved=await request('appointments:restore',{id:current.centralId||null,clientRef:clientRef(current),conflictOverride:!!conflictOverride});if(!saved?.id||saved.status!=='pending')throw new Error('El servidor no ha confirmado la restauración.');const mapped=fromRow(saved);mapped.conflictOverride=!!conflictOverride;const index=appointments.findIndex(x=>same(x.id,current.id));if(index>=0)appointments[index]=mapped;const row=toRow(mapped);remoteByRef.set(saved.client_ref,{...saved,_fingerprint:row?fingerprint(row):''});dirtyRefs.delete(saved.client_ref);baseSave();tell('Cita restablecida en la agenda central','ok');return mapped
   }catch(error){tell('Cita sin restablecer: '+error.message,'error');throw error}finally{cancelling=false;if(syncRequested)queueSync();else if(remoteRefreshPending)requestCentralRefresh(120)}
+ };
+ window.atlasRescheduleCancelledAppointmentCentral=async function(candidate){
+  if(cancelling)throw new Error('Ya hay otra operación de agenda en curso.');if(!ready)throw new Error('Espera a que termine de cargar la agenda central.');cancelling=true;clearTimeout(syncTimer);clearTimeout(reloadTimer);
+  try{const deadline=Date.now()+65000;while(syncing||loading){if(Date.now()>deadline)throw new Error('La sincronización anterior no ha terminado.');await new Promise(resolve=>setTimeout(resolve,100))}const current=appointments.find(x=>same(x.id,candidate.id));if(!current)throw new Error('No se encuentra la cita cancelada.');if(current.status!=='Cancelada')throw new Error('La cita ya no está anulada. Actualiza la ficha.');assertWritable(current);const row=toRow(candidate);if(!row)throw new Error('La cita necesita una ficha de paciente vinculada.');tell('Guardando la nueva fecha y hora…');const saved=await request('appointments:rescheduleCancelled',{id:current.centralId||null,clientRef:clientRef(current),startsAt:row.starts_at,endsAt:row.ends_at,expectedUpdatedAt:current.centralUpdatedAt||null,conflictOverride:!!candidate.conflictOverride});if(!saved?.id||saved.status!=='pending')throw new Error('El servidor no ha confirmado la reprogramación.');const mapped=fromRow(saved),index=appointments.findIndex(x=>same(x.id,current.id));if(index>=0)appointments[index]=mapped;const confirmed=toRow(mapped);remoteByRef.set(saved.client_ref,{...saved,_fingerprint:confirmed?fingerprint(confirmed):''});dirtyRefs.delete(saved.client_ref);baseSave();tell('Cita reprogramada y confirmada en el servidor','ok');return mapped
+  }catch(error){tell('Cita sin reprogramar: '+error.message,'error');throw error}finally{cancelling=false;if(syncRequested)queueSync();else if(remoteRefreshPending)requestCentralRefresh(120)}
  };
  // Cancellation is a confirmed single-row operation, serialized with background writes and reads.
  window.atlasCancelAppointmentCentral=async function(id,who,reason){

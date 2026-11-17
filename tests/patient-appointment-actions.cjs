@@ -11,7 +11,7 @@ const patient={remoteId:'patient-test',code:'TEST-1',name:'Paciente ficticio'};
 const appointment=(id,date='2026-11-16',extra={})=>({id,date,time:'11:30',status:'Pendiente',patientRemoteId:patient.remoteId,patientCode:patient.code,patient:patient.name,...extra});
 function harness(options={}){
  const trace=[],alerts=[];let listener;
- const context={window:{ATLAS_CHILD_CENTRAL_CONTEXT:{},addEventListener:(type,fn)=>listener=fn},document:{getElementById:id=>({value:'',disabled:false,classList:{remove(){}},click:()=>trace.push(['action',id])})},appointments:[appointment('other','2027-01-08')],currentDate:'2027-01-08',normalizeSearch:s=>String(s||'').toLowerCase(),cashToday:()=> '2026-11-13',save:()=>trace.push(['save']),render:()=>trace.push(['render']),openDrawer:id=>trace.push(['drawer',id]),alert:message=>alerts.push(message),setTimeout:fn=>fn()};
+ const context={window:{ATLAS_CHILD_CENTRAL_CONTEXT:{},addEventListener:(type,fn)=>listener=fn},document:{getElementById:id=>({value:'',disabled:false,classList:{remove(){}},click:()=>trace.push(['action',id])})},appointments:[appointment('other','2027-01-08')],currentDate:'2027-01-08',normalizeSearch:s=>String(s||'').toLowerCase(),cashToday:()=> '2026-11-13',save:()=>trace.push(['save']),render:()=>trace.push(['render']),openDrawer:id=>trace.push(['drawer',id]),openModal:a=>trace.push(['modal',a.id]),beginCancelledRescheduleMode:a=>trace.push(['reschedule',a.id]),alert:message=>alerts.push(message),setTimeout:fn=>fn()};
  context.window.atlasLoadAppointmentDate=async date=>{trace.push(['load',date]);if(options.load)return options.load(context,date);context.appointments=[appointment('selected')];};
  vm.runInNewContext(handler,context);
  return {context,trace,alerts,send:(extra={})=>listener({data:{type:'atlasAlicante:show-patient',patient,appointmentId:'selected',date:'2026-11-16',appointmentAction:'move',...extra}})};
@@ -23,6 +23,8 @@ function harness(options={}){
   assert.equal(h.context.currentDate,'2026-11-16');
   assert.deepEqual(h.trace.filter(x=>['load','drawer','action'].includes(x[0])),[['load','2026-11-16'],['drawer','selected'],['action',action==='cancel'?'deleteBtn':'moveBtn']]);assert.equal(h.alerts.length,0);cases++;
  }
+ {const h=harness({load:c=>{c.appointments=[appointment('selected','2026-11-16',{status:'Cancelada'})]}});await h.send({appointmentAction:'reschedule'});assert.deepEqual(h.trace.filter(x=>['load','modal','reschedule'].includes(x[0])),[['load','2026-11-16'],['modal','selected'],['reschedule','selected']]);assert(!h.trace.some(x=>x[0]==='drawer'));assert.equal(h.alerts.length,0);cases++}
+ {const h=harness();await h.send({appointmentAction:'reschedule'});assert.equal(h.alerts.length,1);assert(!h.trace.some(x=>x[0]==='reschedule'));cases++}
  for(const rows of [[],[appointment('different')],[appointment('selected','2026-11-16',{patientRemoteId:'another-patient'})]]){
   const h=harness({load:c=>{c.appointments=rows}});await h.send();assert(!h.trace.some(x=>['drawer','action','save'].includes(x[0])));assert.equal(h.alerts.length,1);assert.equal(h.context.currentDate,'2027-01-08');cases++;
  }
