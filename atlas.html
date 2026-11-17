@@ -432,7 +432,7 @@ async function atlasAllRows(make){const rows=[];for(let from=0;from<30000;from+=
           if(assigned.error)result=assigned;
           else{
             if(p.patientId){const patient=await scoped(db.from('patients').select('id')).eq('id',p.patientId).is('deleted_at',null).maybeSingle();if(patient.error)throw new Error(patient.error.message);if(!patient.data)throw new Error('El paciente no pertenece a esta clínica.')}
-            const row={organization_id:context.organizationId,clinic_id:context.clinicId,patient_id:p.patientId||null,lead_id:p.leadId||null,source_appointment_id:p.sourceAppointmentId||null,source_label:sourceLabel||null,area,title,task_type:type,notes:String(p.notes||'').trim()||null,due_at:dueAt?dueAt.toISOString():null,assigned_to:assigned.data,assigned_name:String(p.assignedName||'').trim()||null,status,completed_at:status==='completed'?new Date().toISOString():null,created_by:context.userId,updated_by:context.userId};
+            const row={organization_id:context.organizationId,clinic_id:context.clinicId,patient_id:p.patientId||null,lead_id:p.leadId||null,source_appointment_id:p.sourceAppointmentId||null,source_label:sourceLabel||null,area,title,task_type:type,notes:String(p.notes||'').trim()||null,due_at:dueAt?dueAt.toISOString():null,assigned_to:assigned.data,assigned_name:assigned.data?(assigned.name||String(p.assignedName||'').trim()||null):(String(p.assignedName||'').trim()||null),status,completed_at:status==='completed'?new Date().toISOString():null,created_by:context.userId,updated_by:context.userId};
             result=await db.from('atlas_internal_tasks').insert(row).select('*').single();
           }
         }
@@ -449,7 +449,7 @@ async function atlasAllRows(make){const rows=[];for(let from=0;from<30000;from+=
           if(changes.notes!==undefined)row.notes=String(changes.notes||'').trim()||null;
           if(changes.dueAt!==undefined){const due=changes.dueAt?new Date(changes.dueAt):null;if(changes.dueAt&&(!due||Number.isNaN(due.getTime())))throw new Error('Fecha de tarea no válida.');row.due_at=due?due.toISOString():null}
           if(changes.assignedName!==undefined)row.assigned_name=String(changes.assignedName||'').trim()||null;
-          if(changes.assignedTo!==undefined){const assigned=await validateAssigned(changes.assignedTo);if(assigned.error)result=assigned;else row.assigned_to=assigned.data}
+          if(changes.assignedTo!==undefined){const assigned=await validateAssigned(changes.assignedTo);if(assigned.error)result=assigned;else{row.assigned_to=assigned.data;if(assigned.data)row.assigned_name=assigned.name||row.assigned_name||null;else if(changes.assignedName===undefined)row.assigned_name=null}}
           if(changes.status!==undefined){if(!taskStatuses.includes(changes.status))throw new Error('Estado de tarea no válido.');row.status=changes.status;row.completed_at=changes.status==='completed'?new Date().toISOString():null}
           if(!result){row.updated_by=context.userId;row.updated_at=new Date().toISOString();result=await db.from('atlas_internal_tasks').update(row).eq('id',p.id).eq('organization_id',context.organizationId).eq('clinic_id',context.clinicId).select('*').single()}
         }
