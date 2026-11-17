@@ -40,19 +40,34 @@ test('La ficha muestra tareas internas y de seguimiento, y descarta respuestas a
  await new Promise(resolve=>setImmediate(resolve));assert(!panel.innerHTML.includes('Respuesta antigua'));assert(panel.innerHTML.includes('Paciente Azul'));
  send({type:'atlas:load-patient',patient:null});assert(!panel.innerHTML.includes('Tarea Azul'));
 });
-test('La consulta del puente filtra por paciente, organización y clínica',async()=>{
- const from=atlas.indexOf("else if(['internalTasks:list','internalTasks:create','internalTasks:update'].includes(m.action))"),to=atlas.indexOf("else if(m.action==='leads:completePending')",from);
+test('El puente limita las tareas a Murcia y entrega el equipo por áreas',async()=>{
+ const from=atlas.indexOf("else if(['internalTasks:list','internalTasks:assignees','internalTasks:create','internalTasks:update'].includes(m.action))"),to=atlas.indexOf("else if(m.action==='leads:completePending')",from);
+ assert(from>=0&&to>from,'El enrutador de tareas debe incluir la lista de responsables');
  const body=atlas.slice(from,to).replace(/^else /,'');
  const records=[{id:'task-a',organization_id:'org',clinic_id:'clinic',patient_id:'a',status:'pending'},{id:'task-b',organization_id:'org',clinic_id:'clinic',patient_id:'b',status:'pending'},{id:'task-c',organization_id:'other',clinic_id:'clinic',patient_id:'a',status:'pending'}];
- function database(){return {from(table){let rows=table==='atlas_internal_tasks'?records.slice():[];const q={select(){return q},eq(key,value){rows=rows.filter(row=>row[key]===value);return q},not(key,op,value){rows=rows.filter(row=>!['completed','cancelled'].includes(row[key]));return q},in(key,values){rows=rows.filter(row=>values.includes(row[key]));return q},order(){return q},range(from,to){return Promise.resolve({data:rows.slice(from,to+1),error:null})},limit(n){rows=rows.slice(0,n);return q},then(resolve){resolve({data:rows,error:null})}};return q}}}
- const frame={},context={organizationId:'org',clinicId:'clinic'},document={getElementById:id=>({contentWindow:id==='fichaFrame'?frame:{}})};
- async function run(action,payload={},origin='https://atlas.test'){
-  return vm.runInNewContext('(async()=>{let result;'+body+';return result})()',{db:database(),context,document,location:{origin:'https://atlas.test'},e:{source:frame,origin},m:{action,payload}});
+ const members=[
+  {user_id:'physio-a',organization_id:'org',clinic_id:'clinic',active:true,role:'therapist',permissions:{}},
+  {user_id:'reception-a',organization_id:'org',clinic_id:'clinic',active:true,role:'reception',permissions:{}},
+  {user_id:'assistant-a',organization_id:'org',clinic_id:null,active:true,role:'assistant',permissions:{management:false}},
+  {user_id:'manager-a',organization_id:'org',clinic_id:null,active:true,role:'assistant',permissions:{management:true,display_role:'Gestión'}},
+  {user_id:'inactive-a',organization_id:'org',clinic_id:'clinic',active:false,role:'therapist',permissions:{}},
+  {user_id:'other-clinic-a',organization_id:'org',clinic_id:'other',active:true,role:'therapist',permissions:{}}
+ ];
+ const profiles=[{user_id:'physio-a',full_name:'Fisio de prueba'},{user_id:'reception-a',full_name:'Recepción de prueba'},{user_id:'assistant-a',full_name:'Auxiliar de prueba'},{user_id:'manager-a',full_name:'Gestión de prueba'},{user_id:'inactive-a',full_name:'Profesional inactivo'},{user_id:'other-clinic-a',full_name:'Otra clínica'}];
+ let insertedTask=null;function database(){return {from(table){let rows=table==='atlas_internal_tasks'?records.slice():table==='memberships'?members.slice():[],inserted=null;const q={select(){return q},insert(row){inserted=insertedTask=row;return q},single(){return Promise.resolve({data:inserted,error:null})},eq(key,value){rows=rows.filter(row=>row[key]===value);return q},not(key,op,value){rows=rows.filter(row=>!['completed','cancelled'].includes(row[key]));return q},in(key,values){rows=rows.filter(row=>values.includes(row[key]));return q},or(){rows=rows.filter(row=>row.clinic_id==null||row.clinic_id==='clinic');return q},order(){return q},range(from,to){return Promise.resolve({data:rows.slice(from,to+1),error:null})},limit(n){rows=rows.slice(0,n);return q},maybeSingle(){return Promise.resolve({data:rows[0]||null,error:null})},then(resolve,reject){return Promise.resolve({data:rows,error:null}).then(resolve,reject)}};return q}}}
+ const frame={},agendaFrame={},context={organizationId:'org',clinicId:'clinic'},document={getElementById:id=>({contentWindow:id==='fichaFrame'?frame:id==='agendaFrame'?agendaFrame:{}})};
+ const profileRows=async ids=>({data:profiles.filter(row=>ids.includes(row.user_id)),error:null});
+ const validateClinicTaskAssignee=async id=>({data:id,name:profiles.find(row=>row.user_id===id)?.full_name||null,error:null});
+ async function run(action,payload={},origin='https://atlas.test',source=frame){
+  return vm.runInNewContext('(async()=>{let result;'+body+';return result})()',{db:database(),context,document,location:{origin:'https://atlas.test'},e:{source,origin},m:{action,payload},profileRows,validateClinicTaskAssignee});
  }
  const result=await run('internalTasks:list',{patientId:'a'});assert.equal(result.data.length,1);assert.equal(result.data[0].id,'task-a');
+ const roster=await run('internalTasks:assignees');assert.equal(roster.data.length,4);
+ const areas=Object.fromEntries(roster.data.map(person=>[person.userId,person.area]));assert.deepEqual(JSON.parse(JSON.stringify(areas)),{'physio-a':'fisio','reception-a':'recepcion','assistant-a':'auxiliar','manager-a':'gestion'});
+ const created=await run('internalTasks:create',{title:'Tarea sintética',area:'fisio',taskType:'otro',dueAt:'2026-11-20T12:00:00.000Z',assignedTo:'physio-a',assignedName:'Nombre manipulado'},'https://atlas.test',agendaFrame);assert.equal(created.data.assigned_name,'Fisio de prueba');assert.equal(insertedTask.assigned_to,'physio-a');
  await assert.rejects(run('internalTasks:list',{}),/Origen de tareas/);
  await assert.rejects(run('internalTasks:create',{patientId:'a'}),/Origen de tareas/);
- await assert.rejects(run('internalTasks:list',{patientId:'a'},'https://other.test'),/Origen de tareas/);
+ await assert.rejects(run('internalTasks:assignees',{},'https://other.test'),/Origen de tareas/);
 });
 test('Los scripts modificados mantienen sintaxis válida',()=>{
  for(const file of ['atlas.html','modules/agenda.html','modules/ficha.html'])for(const [,attrs,script] of fs.readFileSync(file,'utf8').matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi)){if(/application\/(?:ld\+)?json/.test(attrs))continue;new vm.Script(script,{filename:file})}
