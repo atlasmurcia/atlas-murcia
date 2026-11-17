@@ -1,6 +1,6 @@
 'use strict';
 const assert=require('node:assert/strict');
-const {recordIds,groups}=require('./patient-aliases.js');
+const {recordIds,groups,indexGroups}=require('./patient-aliases.js');
 (async()=>{
  const patient='secondary-uuid',canonical='primary-uuid',ctx={organizationId:'org',clinicId:'clinic'};
  const fallback=await recordIds({rpc:async()=>({error:{code:'PGRST202',message:'Could not find the function public.atlas_patient_merge in the schema cache'}})},ctx,patient);
@@ -13,5 +13,6 @@ const {recordIds,groups}=require('./patient-aliases.js');
  assert.match(incomplete.error.message,/incompleta/);
  const grouped=await groups({rpc:async(name,args)=>{assert.equal(name,'atlas_patient_merge');assert.equal(args.action,'families');return {data:[{canonicalId:canonical,patientIds:[canonical,patient]}]}}},ctx);
  assert.deepEqual(grouped,{groups:[{canonicalId:canonical,ids:[canonical,patient]}],error:null});
- console.log('5 comprobaciones sintéticas de resolución y agrupación de alias superadas.');
+ const indexed=indexGroups(grouped.groups);assert.equal(indexed.canonicalId(patient),canonical);assert.deepEqual(indexed.recordIds(patient),[canonical,patient]);assert.equal(indexed.canonicalId('unlinked'),'unlinked');
+ console.log('6 comprobaciones sintéticas de resolución, agrupación e indexación de alias superadas.');
 })().catch(error=>{console.error(error);process.exitCode=1});

@@ -32,7 +32,16 @@
   }
   return {groups,error:null};
  }
- const api={recordIds,groups};
+ function indexGroups(groups){
+  const canonicalById=new Map(),recordsById=new Map();
+  for(const group of Array.isArray(groups)?groups:[]){
+   const canonicalId=String(group?.canonicalId||'').trim(),ids=[...new Set((Array.isArray(group?.ids)?group.ids:[]).map(value=>String(value||'').trim()).filter(Boolean))];
+   if(!canonicalId||!ids.includes(canonicalId))continue;
+   for(const id of ids){canonicalById.set(id,canonicalId);recordsById.set(id,ids)}
+  }
+  return {canonicalId:id=>canonicalById.get(String(id||''))||String(id||''),recordIds:id=>recordsById.get(String(id||''))||[String(id||'')].filter(Boolean)};
+ }
+ const api={recordIds,groups,indexGroups};
  if(typeof module!=='undefined'&&module.exports)module.exports=api;
  if(root)root.AtlasPatientAliases=api;
 })(typeof window!=='undefined'?window:null);

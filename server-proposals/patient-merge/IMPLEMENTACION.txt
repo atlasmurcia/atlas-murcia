@@ -5,8 +5,9 @@ ESTADO ACTUAL
 
 Cambios locales de revisión derivados del PR #141, en la rama
 codex/patient-merge-alias-review basada en su commit. El PR original sigue
-abierto y no se ha modificado en GitHub. No se ha creado un PR de seguimiento,
-no se ha fusionado ni publicado ningún cambio.
+abierto y no se ha modificado en GitHub. El seguimiento #146 sigue abierto como
+borrador; esta revisión local todavía no está subida. No se ha fusionado ni
+publicado ningún cambio.
 
 La validación del servidor sintético no llegó a completarse: la rama de Supabase
 no pudo crearse/rebasarse por errores de esquema y RLS. La rama temporal fue
@@ -24,10 +25,12 @@ al leerlos. Las nuevas escrituras con el UUID secundario se normalizarían en el
 servidor. No se sortean triggers ni se editan facturas, pagos o historiales.
 
 Se adaptaron rutas de lectura de ATLAS en atlas.html y los indicadores e
-historial del mapa corporal para consultar todos los UUID de la familia. El
-ayudante cae al comportamiento actual si la RPC todavía no existe. La interfaz
-de fusión y su puente siguen siendo archivos candidatos sin cargar en atlas.html
-o ficha.html; por tanto, esta rama aún no habilita a recepción a fusionar fichas.
+historial del mapa corporal para consultar todos los UUID de la familia. En esta
+revisión también se cubren conversaciones de recordatorios, seguimientos,
+fotografías, comprobaciones de citas y planes de tratamiento. El ayudante cae al
+comportamiento actual si la RPC todavía no existe. La interfaz de fusión y su
+puente siguen siendo archivos candidatos sin cargar en atlas.html o ficha.html;
+por tanto, esta rama aún no habilita a recepción a fusionar fichas.
 
 IMPLEMENTADO EN EL CANDIDATO
 
@@ -43,7 +46,14 @@ IMPLEMENTADO EN EL CANDIDATO
 - Reversión protegida: se bloquea si hubo cambios posteriores.
 - Adaptadores de lectura para ficha, búsqueda/listado de pacientes, indicadores,
   citas, comunicaciones, tareas, presupuestos, planes, consentimientos,
-  documentos, mapa corporal y pagos.
+  documentos, mapa corporal y pagos. El esquema Murcia muestra 20 tablas con
+  patient_id: appointment_reminder_jobs, appointments, atlas_internal_tasks,
+  budgets, clinical_records, consents, document_email_jobs, documents,
+  inventory_movements, leads, patient_communications, patient_debts,
+  patient_experience_surveys, patient_reactivation_tasks, payments, quality_cases,
+  treasury_receivables, treatment_plans, whatsapp_conversations y
+  whatsapp_messages. Sus RLS están activos; esto no acredita por sí solo que
+  cada política permita la lectura por alias.
 
 LÍMITES Y BLOQUEOS PARA ACTIVAR
 
@@ -55,11 +65,21 @@ alias deben probarse con esos permisos: conservar un UUID histórico no asegura
 que las políticas actuales permitan leer la fila después de archivar la ficha.
 
 La firma de esquema y la lista de relaciones requieren una revisión independiente
-contra una copia sintética completa. No habilitar hasta probar concurrencia,
+contra una copia sintética completa. La rama de prueba de Supabase Murcia falló
+al rebasarse porque una migración exige RLS activo en budgets; se eliminó la rama
+temporal y se verificó que solo queda main. No habilitar hasta probar concurrencia,
 lecturas de la agenda global, enlaces y búsquedas antiguas, colas/cachés de cada
 módulo, permisos por rol, acceso a objetos de Storage y recuperación tras pérdida
 de conexión. La UI, invalidación de cachés y actualización inmediata en otros
 ordenadores tampoco están integradas aún.
+
+Bloqueo concreto de presupuestos: las funciones actuales atlas_upsert_budget y
+atlas_upsert_budget_checked exigen un paciente activo y reescriben patient_id al
+actualizar. atlas_charge_budget_checked compara el paciente del presupuesto con
+el UUID de la ficha de forma exacta. Tras archivar un alias, estos flujos pueden
+rechazar el cobro o cambiar la referencia histórica. No se han modificado las
+funciones fiscales ni se ha probado una solución; hay que resolverlo antes de
+activar la fusión y cobrar desde presupuestos antiguos.
 
 Los importes históricos que no pueden conciliarse, posibles duplicados exactos,
 JSON con UUID incrustados, referencias indirectas y fusiones encadenadas bloquean
@@ -69,8 +89,9 @@ actividad nueva, el deshacer automático queda bloqueado y requiere revisión.
 
 PRUEBAS LOCALES
 
-- 24 escenarios PostgreSQL sintéticos en PGlite 0.3.14.
-- 12 pruebas del controlador y 5 del ayudante de resolución de alias.
+- 25 escenarios PostgreSQL sintéticos en PGlite 0.3.14, incluidos los 20
+  registros de relación y el bloqueo si se desactiva RLS.
+- 12 pruebas del controlador y 6 del ayudante de resolución e indexación de alias.
 - Sintaxis comprobada en 30 bloques inline de atlas.html y 49 de ficha.html,
   además de los módulos JavaScript modificados.
 - Los escenarios verifican preservación de IDs y contenido clínico/fiscal,

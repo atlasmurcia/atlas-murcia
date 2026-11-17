@@ -10,7 +10,7 @@ const pair=()=>({primaryId:ids.a,secondaryId:ids.b});
 const scope=()=>({organizationId:ids.org,clinicId:ids.clinic});
 const rows=async sql=>(await db.query(sql)).rows;
 const count=async table=>Number((await rows(`select count(*) n from ${table}`))[0].n);
-const relations=['appointments','budgets','treatment_plans','payments','documents','consents','clinical_records','patient_communications','patient_debts','atlas_internal_tasks'];
+const relations=['appointment_reminder_jobs','appointments','atlas_internal_tasks','budgets','clinical_records','consents','document_email_jobs','documents','inventory_movements','leads','patient_communications','patient_debts','patient_experience_surveys','patient_reactivation_tasks','payments','quality_cases','treasury_receivables','treatment_plans','whatsapp_conversations','whatsapp_messages'];
 async function setup(){
  db=await PGlite.create();
  await db.exec(read('synthetic-fixture.sql'));await db.exec(read('backend.sql'));
@@ -35,6 +35,8 @@ async function setup(){
  await db.query("insert into patient_communications values($1,$2,$3,$4,'internal','Nota de prueba','2026-01-01')",[crypto.randomUUID(),ids.org,ids.clinic,ids.b]);
  await db.query('insert into patient_debts values($1,$2,$3,$4,10.25)',[crypto.randomUUID(),ids.org,ids.clinic,ids.b]);
  await db.query("insert into atlas_internal_tasks values($1,$2,$3,$4,'Tarea ficticia')",[crypto.randomUUID(),ids.org,ids.clinic,ids.b]);
+ for(const table of ['appointment_reminder_jobs','document_email_jobs','inventory_movements','leads','patient_experience_surveys','patient_reactivation_tasks','quality_cases','treasury_receivables','whatsapp_conversations'])await db.query(`insert into ${table}(id,organization_id,clinic_id,patient_id) values($1,$2,$3,$4)`,[crypto.randomUUID(),ids.org,ids.clinic,ids.b]);
+ const conversation=crypto.randomUUID();await db.query('insert into whatsapp_conversations(id,organization_id,clinic_id,patient_id) values($1,$2,$3,$4)',[conversation,ids.org,ids.clinic,ids.b]);await db.query('insert into whatsapp_messages(id,organization_id,clinic_id,patient_id,conversation_id) values($1,$2,$3,$4,$5)',[crypto.randomUUID(),ids.org,ids.clinic,ids.b,conversation]);
  return {appt,budget,payment};
 }
 async function certify(){await db.query("insert into atlas_merge_private.configuration values($1,$2,true,atlas_merge_private.schema_signature(),'SOLO PRUEBA: revisión de cobertura del esquema ficticio; no válida para la clínica.',$3) on conflict(organization_id,clinic_id) do update set schema_signature=excluded.schema_signature,enabled=true",[ids.org,ids.clinic,ids.user]);}
@@ -44,7 +46,8 @@ async function test(name,fn){await fn();tests++;const line='OK '+name;console.lo
 (async()=>{
  const linked=await setup();
  await test('instalación deshabilitada sin certificación de cobertura',async()=>{await db.exec('update atlas_merge_private.configuration set enabled=false');await assert.rejects(preview,/cobertura/i);await certify();});
- await test('previsualización incluye conflictos y todas las relaciones',async()=>{const p=await preview();assert.equal(p.conflicts.length,2);assert.equal(p.categories.length,relations.length);assert.equal(p.blockers.length,0);assert.equal(p.primary.patient_number,'DEMO-101');});
+ await test('la firma ignora campos de ruta y cubre las 20 referencias UUID',async()=>{const p=await preview();assert.equal(p.conflicts.length,2);assert.equal(p.categories.length,20);assert.equal(p.categories.length,relations.length);assert.equal(p.blockers.length,0);assert.equal(p.primary.patient_number,'DEMO-101');});
+ await test('deshabilitar RLS en una tabla bloquea la vista previa',async()=>{await db.exec('alter table public.budgets disable row level security');await certify();await assert.rejects(preview(),/RLS/);await db.exec('alter table public.budgets enable row level security');await certify();});
  await test('la misma ficha se rechaza',async()=>{await assert.rejects(rpc('preview',{primaryId:ids.a,secondaryId:ids.a}),/diferentes/);});
  await test('permiso específico obligatorio y ACL sin acceso anónimo',async()=>{await db.exec("update memberships set permissions='{}'");await assert.rejects(preview,/permiso/);await db.exec("update memberships set permissions='{\"patient_merge\":true}'");assert.equal((await rows("select has_function_privilege('anon','public.atlas_patient_merge(text,jsonb)','execute') ok"))[0].ok,false);});
  await test('rol autenticado usa RPC sin acceso directo a auditoría o instaladores',async()=>{await db.exec('set role authenticated');try{const p=await preview();assert.ok(p.token);await assert.rejects(rows('select * from atlas_merge_private.operations'),/permission denied/);await assert.rejects(db.exec('select atlas_merge_private.install_guards()'),/permission denied/);}finally{await db.exec('reset role');}});

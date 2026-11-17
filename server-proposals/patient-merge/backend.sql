@@ -109,10 +109,15 @@ BEGIN
  FROM pg_catalog.pg_attribute a JOIN pg_catalog.pg_class cl ON cl.oid=a.attrelid
  JOIN pg_catalog.pg_namespace ns ON ns.oid=cl.relnamespace
  WHERE ns.nspname='public' AND cl.relkind IN ('r','p') AND a.attnum>0 AND NOT a.attisdropped
- AND a.attrelid<>'public.patients'::regclass AND (a.attname ILIKE '%patient%' OR a.attname ILIKE '%paciente%')
+ AND a.attrelid<>'public.patients'::regclass
+ AND (a.attname ILIKE '%patient%' OR a.attname ILIKE '%paciente%')
+ AND (a.atttypid IN ('uuid'::regtype,'uuid[]'::regtype)
+      OR a.attname ~* '(^|_)(patient|paciente)(_id|_uuid|_ref)$')
  AND NOT EXISTS(SELECT 1 FROM atlas_merge_private.relations r WHERE r.relation=a.attrelid AND r.patient_column=a.attname);
  IF missing IS NOT NULL THEN RAISE EXCEPTION 'Campos de paciente pendientes de revisión: %',missing; END IF;
  FOR guard_row IN SELECT * FROM atlas_merge_private.relations ORDER BY relation::text LOOP
+   IF NOT coalesce((SELECT c.relrowsecurity FROM pg_catalog.pg_class c WHERE c.oid=guard_row.relation),false)
+   THEN RAISE EXCEPTION 'RLS debe permanecer activo en %',guard_row.relation; END IF;
    IF NOT EXISTS(SELECT 1 FROM pg_catalog.pg_trigger t WHERE t.tgrelid=guard_row.relation
       AND t.tgname='atlas_merge_reference_guard' AND t.tgenabled='O')
    THEN RAISE EXCEPTION 'Falta protección de escrituras en %',guard_row.relation; END IF;
@@ -198,13 +203,15 @@ CREATE TRIGGER atlas_merge_patient_guard BEFORE UPDATE OR DELETE ON public.patie
 -- Solo el propietario de la migración puede registrar y proteger tablas.
 CREATE FUNCTION atlas_merge_private.install_guards() RETURNS void
 LANGUAGE plpgsql SET search_path='' AS $$
-DECLARE r record; cols integer;
+DECLARE r record; cols integer; all_uuid boolean;
 BEGIN
  FOR r IN SELECT * FROM atlas_merge_private.relations ORDER BY relation::text LOOP
-   SELECT count(DISTINCT a.attname) INTO cols FROM pg_catalog.pg_attribute a
+   SELECT count(DISTINCT a.attname),bool_and(a.atttypid='uuid'::regtype) INTO cols,all_uuid FROM pg_catalog.pg_attribute a
    WHERE a.attrelid=r.relation AND NOT a.attisdropped AND a.attnum>0
      AND a.attname=ANY(ARRAY[r.patient_column,r.pk_column,'organization_id','clinic_id']::name[]);
-   IF cols<>4 THEN RAISE EXCEPTION 'La tabla % necesita un adaptador específico de ámbito y PK.',r.relation; END IF;
+   IF cols<>4 OR all_uuid IS DISTINCT FROM true THEN RAISE EXCEPTION 'La tabla % necesita un adaptador UUID específico de ámbito y PK.',r.relation; END IF;
+   IF NOT coalesce((SELECT c.relrowsecurity FROM pg_catalog.pg_class c WHERE c.oid=r.relation),false)
+   THEN RAISE EXCEPTION 'RLS debe permanecer activo en %',r.relation; END IF;
    IF NOT EXISTS(SELECT 1 FROM pg_catalog.pg_constraint k JOIN pg_catalog.pg_attribute a
       ON a.attrelid=k.conrelid AND a.attname=r.pk_column
       WHERE k.conrelid=r.relation AND k.contype='p' AND k.conkey=ARRAY[a.attnum])

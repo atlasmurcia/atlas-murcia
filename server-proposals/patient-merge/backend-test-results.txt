@@ -1,5 +1,6 @@
 OK instalación deshabilitada sin certificación de cobertura
-OK previsualización incluye conflictos y todas las relaciones
+OK la firma ignora campos de ruta y cubre las 20 referencias UUID
+OK deshabilitar RLS en una tabla bloquea la vista previa
 OK la misma ficha se rechaza
 OK permiso específico obligatorio y ACL sin acceso anónimo
 OK rol autenticado usa RPC sin acceso directo a auditoría o instaladores
@@ -23,4 +24,4 @@ OK reversión retira el alias y conserva los historiales originales
 OK escritura atrasada con UUID antiguo se reasigna en servidor
 OK ámbito de otra clínica y actor no autenticado rechazados
 
-24 pruebas PostgreSQL superadas. Motor PGlite 0.3.14; esquema y datos sintéticos. No certifica el servidor clínico ni concurrencia entre conexiones.
+25 pruebas PostgreSQL superadas. Motor PGlite 0.3.14; esquema y datos sintéticos. No certifica el servidor clínico ni concurrencia entre conexiones.
