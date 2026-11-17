@@ -25,15 +25,17 @@
   const balance=money(budgetBalance+historicalBalance);
   return {completed:done.length,pending:pending.length,next:upcoming?.starts_at||null,last:last?.starts_at||null,progress:done.length+pending.length?Math.round(done.length/(done.length+pending.length)*100):null,balance,totalSales:historyUnverifiable?null:money(collected+balance),collected:historyUnverifiable?null:collected,checkedAt:new Date(now).toISOString()};
  }
- async function load(db,context,patientId){
+ async function load(db,context,patientId,patientIds=[patientId]){
   if(!patientId)throw new Error('Selecciona un paciente.');
+  const related=[...new Set((Array.isArray(patientIds)?patientIds:[patientId]).map(value=>String(value||'').trim()).filter(Boolean))];
+  if(!related.includes(String(patientId)))related.push(String(patientId));
   const scoped=query=>query.eq('organization_id',context.organizationId).eq('clinic_id',context.clinicId);
   const patient=await scoped(db.from('patients').select('id,historical_income,historical_debt,historical_financials_at')).eq('id',patientId).is('deleted_at',null).maybeSingle();
   if(patient.error)throw patient.error;if(!patient.data)throw new Error('El paciente no pertenece a esta clínica.');
   async function all(table,columns,softDelete=true){
    const rows=[],size=500;
    for(let offset=0;;offset+=size){
-    let query=scoped(db.from(table).select(columns)).eq('patient_id',patientId);
+    let query=scoped(db.from(table).select(columns)).in('patient_id',related);
     if(softDelete)query=query.is('deleted_at',null);
     const page=await query.order('id',{ascending:true}).range(offset,offset+size-1);
     if(page.error)throw page.error;rows.push(...(page.data||[]));if((page.data||[]).length<size)return rows;

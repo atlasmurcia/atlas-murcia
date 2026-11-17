@@ -1,5 +1,6 @@
 OK instalación deshabilitada sin certificación de cobertura
-OK previsualización incluye conflictos y todas las relaciones
+OK la firma ignora campos de ruta y cubre las 20 referencias UUID
+OK deshabilitar RLS en una tabla bloquea la vista previa
 OK la misma ficha se rechaza
 OK permiso específico obligatorio y ACL sin acceso anónimo
 OK rol autenticado usa RPC sin acceso directo a auditoría o instaladores
@@ -11,16 +12,20 @@ OK posibles duplicados exactos bloquean, sin borrar ni sumar
 OK importes históricos requieren conciliación específica
 OK UUID incrustado en JSON exige adaptador y bloquea
 OK una referencia existente de otra clínica se detecta sin transferirla
-OK más de 1000 citas se revisan y transfieren completas
-OK un trigger que altera contenido provoca rollback completo
-OK fusión real: UUID único, importes, fechas y relaciones preservados
+OK la comparación incluye todas las citas sin transferirlas
+OK un trigger que altera datos de la ficha provoca rollback completo
+OK fusión por alias conserva los historiales y los registros clínicos y fiscales originales
 OK reintento idempotente no repite ni duplica
-OK resolver el enlace antiguo y buscar el código anterior
+OK resolver ficha antigua, buscar código anterior y recuperar UUID de historiales
 OK protege ficha secundaria y evita borrado de la principal
 OK reversión exige confirmación, motivo y permiso
 OK cambios posteriores bloquean reversión sin sobrescribir
-OK reversión real restaura propietarios, campos y conserva auditoría
+OK reversión retira el alias y conserva los historiales originales
 OK escritura atrasada con UUID antiguo se reasigna en servidor
 OK ámbito de otra clínica y actor no autenticado rechazados
+OK escenario separado: presupuesto de alias tras fusión sintética
+OK presupuesto histórico se puede guardar en su ficha principal sin reescribir el UUID guardado
+OK el guardado de presupuesto sin control de versión también conserva el UUID histórico
+OK el presupuesto histórico pasa la comprobación exacta de cobro y el pago nuevo se normaliza al UUID principal
 
-24 pruebas PostgreSQL superadas. Motor PGlite 0.3.14; esquema y datos sintéticos. No certifica el servidor clínico ni concurrencia entre conexiones.
+29 pruebas PostgreSQL superadas. Motor PGlite 0.3.14; esquema y datos sintéticos. No certifica el servidor clínico ni concurrencia entre conexiones.

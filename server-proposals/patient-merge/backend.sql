@@ -109,10 +109,15 @@ BEGIN
  FROM pg_catalog.pg_attribute a JOIN pg_catalog.pg_class cl ON cl.oid=a.attrelid
  JOIN pg_catalog.pg_namespace ns ON ns.oid=cl.relnamespace
  WHERE ns.nspname='public' AND cl.relkind IN ('r','p') AND a.attnum>0 AND NOT a.attisdropped
- AND a.attrelid<>'public.patients'::regclass AND (a.attname ILIKE '%patient%' OR a.attname ILIKE '%paciente%')
+ AND a.attrelid<>'public.patients'::regclass
+ AND (a.attname ILIKE '%patient%' OR a.attname ILIKE '%paciente%')
+ AND (a.atttypid IN ('uuid'::regtype,'uuid[]'::regtype)
+      OR a.attname ~* '(^|_)(patient|paciente)(_id|_uuid|_ref)$')
  AND NOT EXISTS(SELECT 1 FROM atlas_merge_private.relations r WHERE r.relation=a.attrelid AND r.patient_column=a.attname);
  IF missing IS NOT NULL THEN RAISE EXCEPTION 'Campos de paciente pendientes de revisión: %',missing; END IF;
  FOR guard_row IN SELECT * FROM atlas_merge_private.relations ORDER BY relation::text LOOP
+   IF NOT coalesce((SELECT c.relrowsecurity FROM pg_catalog.pg_class c WHERE c.oid=guard_row.relation),false)
+   THEN RAISE EXCEPTION 'RLS debe permanecer activo en %',guard_row.relation; END IF;
    IF NOT EXISTS(SELECT 1 FROM pg_catalog.pg_trigger t WHERE t.tgrelid=guard_row.relation
       AND t.tgname='atlas_merge_reference_guard' AND t.tgenabled='O')
    THEN RAISE EXCEPTION 'Falta protección de escrituras en %',guard_row.relation; END IF;
@@ -147,12 +152,47 @@ BEGIN
  RETURN target;
 END $$;
 
+-- Adaptador de presupuesto: ejecuta la resolución con permisos del propietario
+-- de la función, pero exige que el usuario conserve acceso a la clínica.
+CREATE FUNCTION atlas_merge_private.canonical_budget_patient(p uuid,o uuid,c uuid) RETURNS uuid
+LANGUAGE plpgsql SECURITY DEFINER SET search_path='' AS $$
+BEGIN
+ PERFORM atlas_merge_private.authorize(o,c,false);
+ RETURN atlas_merge_private.canonical(p,o,c);
+END $$;
+
+CREATE FUNCTION atlas_merge_private.record_ids(p uuid,o uuid,c uuid) RETURNS jsonb
+LANGUAGE plpgsql SECURITY DEFINER SET search_path='' AS $$
+DECLARE target uuid; ids jsonb;
+BEGIN
+ target:=atlas_merge_private.canonical(p,o,c);
+ WITH RECURSIVE family(id) AS (
+   SELECT target
+   UNION
+   SELECT l.secondary_id FROM atlas_merge_private.links l
+     JOIN atlas_merge_private.operations op ON op.id=l.operation_id
+     JOIN family f ON l.primary_id=f.id
+    WHERE op.organization_id=o AND op.clinic_id=c AND op.reverted_at IS NULL
+ )
+ SELECT coalesce(jsonb_agg(id ORDER BY id::text),'[]'::jsonb) INTO ids FROM family;
+ RETURN jsonb_build_object('canonicalId',target,'patientIds',ids);
+END $$;
+
+CREATE FUNCTION atlas_merge_private.families(o uuid,c uuid) RETURNS jsonb
+LANGUAGE sql SECURITY DEFINER SET search_path='' AS $$
+ SELECT coalesce(jsonb_agg(atlas_merge_private.record_ids(roots.primary_id,o,c) ORDER BY roots.primary_id::text),'[]'::jsonb)
+ FROM (SELECT DISTINCT l.primary_id FROM atlas_merge_private.links l
+   JOIN atlas_merge_private.operations op ON op.id=l.operation_id
+   WHERE op.organization_id=o AND op.clinic_id=c AND op.reverted_at IS NULL) roots
+$$;
+
 CREATE FUNCTION atlas_merge_private.reference_guard() RETURNS trigger
 LANGUAGE plpgsql SECURITY DEFINER SET search_path='' AS $$
 DECLARE doc jsonb:=to_jsonb(NEW); p uuid; target uuid;
 BEGIN
  p:=(doc->>TG_ARGV[0])::uuid;
  IF p IS NULL THEN RETURN NEW; END IF;
+ IF TG_OP='UPDATE' AND p IS NOT DISTINCT FROM (to_jsonb(OLD)->>TG_ARGV[0])::uuid THEN RETURN NEW; END IF;
  target:=atlas_merge_private.canonical(p,(doc->>'organization_id')::uuid,(doc->>'clinic_id')::uuid);
  IF target<>p THEN NEW:=jsonb_populate_record(NEW,jsonb_build_object(TG_ARGV[0],target)); END IF;
  RETURN NEW;
@@ -172,13 +212,15 @@ CREATE TRIGGER atlas_merge_patient_guard BEFORE UPDATE OR DELETE ON public.patie
 -- Solo el propietario de la migración puede registrar y proteger tablas.
 CREATE FUNCTION atlas_merge_private.install_guards() RETURNS void
 LANGUAGE plpgsql SET search_path='' AS $$
-DECLARE r record; cols integer;
+DECLARE r record; cols integer; all_uuid boolean;
 BEGIN
  FOR r IN SELECT * FROM atlas_merge_private.relations ORDER BY relation::text LOOP
-   SELECT count(DISTINCT a.attname) INTO cols FROM pg_catalog.pg_attribute a
+   SELECT count(DISTINCT a.attname),bool_and(a.atttypid='uuid'::regtype) INTO cols,all_uuid FROM pg_catalog.pg_attribute a
    WHERE a.attrelid=r.relation AND NOT a.attisdropped AND a.attnum>0
      AND a.attname=ANY(ARRAY[r.patient_column,r.pk_column,'organization_id','clinic_id']::name[]);
-   IF cols<>4 THEN RAISE EXCEPTION 'La tabla % necesita un adaptador específico de ámbito y PK.',r.relation; END IF;
+   IF cols<>4 OR all_uuid IS DISTINCT FROM true THEN RAISE EXCEPTION 'La tabla % necesita un adaptador UUID específico de ámbito y PK.',r.relation; END IF;
+   IF NOT coalesce((SELECT c.relrowsecurity FROM pg_catalog.pg_class c WHERE c.oid=r.relation),false)
+   THEN RAISE EXCEPTION 'RLS debe permanecer activo en %',r.relation; END IF;
    IF NOT EXISTS(SELECT 1 FROM pg_catalog.pg_constraint k JOIN pg_catalog.pg_attribute a
       ON a.attrelid=k.conrelid AND a.attname=r.pk_column
       WHERE k.conrelid=r.relation AND k.contype='p' AND k.conkey=ARRAY[a.attnum])
@@ -258,17 +300,12 @@ BEGIN
  RETURN jsonb_build_object('conflicts',conflicts,'categories',categories,'blockers',blockers,'coverageComplete',true);
 END $$;
 
-CREATE FUNCTION atlas_merge_private.verify_transfer(before_s jsonb,after_s jsonb,target uuid) RETURNS void
+CREATE FUNCTION atlas_merge_private.verify_preserved_relations(before_s jsonb,after_s jsonb) RETURNS void
 LANGUAGE plpgsql SET search_path='' AS $$
-DECLARE r record; wanted jsonb; actual jsonb;
 BEGIN
- FOR r IN SELECT * FROM atlas_merge_private.relations LOOP
-   SELECT coalesce(jsonb_agg((jsonb_set(x,ARRAY[r.patient_column::text],to_jsonb(target))-'updated_at') ORDER BY x->>r.pk_column),'[]')
-    INTO wanted FROM jsonb_array_elements(before_s->'relations'->r.relation::text) x;
-   SELECT coalesce(jsonb_agg((x-'updated_at') ORDER BY x->>r.pk_column),'[]')
-    INTO actual FROM jsonb_array_elements(after_s->'relations'->r.relation::text) x;
-   IF wanted IS DISTINCT FROM actual THEN RAISE EXCEPTION 'Verificación fallida: %. Se cancela toda la operación.',r.relation; END IF;
- END LOOP;
+ IF before_s->'relations' IS DISTINCT FROM after_s->'relations' THEN
+   RAISE EXCEPTION 'Un registro relacionado cambió durante la operación. Se cancela toda la operación.';
+ END IF;
 END $$;
 
 CREATE FUNCTION atlas_merge_private.worker(action text,payload jsonb) RETURNS jsonb
@@ -287,7 +324,7 @@ BEGIN
    a:=op.primary_id;b:=op.secondary_id;o:=op.organization_id;c:=op.clinic_id;
  ELSE
    a:=(payload->>'primaryId')::uuid;b:=(payload->>'secondaryId')::uuid;
-   IF action IN ('resolve','search','capabilities') THEN
+   IF action IN ('resolve','recordIds','families','search','capabilities') THEN
      o:=(payload->>'organizationId')::uuid;c:=(payload->>'clinicId')::uuid;
    ELSE
      SELECT * INTO p FROM public.patients WHERE id=a;
@@ -295,9 +332,15 @@ BEGIN
      o:=p.organization_id;c:=p.clinic_id;
    END IF;
  END IF;
- actor_id:=atlas_merge_private.authorize(o,c,action NOT IN ('resolve'));
+ actor_id:=atlas_merge_private.authorize(o,c,action NOT IN ('resolve','recordIds','families'));
  IF action='resolve' THEN
    RETURN jsonb_build_object('id',atlas_merge_private.canonical((payload->>'id')::uuid,o,c));
+ END IF;
+ IF action='recordIds' THEN
+   RETURN atlas_merge_private.record_ids((payload->>'id')::uuid,o,c);
+ END IF;
+ IF action='families' THEN
+   RETURN atlas_merge_private.families(o,c);
  END IF;
  IF action='capabilities' THEN
    PERFORM atlas_merge_private.ready(o,c);RETURN jsonb_build_object('enabled',true);
@@ -330,13 +373,6 @@ BEGIN
    IF atlas_merge_private.snapshot(a,b,o,c) IS DISTINCT FROM op.after_state
     THEN RAISE EXCEPTION 'Hay cambios posteriores. Reversión bloqueada para no sobrescribir información.'; END IF;
    DELETE FROM atlas_merge_private.links WHERE operation_id=op.id;
-   FOR r IN SELECT * FROM atlas_merge_private.relations ORDER BY relation::text LOOP
-     FOR rec IN SELECT x FROM jsonb_array_elements(op.before_state->'relations'->r.relation::text) x
-       WHERE x->>r.patient_column=b::text LOOP
-       EXECUTE format('UPDATE %s SET %I=$1 WHERE %I::text=$2 AND organization_id=$3 AND clinic_id=$4',r.relation,r.patient_column,r.pk_column)
-         USING b,rec->>r.pk_column,o,c;
-     END LOOP;
-   END LOOP;
    SELECT string_agg(format('%1$I=(jsonb_populate_record(NULL::public.patients,$1)).%1$I',attname),',') INTO clauses
      FROM pg_catalog.pg_attribute WHERE attrelid='public.patients'::regclass AND attnum>0
        AND NOT attisdropped AND attgenerated='' AND attname NOT IN ('id','organization_id','clinic_id');
@@ -346,11 +382,8 @@ BEGIN
      USING op.before_state->'secondary',b,o,c;
    s:=atlas_merge_private.snapshot(a,b,o,c);
    -- Los triggers de updated_at pueden cambiar la fecha técnica de actualización.
-   FOR r IN SELECT * FROM atlas_merge_private.relations LOOP
-     IF (SELECT jsonb_agg(x-'updated_at' ORDER BY x->>r.pk_column) FROM jsonb_array_elements(s->'relations'->r.relation::text) x)
-       IS DISTINCT FROM (SELECT jsonb_agg(x-'updated_at' ORDER BY x->>r.pk_column) FROM jsonb_array_elements(op.before_state->'relations'->r.relation::text) x)
-     THEN RAISE EXCEPTION 'No se ha podido verificar la reversión de %',r.relation; END IF;
-   END LOOP;
+   IF s->'relations' IS DISTINCT FROM op.before_state->'relations'
+   THEN RAISE EXCEPTION 'No se han podido conservar los registros relacionados.'; END IF;
    IF ((s->'primary')-'updated_at') IS DISTINCT FROM ((op.before_state->'primary')-'updated_at')
       OR ((s->'secondary')-'updated_at') IS DISTINCT FROM ((op.before_state->'secondary')-'updated_at')
    THEN RAISE EXCEPTION 'No se han podido restaurar las fichas.'; END IF;
@@ -403,16 +436,15 @@ BEGIN
  END LOOP;
  SELECT string_agg(format('%1$I=(jsonb_populate_record(NULL::public.patients,$1)).%1$I',field_name),',') INTO clauses FROM jsonb_object_keys(changes) AS fields_to_set(field_name);
  IF clauses IS NOT NULL THEN EXECUTE 'UPDATE public.patients SET '||clauses||' WHERE id=$2 AND organization_id=$3 AND clinic_id=$4' USING changes,a,o,c; END IF;
- FOR r IN SELECT * FROM atlas_merge_private.relations ORDER BY relation::text LOOP
-   EXECUTE format('UPDATE %s SET %I=$1 WHERE %I=$2 AND organization_id=$3 AND clinic_id=$4',r.relation,r.patient_column,r.patient_column) USING a,b,o,c;
- END LOOP;
+ -- El historial permanece bajo los UUID originales. Las lecturas resuelven la familia de alias;
+ -- las escrituras nuevas se canonicalizan en los triggers de referencia.
  UPDATE public.patients SET active=false,deleted_at=clock_timestamp() WHERE id=b AND organization_id=o AND clinic_id=c;
  after_s:=atlas_merge_private.snapshot(a,b,o,c);
  IF ((after_s->'primary')-'updated_at') IS DISTINCT FROM (((s->'primary')||changes)-'updated_at')
    OR ((after_s->'secondary')-ARRAY['active','deleted_at','updated_at'])
       IS DISTINCT FROM ((s->'secondary')-ARRAY['active','deleted_at','updated_at'])
  THEN RAISE EXCEPTION 'Una regla del servidor ha alterado datos de la ficha. Se cancela la operación.'; END IF;
- PERFORM atlas_merge_private.verify_transfer(s,after_s,a);
+ PERFORM atlas_merge_private.verify_preserved_relations(s,after_s);
  INSERT INTO atlas_merge_private.operations(actor,organization_id,clinic_id,primary_id,secondary_id,request_key,request_body,before_state,after_state)
  VALUES(actor_id,o,c,a,b,key_text,payload,s,after_s) RETURNING id INTO new_id;
  INSERT INTO atlas_merge_private.links(secondary_id,primary_id,operation_id) VALUES(b,a,new_id);
@@ -424,10 +456,98 @@ CREATE FUNCTION public.atlas_patient_merge(action text,payload jsonb) RETURNS js
 LANGUAGE sql SECURITY INVOKER SET search_path='' AS $$
  SELECT atlas_merge_private.worker(action,payload)
 $$;
+
+-- Mantiene el patient_id original de un presupuesto existente. Las líneas,
+-- importes, descuentos, estado e idempotencia conservan el flujo vigente.
+CREATE OR REPLACE FUNCTION public.atlas_upsert_budget(p_patient_id uuid,p_client_ref text,p_budget jsonb,p_lines jsonb DEFAULT '[]'::jsonb)
+RETURNS jsonb LANGUAGE plpgsql SET search_path TO 'public','pg_temp' AS $function$
+DECLARE
+ v_org uuid; v_clinic uuid; v_user uuid:=auth.uid(); v_budget public.budgets; v_saved_lines integer;
+BEGIN
+ IF v_user IS NULL THEN RAISE EXCEPTION 'Se requiere una sesión autenticada'; END IF;
+ IF p_patient_id IS NULL OR nullif(btrim(p_client_ref),'') IS NULL THEN
+  RAISE EXCEPTION 'Paciente y referencia del presupuesto son obligatorios';
+ END IF;
+ SELECT organization_id,clinic_id INTO v_org,v_clinic
+ FROM public.patients WHERE id=p_patient_id AND deleted_at IS NULL;
+ IF v_org IS NULL OR v_clinic IS NULL THEN RAISE EXCEPTION 'Paciente no encontrado'; END IF;
+ IF NOT public.has_permission(v_org,'budgets_write') THEN RAISE EXCEPTION 'Sin permiso para modificar presupuestos'; END IF;
+ SELECT * INTO v_budget FROM public.budgets
+  WHERE clinic_id=v_clinic AND client_ref=btrim(p_client_ref) FOR UPDATE;
+ IF FOUND THEN
+  IF v_budget.organization_id IS DISTINCT FROM v_org THEN RAISE EXCEPTION 'Presupuesto no disponible'; END IF;
+  IF v_budget.patient_id IS NOT NULL AND atlas_merge_private.canonical_budget_patient(v_budget.patient_id,v_org,v_clinic) IS DISTINCT FROM p_patient_id
+  THEN RAISE EXCEPTION 'Presupuesto no disponible'; END IF;
+ END IF;
+ INSERT INTO public.budgets AS current_budget(
+  organization_id,clinic_id,patient_id,client_ref,name,status,discount,total,
+  payment_terms,accepted_at,created_by,metadata,deleted_at,updated_at
+ ) VALUES(
+  v_org,v_clinic,coalesce(v_budget.patient_id,p_patient_id),btrim(p_client_ref),
+  coalesce(nullif(btrim(p_budget->>'name'),''),'Presupuesto'),
+  coalesce(nullif(p_budget->>'status',''),'draft'),
+  greatest(0,least(100,coalesce((p_budget->>'discount')::numeric,0))),
+  greatest(0,coalesce((p_budget->>'total')::numeric,0)),
+  coalesce(p_budget->'payment_terms','{}'::jsonb),
+  case when coalesce(p_budget->>'accepted_at','')='' then null else (p_budget->>'accepted_at')::timestamptz end,
+  v_user,coalesce(p_budget->'metadata','{}'::jsonb),null,now()
+ ) ON CONFLICT (clinic_id,client_ref) WHERE client_ref IS NOT NULL
+ DO UPDATE SET patient_id=current_budget.patient_id,name=excluded.name,status=excluded.status,
+  discount=excluded.discount,total=excluded.total,payment_terms=excluded.payment_terms,
+  accepted_at=excluded.accepted_at,metadata=excluded.metadata,deleted_at=null,updated_at=now()
+ WHERE current_budget.organization_id=v_org
+  AND CASE WHEN current_budget.patient_id IS NULL THEN true
+    ELSE atlas_merge_private.canonical_budget_patient(current_budget.patient_id,v_org,v_clinic)=p_patient_id END
+ RETURNING * INTO v_budget;
+ IF v_budget.id IS NULL THEN RAISE EXCEPTION 'Presupuesto no disponible'; END IF;
+ v_saved_lines:=private.atlas_replace_budget_lines(v_budget.id,p_lines);
+ RETURN jsonb_build_object('id',v_budget.id,'budget_number',v_budget.budget_number,
+  'client_ref',v_budget.client_ref,'updated_at',v_budget.updated_at,'saved_lines',v_saved_lines);
+END;
+$function$;
+
+-- El control optimista reconoce que un presupuesto histórico puede apuntar a
+-- una ficha archivada de la misma familia, sin cambiar esa referencia al guardar.
+CREATE OR REPLACE FUNCTION public.atlas_upsert_budget_checked(
+ p_patient_id uuid,p_client_ref text,p_budget jsonb,p_lines jsonb,
+ p_expected_updated_at timestamptz,p_operation_id text
+) RETURNS jsonb LANGUAGE plpgsql SET search_path TO 'public','pg_temp' AS $function$
+DECLARE v_org uuid; v_clinic uuid; v_old public.budgets;
+BEGIN
+ IF auth.uid() IS NULL OR nullif(p_operation_id,'') IS NULL THEN
+  RAISE EXCEPTION 'Se requiere una sesión y referencia de guardado';
+ END IF;
+ SELECT organization_id,clinic_id INTO v_org,v_clinic FROM public.patients
+  WHERE id=p_patient_id AND deleted_at IS NULL;
+ IF v_clinic IS NULL THEN RAISE EXCEPTION 'Paciente no disponible'; END IF;
+ IF NOT pg_try_advisory_xact_lock(hashtextextended(v_clinic::text||':'||p_client_ref,0)) THEN
+  RAISE EXCEPTION 'Otro guardado de este presupuesto sigue en curso. Vuelve a intentarlo.' USING errcode='40001';
+ END IF;
+ SELECT * INTO v_old FROM public.budgets
+  WHERE organization_id=v_org AND clinic_id=v_clinic AND client_ref=p_client_ref FOR UPDATE;
+ IF FOUND THEN
+  IF v_old.deleted_at IS NOT NULL THEN RAISE EXCEPTION 'Presupuesto no disponible'; END IF;
+  IF v_old.patient_id IS NOT NULL AND atlas_merge_private.canonical_budget_patient(v_old.patient_id,v_org,v_clinic) IS DISTINCT FROM p_patient_id
+  THEN RAISE EXCEPTION 'Presupuesto no disponible'; END IF;
+  IF v_old.metadata->>'last_server_operation'=p_operation_id THEN
+   RETURN jsonb_build_object('id',v_old.id,'budget_number',v_old.budget_number,
+    'client_ref',v_old.client_ref,'updated_at',v_old.updated_at);
+  END IF;
+  IF p_expected_updated_at IS NULL OR v_old.updated_at IS DISTINCT FROM p_expected_updated_at THEN
+   RAISE EXCEPTION 'Otro usuario ha actualizado este presupuesto. Revisa la versión del servidor antes de guardar.' USING errcode='40001';
+  END IF;
+ END IF;
+ RETURN public.atlas_upsert_budget(p_patient_id,p_client_ref,
+  jsonb_set(p_budget,'{metadata}',coalesce(p_budget->'metadata','{}'::jsonb)||jsonb_build_object('last_server_operation',p_operation_id),true),
+  p_lines);
+END;
+$function$;
+
 REVOKE ALL ON ALL TABLES IN SCHEMA atlas_merge_private FROM PUBLIC;
 REVOKE ALL ON ALL FUNCTIONS IN SCHEMA atlas_merge_private FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.atlas_patient_merge(text,jsonb) FROM PUBLIC;
 GRANT USAGE ON SCHEMA atlas_merge_private TO authenticated;
 GRANT EXECUTE ON FUNCTION atlas_merge_private.worker(text,jsonb) TO authenticated;
+GRANT EXECUTE ON FUNCTION atlas_merge_private.canonical_budget_patient(uuid,uuid,uuid) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.atlas_patient_merge(text,jsonb) TO authenticated;
 COMMIT;
