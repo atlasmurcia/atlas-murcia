@@ -1,0 +1,32 @@
+Corrección candidata: separar registros de venta del listado de citas
+
+Alcance: filtro de lectura en Agenda y Ficha; no modifica registros, cobros,
+facturas, importes ni justificantes. Las citas reales cobradas se conservan.
+Solo excluye registros con metadata.kind (o kind trasladado al modelo local)
+igual a direct_sale/historical_sale, o referencias de venta conocidas.
+No se infiere que algo sea venta por su hora, servicios, duración o profesional.
+
+Validación completada con fixtures exclusivamente sintéticos:
+- Cita realizada y cobrada: visible.
+- Cita histórica de Koibox, sin profesional o con varios servicios: visible.
+- Registro marcado como venta: excluido de lista, contador y exportaciones.
+- Las respuestas payments:list y payments:listClinic conservan todos sus pagos.
+- No se filtran escrituras ni se modifica el objeto original.
+- Sintaxis de scripts de portada, Agenda y Ficha: correcta.
+- Listado real renderizado en Chrome temporal, sin conexión: una cita real,
+  cero ventas; comprobado por separado para cada clínica.
+
+PENDIENTE, IMPRESCINDIBLE ANTES DE PUBLICAR:
+La captura aportada no muestra los identificadores técnicos ni el origen del
+registro. No se han consultado datos reales. No está demostrado que el cobro
+mostrado tenga alguna de las marcas anteriores. Un responsable autorizado
+debe proporcionar un ejemplo técnico anonimizado de su client_ref y de los
+campos de procedencia de metadata, sin nombre, contacto ni datos clínicos.
+Si fue importado como cita ordinaria sin marca de venta, este filtro por sí
+solo no lo excluye: hace falta identificar el criterio real en el importador
+y ampliar la prueba de regresión. No ocultar citas por falta de profesional.
+Comprobar asimismo que ese cobro ya existe en Pagos; ocultarlo de Citas no
+crea ni traslada pagos.
+
+No fusionar ni publicar hasta validar esa procedencia. Se entrega como
+borrador de revisión para evitar afirmar que la incidencia real está resuelta.
