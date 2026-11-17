@@ -1173,7 +1173,7 @@ function deletePatientEverywhere(code){
  renderPatientsTable();parent.postMessage({type:'atlas:patient-deleted',patient:{code:key,name:patient.name}},'*');alert('Paciente eliminado correctamente.');return true;
 }
 function deleteCustomPatient(code){return deletePatientEverywhere(code)}
-async function openPatientRecord(code){const p=patientByCode(code);if(!p)return;let patientAppointments=appointments.filter(a=>String(a.patientRemoteId||a.patient_id||'')===String(p.remoteId||'')||String(a.patientCode||'')===String(p.code)||normalizeSearch(a.patient)===normalizeSearch(p.name));if(p.remoteId&&typeof window.atlasCentralRequest==='function'){try{const rows=await window.atlasCentralRequest('appointments:listForPatient',{patientId:p.remoteId,all:true});patientAppointments=(rows||[]).map(window.atlasCentralAppointmentFromRow)}catch(error){console.warn('No se pudo cargar el historial completo de citas del paciente; se mostrará la ventana actual.',error)}}parent.postMessage({type:'atlas:patient-selected',openFicha:true,patient:{...p},appointments:patientAppointments},'*')}
+async function openPatientRecord(code){if(!patientMaster.some(p=>p.remoteId)){alert('El directorio de pacientes sigue cargando. Espera unos segundos y vuelve a abrir la ficha.');return}const p=patientByCode(code);if(!p)return;let patientAppointments=appointments.filter(a=>String(a.patientRemoteId||a.patient_id||'')===String(p.remoteId||'')||String(a.patientCode||'')===String(p.code)||normalizeSearch(a.patient)===normalizeSearch(p.name));if(p.remoteId&&typeof window.atlasCentralRequest==='function'){try{const rows=await window.atlasCentralRequest('appointments:listForPatient',{patientId:p.remoteId,all:true});patientAppointments=(rows||[]).map(window.atlasCentralAppointmentFromRow)}catch(error){console.warn('No se pudo cargar el historial completo de citas del paciente; se mostrará la ventana actual.',error)}}parent.postMessage({type:'atlas:patient-selected',openFicha:true,patient:{...p},appointments:patientAppointments},'*')}
 function persistCustomPatients(){localStorage.setItem('atlasAlicanteCustomPatients_V1',JSON.stringify(customPatients))}
 function updateNewPatientPhotoPreview(){const preview=document.getElementById('npPhotoPreview'),placeholder=document.getElementById('npPhotoPlaceholder'),remove=document.getElementById('npPhotoRemove');if(validPatientPhoto(newPatientPhotoData)){preview.src=newPatientPhotoData;preview.hidden=false;preview.style.display='block';placeholder.style.display='none';remove.classList.remove('hidden')}else{preview.removeAttribute('src');preview.hidden=true;preview.style.display='none';placeholder.style.display='grid';remove.classList.add('hidden')}}
 function resetNewPatientPhoto(){newPatientPhotoData='';['npCameraInput','npGalleryInput'].forEach(id=>{const input=document.getElementById(id);if(input)input.value=''});updateNewPatientPhotoPreview()}
@@ -1880,6 +1880,7 @@ function openModalFromCell(resource,time){
 }
 let leadBookingContext=null,reprogrammingAppointment=null;
 function openModal(a=null){
+ if(!patientMaster.some(p=>p.remoteId)){alert('El directorio de pacientes sigue cargando. Espera unos segundos antes de crear o modificar una cita.');return}
  pendingModalAppointment=null;
  editingId=a?a.id:null; document.getElementById('modalTitle').textContent=a?'Editar cita aislada':'Nueva cita';document.getElementById('mEditScope').classList.toggle('hidden',!a);document.getElementById('saveBtn').textContent=a?'Guardar cambios de esta cita':'Guardar cita';
  const today=currentDate;
@@ -3118,12 +3119,13 @@ window.sendPaymentDocumentsAutomatically=function(paymentId,patientName){central
   patientMaster.splice(0,patientMaster.length,...(data||[]).map(mapPatient));customPatients=[];deletedPatientCodes.clear();
   const filter=document.getElementById('patientFilter');if(filter){const current=filter.value;filter.innerHTML='<option value="">Todos los pacientes</option>';patientMaster.forEach(p=>filter.add(new Option(p.name,p.name)));if([...filter.options].some(o=>o.value===current))filter.value=current}
   try{renderPatientsTable();render()}catch(e){console.warn('Refresco parcial',e)}
-  ready=true;notify(patientMaster.length+' pacientes · almacenamiento central','ok');
+  ready=true;window.dispatchEvent(new Event('atlas:central-patients-loaded'));notify(patientMaster.length+' pacientes · almacenamiento central','ok');
   if(document.getElementById('drawer')?.classList.contains('open')&&selectedId)openDrawer(selectedId);
  }
  function formValue(id){return document.getElementById(id)?.value||''}
  function splitSurnames(value){const parts=clean(value).split(/\s+/).filter(Boolean);return {one:parts.shift()||'',two:parts.join(' ')}}
  async function createPatient(nextStep=''){
+  if(!patientMaster.some(p=>p.remoteId)){alert('El directorio de pacientes sigue cargando. Espera unos segundos antes de crear un paciente.');return}
   const authenticated=window.ATLAS_CHILD_CENTRAL_CONTEXT;if(!authenticated?.organizationId||!authenticated?.clinicId||!authenticated?.userId)return alert('La sesión principal todavía no está preparada. Vuelve a iniciar sesión. No se ha guardado ningún paciente.');orgId=authenticated.organizationId;clinicId=authenticated.clinicId;userId=authenticated.userId;
   const first=clean(formValue('npName'));if(!first)return alert('Indica el nombre del paciente.');
   const surnames=splitSurnames(formValue('npSurnames'));
@@ -3346,7 +3348,8 @@ merged.push(mapped);const central=toRow(mapped);remoteByRef.set(mapped.centralRe
   if(!await loadCentral(date))throw new Error('No se pudo cargar la fecha de la cita. Vuelve a intentarlo.');
  };
  const baseCentralRender=render;render=function(){baseCentralRender();if(ready&&!loading&&(currentDate<loadedWindowStart||currentDate>loadedWindowEnd))requestCentralRefresh(120)};
- function activate(){if(!moduleVisible||ready||loading)return;if(!window.ATLAS_CHILD_CENTRAL_CONTEXT)return;if(!patientMaster.some(p=>p.remoteId)){setTimeout(activate,350);return}loadCentral()}
+ function activate(){if(!moduleVisible||ready||loading)return;if(!window.ATLAS_CHILD_CENTRAL_CONTEXT)return;loadCentral()}
+ window.addEventListener('atlas:central-patients-loaded',()=>{lastCentralSignature='';if(ready&&moduleVisible)requestCentralRefresh(80)});
  window.addEventListener('message',event=>{const m=event.data||{};if(m.type==='atlas:central-db-response'&&pending.has(m.requestId)){const item=pending.get(m.requestId);m.ok?item.resolve(m.data):item.reject(Object.assign(new Error(m.error||'Error central'),{code:m.code||''}));return}if(m.type==='atlas:module-visibility'){moduleVisible=m.visible!==false;if(moduleVisible){activate();if(ready)requestCentralRefresh(80)}return}if(m.type==='atlas:server-recovered'&&m.action==='appointments:upsertMany'){for(const row of m.payload?.rows||[])dirtyRefs.delete(row.client_ref);requestCentralRefresh(120);return}if(m.type==='atlas:central-ready')activate();if(m.type==='atlas:central-appointments-changed'&&ready&&moduleVisible)requestCentralRefresh(300)});
  document.addEventListener('visibilitychange',()=>{if(moduleVisible&&!document.hidden&&ready)requestCentralRefresh(80)});window.addEventListener('focus',()=>{if(moduleVisible&&ready)requestCentralRefresh(80)});
  setInterval(()=>{activate();if(ready&&moduleVisible&&!document.hidden&&Date.now()-lastCentralRefreshAt>30000)requestCentralRefresh(0)},1000);parent.postMessage({type:'atlas:central-module-ready',module:'appointments'},'*');
