@@ -1,0 +1,28 @@
+diff --git a/whatsapp-webhook/index.ts b/whatsapp-webhook/index.ts
+index ea1bbd5..c0e4a71 100644
+--- a/whatsapp-webhook/index.ts
++++ b/whatsapp-webhook/index.ts
+@@ -1,3 +1,4 @@
++import { handleReceptionCancellation, hasPendingReceptionCancellation, isNewReceptionMessage } from "./cancellation-reception.mjs";
+ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+ import { persistCtwaAttribution, enrollCtwaAiLead } from "./ctwa-attribution.mjs";
+ import { handleMurciaCtwaAi } from "./murcia-live-ai.mjs";
+@@ -361,7 +362,7 @@ async function handleReminderConfirmation(connection: any, conversation: any, in
+       if (createdTask.error) throw createdTask.error;
+     }
+   } else {
+-    const closedTasks = await db.from("atlas_internal_tasks").update({ status: "completed", completed_at: now, updated_at: now }).eq("clinic_id", connection.clinic_id).eq("source_appointment_id", firstAppointment.id).eq("area", "recepcion").in("status", ["pending", "in_progress", "snoozed"]);
++    const closedTasks = await db.from("atlas_internal_tasks").update({ status: "completed", completed_at: now, updated_at: now }).eq("clinic_id", connection.clinic_id).eq("source_appointment_id", firstAppointment.id).eq("area", "recepcion").eq("source_label", "WhatsApp · recordatorio de cita").in("status", ["pending", "in_progress", "snoozed"]);
+     if (closedTasks.error) throw closedTasks.error;
+   }
+   const labels = [...new Set(responded.map((appointment: any) => appointmentLabel(appointment.starts_at)))];
+@@ -457,6 +458,9 @@ Deno.serve(async (req) => {
+     for (const entry of payload.entry || []) for (const change of entry.changes || []) { const value = change.value || {}, phoneNumberId = String(value?.metadata?.phone_number_id || ""); if (!phoneNumberId) continue; const connection = await connectionFor(phoneNumberId); if (!connection) continue; for (const message of value.messages || []) {
+       const saved = await saveInbound(connection, value, message);
+       if (connection.clinic_id === CLINIC && saved?.message) {
++        if (!isNewReceptionMessage(saved.message)) continue;
++        if (await handleReceptionCancellation({ db, connection, conversation: saved.conversation, inbound: saved.message })) continue;
++        if (await hasPendingReceptionCancellation({ db, connection, conversation: saved.conversation })) continue;
+         await handleInboundAutomations(connection, saved.conversation, saved.message, message);
+         await handleMurciaCtwaAi({ db, connection, conversation: saved.conversation, inbound: saved.message, sendText });
+       }
