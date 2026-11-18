@@ -10,10 +10,24 @@
   const time = value => Date.parse(value || '') || 0;
   async function hydrate(db, context, leads) {
     if (!leads.length || !context.organizationId || !context.clinicId) return leads;
+    const failures = [];
+    const report = () => {
+      root.atlasLeadWhatsappStateDiagnostic = {
+        status: failures.length ? 'partial' : 'ready',
+        errors: failures.map(item => ({ ...item }))
+      };
+    };
+    const fallback = lead => {
+      if (known.has(lead.metadata?.whatsapp_ai_pilot?.status)) return lead;
+      // The automatic sender records this only after Meta accepts the send.
+      // This proves sending, but does not prove delivery, reading or AI activity.
+      if (!time(lead.metadata?.first_whatsapp_sent_at)) return lead;
+      return { ...lead, metadata: { ...lead.metadata, whatsapp_ai_pilot: {
+        ...(lead.metadata.whatsapp_ai_pilot || {}), status: 'sent'
+      } } };
+    };
     const scope = table => db.from(table).select(
-      table === 'whatsapp_ai_lead_pilot_enrollments'
-        ? 'id,lead_id,conversation_id,status,enrolled_at,updated_at'
-        : table === 'whatsapp_conversations'
+      table === 'whatsapp_conversations'
           ? 'id,contact_phone,metadata'
           : 'id,conversation_id,direction,status,sent_at,created_at'
     ).eq('organization_id', context.organizationId).eq('clinic_id', context.clinicId);
@@ -33,12 +47,41 @@
       }
       return result;
     }
+    async function optionalRows(table, field, values) {
+      try { return await rows(table, field, values); }
+      catch (error) {
+        failures.push({ table, code: String(error?.code || 'status_read_failed') });
+        return [];
+      }
+    }
+    async function enrollmentStates() {
+      const result = [];
+      const ids = [...new Set(leads.map(lead => lead.id))];
+      try {
+        for (let i = 0; i < ids.length; i += 100) {
+          const response = await db.functions.invoke('flow-lead-status', { body: {
+            organizationId: context.organizationId, clinicId: context.clinicId,
+            leadIds: ids.slice(i, i + 100)
+          } });
+          if (response.error || !Array.isArray(response.data?.enrollments)) {
+            throw response.error || new Error('status_unavailable');
+          }
+          const requested = new Set(ids.slice(i, i + 100));
+          result.push(...response.data.enrollments.filter(item => requested.has(item.lead_id)));
+        }
+        return result;
+      } catch (error) {
+        failures.push({ table: 'whatsapp_ai_lead_pilot_enrollments',
+          code: String(error?.code || 'status_read_failed') });
+        return [];
+      }
+    }
     try {
-      const enrollments = await rows('whatsapp_ai_lead_pilot_enrollments', 'lead_id', leads.map(l => l.id));
+      const enrollments = await enrollmentStates();
       const firstSent = leads.filter(l => time(l.metadata?.first_whatsapp_sent_at) && phone(l.phone));
       const [enrolledConversations, firstConversations] = await Promise.all([
-        rows('whatsapp_conversations', 'id', enrollments.map(e => e.conversation_id)),
-        rows('whatsapp_conversations', 'contact_phone', firstSent.map(l => phone(l.phone)))
+        optionalRows('whatsapp_conversations', 'id', enrollments.map(e => e.conversation_id)),
+        optionalRows('whatsapp_conversations', 'contact_phone', firstSent.map(l => phone(l.phone)))
       ]);
       const conversations = new Map([...enrolledConversations, ...firstConversations].map(c => [c.id, c]));
       const byPhone = new Map();
@@ -47,7 +90,7 @@
         // Ambiguous phone ownership must not assign another conversation's badge.
         byPhone.set(key, byPhone.has(key) ? null : c);
       }
-      const messages = await rows('whatsapp_messages', 'conversation_id', [...conversations.keys()]);
+      const messages = await optionalRows('whatsapp_messages', 'conversation_id', [...conversations.keys()]);
       const grouped = new Map();
       for (const message of messages) {
         if (!grouped.has(message.conversation_id)) grouped.set(message.conversation_id, []);
@@ -58,10 +101,10 @@
         const old = enrollmentByLead.get(e.lead_id);
         if (!old || time(e.enrolled_at) > time(old.enrolled_at)) enrollmentByLead.set(e.lead_id, e);
       }
-      return leads.map(lead => {
+      const result = leads.map(lead => {
         const metadata = lead.metadata || {}, enrollment = enrollmentByLead.get(lead.id);
         const conversation = enrollment ? conversations.get(enrollment.conversation_id) : byPhone.get(phone(lead.phone));
-        if (!conversation) return lead;
+        if (!conversation) return fallback(lead);
         const paused = metadata.no_contact || conversation.metadata?.ai_paused || conversation.metadata?.human_takeover;
         const history = grouped.get(conversation.id) || [];
         let status = null;
@@ -82,14 +125,18 @@
               time(m.created_at) > time(outbound.sent_at || outbound.created_at))) status = 'replied';
           }
         }
-        if (!status || !known.has(status)) return lead;
+        if (!status || !known.has(status)) return fallback(lead);
         return { ...lead, metadata: { ...metadata, whatsapp_ai_pilot: {
           ...(metadata.whatsapp_ai_pilot || {}), status
         } } };
       });
-    } catch (_) {
+      report();
+      return result;
+    } catch (error) {
       // Status visibility must not prevent access to leads or invent a success.
-      return leads;
+      failures.push({ table: 'adapter', code: String(error?.code || 'status_read_failed') });
+      report();
+      return leads.map(fallback);
     }
   }
   root.atlasHydrateLeadWhatsappStates = hydrate;
