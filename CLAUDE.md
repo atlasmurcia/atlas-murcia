@@ -35,3 +35,5 @@ ATLAS es el programa de gestión de FisioSport Murcia (agenda, fichas de pacient
 
 - Agenda: `resourcesForTherapy` decide qué columnas (fisios y máquinas) ocupa cada servicio. Los servicios del catálogo que no están en la tabla se deducen por el nombre; uno sin máquina solo ocupa al fisio.
 - Fotos de pacientes: los enlaces firmados se piden en tandas de 1000 (`addSignedUrls` en `atlas.html`).
+
+- Planificador de Murcia: antes de cambiar el cálculo o su revisión, consultar `docs/clinical-planning-rules-murcia.txt`. Sus reglas de secuencia obligatoria y tercera semana sustituyen los criterios anteriores de PhysicalM en el mismo día, ondas inmediatamente después de fisioterapia cuando también hay PhysicalM, e inicio de camilla/robot en la segunda semana. Mantener su comprobación al generar y antes de aprobar.
