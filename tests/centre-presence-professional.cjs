@@ -1,0 +1,13 @@
+const assert=require('node:assert/strict'),{treatmentLabel,treatmentChoices}=require('../modules/centre-presence.js');
+const neuro={services:['Neuromodulación','Osteopatía','FISIOAVANZADA'],therapists:{Neuromodulación:'Profesional A',Osteopatía:'Profesional A',FISIOAVANZADA:'Profesional A'},professional:'Profesional A',resources:['Profesional A']};
+assert.equal(treatmentLabel(neuro,'Tratamiento con profesional'),'Tratamiento con profesional · Profesional A');
+const next={services:['iMoove','Readaptación'],therapists:{Readaptación:'Profesional B'},resources:['iMoove'],professional:'Profesional B'};
+assert.deepEqual(treatmentChoices(next,['iMoove']),[{value:'iMoove',label:'iMoove · Profesional B'},{value:'Tratamiento con profesional',label:'Tratamiento con profesional · Profesional B'}]);
+const mixed={...neuro,therapists:{Neuromodulación:'Profesional A',Osteopatía:'Profesional B'},professionals:['Profesional B']};assert.equal(treatmentLabel(mixed,'Tratamiento con profesional'),'Tratamiento con profesional · Profesional A + Profesional B');
+for(const service of ['NEURO + OSTEO + FISIO','IMOOVE + READAPTACIÓN','Readaptacion','Fisioterapia'])assert.match(treatmentLabel({services:[service],professional:'Nombre de prueba'},'Tratamiento con profesional'),/Nombre de prueba/);
+assert.equal(treatmentLabel({services:['SIS'],professional:'Profesional A'},'Tratamiento con profesional'),'Tratamiento con profesional');
+assert.equal(treatmentLabel({services:['Readaptación']},'Tratamiento con profesional'),'Tratamiento con profesional');
+assert.equal(treatmentLabel(next,'SIS'),'SIS');
+const original=JSON.stringify(next);treatmentChoices(next,['iMoove']);assert.equal(JSON.stringify(next),original);
+assert.equal(treatmentChoices(neuro,[])[0].value,'Tratamiento con profesional');
+console.log('Profesional por cita: neuro/osteo/fisio, iMoove/readaptación, cambio de asignado, varios profesionales, sin inventar nombres ni cambiar valores guardados.');
