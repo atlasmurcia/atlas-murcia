@@ -1,0 +1,8 @@
+Cancelaciones de WhatsApp pendientes de recepción
+
+Encargo y excepción a AGENTS.md autorizados expresamente por la responsable el 18/11/2026 para murcia.
+Las solicitudes de ausencia/cancelación preceden a confirmaciones y reagendaciones. La cita conserva el hueco y queda pendiente de cancelación. La tarea solo puede completarse después de cancelar la cita. Las respuestas posteriores no confirman ni cierran tareas. Con cita dudosa, recepción debe identificar y vincular la cita cancelada.
+
+Validación: 17 grupos de pruebas locales con PostgreSQL sintético, los receptores HTTP reales y 274 scripts; prueba visual de componentes en Chrome con red bloqueada; reproducción local del esquema, políticas y disparadores actuales de la clínica con datos ficticios. No se consultaron pacientes, conversaciones ni citas reales, ni se enviaron mensajes de prueba. No se reprocesan mensajes históricos.
+
+La propuesta del servicio se basa en whatsapp-webhook v30. Se despliega por separado del frontend de GitHub Pages, conservando todas las dependencias y opciones existentes. database.sql añade únicamente funciones, disparadores e índice del flujo nuevo; no actualiza filas existentes ni modifica las políticas RLS.

@@ -47,7 +47,7 @@
 })();
 </script><script>
 const agendaFrame=document.getElementById('agendaFrame'),fichaFrame=document.getElementById('fichaFrame'),financeFrame=document.getElementById('financeFrame'),commissionsFrame=document.getElementById('commissionsFrame'),marketingFrame=document.getElementById('marketingFrame'),stage=document.getElementById('stage');
-const atlasModulePaths={agenda:'./modules/agenda.html?v=216&menuNotice=20261117&flowSave=20261118',ficha:'./modules/ficha.html?v=139',finance:'./modules/finance.html?v=100',commissions:'./modules/commissions.html?v=99',marketing:'./modules/marketing.html?v=3'};
+const atlasModulePaths={agenda:'./modules/agenda.html?v=217&menuNotice=20261117&flowSave=20261118',ficha:'./modules/ficha.html?v=139',finance:'./modules/finance.html?v=100',commissions:'./modules/commissions.html?v=99',marketing:'./modules/marketing.html?v=3'};
 const atlasModuleFrames={agenda:agendaFrame,ficha:fichaFrame,finance:financeFrame,commissions:commissionsFrame,marketing:marketingFrame};
 const atlasLoadedModules=new Set();
 let atlasVisibleModule='';
@@ -446,6 +446,7 @@ async function atlasAllRows(make){const rows=[];for(let from=0;from<30000;from+=
         else if(!current.data)result={data:null,error:{message:'No se encontró la tarea.'}};
         else{
           const changes=p.changes||{},row={};
+          if(changes.sourceAppointmentId!==undefined){const linked=await scoped(db.from('appointments').select('id,patient_id,status')).eq('id',changes.sourceAppointmentId).is('deleted_at',null).maybeSingle();if(linked.error)throw linked.error;if(!linked.data||linked.data.status!=='cancelled'||(current.data.patient_id&&linked.data.patient_id!==current.data.patient_id))throw new Error('Selecciona una cita cancelada del paciente y de esta clínica.');row.source_appointment_id=linked.data.id}
           if(changes.title!==undefined){const title=String(changes.title||'').trim();if(!title)throw new Error('El título no puede estar vacío.');row.title=title}
           if(changes.taskType!==undefined){if(!taskTypes.includes(changes.taskType))throw new Error('Tipo de tarea no válido.');row.task_type=changes.taskType}
           if(changes.area!==undefined){if(!taskAreas.includes(changes.area))throw new Error('Área de tarea no válida.');row.area=changes.area}
@@ -1273,5 +1274,6 @@ body:not(.atlas-capture-mode):not(:has(#atlasCaptureFrame.module.on)) #atlasReco
 }
 </style>
 </body></html>
+
 
 
