@@ -1,12 +1,12 @@
 // Real draft renderer in an isolated browser. All records are synthetic; all networking is blocked.
 const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict');
 const {chromium}=require('playwright');
-const {planner,apiCode,generate,manual,readapt}=require('./planning-murcia-blocks.cjs');
+const {physicalmDefinition,planner,apiCode,generate,manual,readapt}=require('./planning-murcia-blocks.cjs');
 const globals=`
 const normalizeSearch=s=>String(s||'').normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').toLowerCase(),appointments=[],currentDate='2027-01-11',equipment=['iMoove','SIS','VACU','MBST OSTEOSPIN'],professionals=['Principal ficticio','Fisio elegido ficticio','Readaptador ficticio','Alternativo ficticio'];
 const therapyDurations={Fisioterapia:30,Neuromodulación:30,Osteopatía:30,'Readaptación':45,iMoove:15,SIS:30,VACU:30,'Onda de choque':15,'Camilla FD':15},therapyProfessionalDurations={},therapiesWithoutProfessional=new Set(['SIS','VACU']);
 const mins=t=>Number(t.split(':')[0])*60+Number(t.split(':')[1]),timeStr=n=>String(Math.floor(n/60)).padStart(2,'0')+':'+String(n%60).padStart(2,'0');
-const resourcesForTherapy=s=>normalizeSearch(s).includes('imoove')?['iMoove']:['SIS','VACU'].includes(s)?[s]:[],serviceCompetency=s=>/fisio|neuromod|osteop|readapt|imoove|onda|camilla/.test(normalizeSearch(s))?'clinical':'',qualifiedProfessionals=()=>professionals;
+var resourcesForTherapy=s=>normalizeSearch(s).includes('imoove')?['iMoove']:['SIS','VACU'].includes(s)?[s]:[],serviceCompetency=s=>/fisio|neuromod|osteop|readapt|imoove|onda|camilla/.test(normalizeSearch(s))?'clinical':'',qualifiedProfessionals=()=>professionals;
 const samePatientAppointment=(a,b)=>String(a.patientCode)===String(b.patientCode),atlasIsNonClinicalContactAppointment=a=>/llamada|seguimiento/.test(normalizeSearch(a.therapy)),agendaActorName=()=> 'Synthetic visual test',alicanteEquipmentConfig={};
 const intervalsOverlap=(a,d,b,e)=>mins(a)<mins(b)+e&&mins(b)<mins(a)+d,conflictsFor=()=>[],blockFor=()=>false,appointmentWithinAllTherapistSchedules=()=>({ok:true});
 function save(){throw Error('Unexpected save')}function render(){throw Error('Unexpected render')}
@@ -20,7 +20,7 @@ function save(){throw Error('Unexpected save')}function render(){throw Error('Un
   page.on('pageerror',e=>errors.push(e.message));
   await page.route('**/*',route=>route.abort());
   await page.setContent('<!doctype html><html lang="es"><meta charset="utf-8"><title>Planificador Murcia · prueba ficticia</title><style>body{font-family:Arial,sans-serif}</style><body><p>Prueba aislada con datos ficticios</p></body></html>');
-  await page.addScriptTag({content:globals+planner+apiCode});
+  await page.addScriptTag({content:globals+physicalmDefinition+"\n"+planner+apiCode});
   await page.evaluate(d=>api.showPlanningDraft(d),draft);
   await page.locator('#atlasPlanningDraftBack.open').waitFor();
   assert.equal(await page.locator('#atlasPlanningDraftApprove').isEnabled(),true);
@@ -38,6 +38,13 @@ function save(){throw Error('Unexpected save')}function render(){throw Error('Un
   assert.equal(await page.locator('#atlasPlanningDraftApprove').isEnabled(),false);
   assert((await page.locator('#atlasPlanningDraftWarning').innerText()).includes('no se puede aprobar'));
   await page.screenshot({path:path.join(__dirname,'../out/planning/blocked-draft.png'),fullPage:true});
+  const actual=require('./planning-murcia-professional-catalog.cjs');
+  await page.evaluate(()=>{professionals.splice(0,professionals.length,'Concepción Madrid Taverner','María Pilar Iniesta Cárceles','Aitor Inglés Barrena','Lisardo Esteve Montava');equipment.push('Physicalm');therapyDurations['PHYSICALM DINAMICO']=30});
+  await page.addScriptTag({content:actual.catalogCode});
+  await page.evaluate(d=>api.showPlanningDraft(d),actual.draft);
+  assert.equal(await page.locator('#atlasPlanningDraftApprove').isEnabled(),true);
+  for(const tr of await page.locator('#atlasPlanningDraftRows tr').all()){const cells=await tr.locator('td').allTextContents();assert(cells[3].includes(cells[2].includes('Fisioterapia')?'Concepción Madrid Taverner':'Aitor Inglés Barrena'))}
+  await page.screenshot({path:path.join(__dirname,'../out/planning/confirmed-professionals.png'),fullPage:true});
   assert.deepEqual(errors,[]);
   console.log('PASS real renderer: combined treatments, durations, chosen staff, machine and disabled approval on invalid draft');
  }finally{await browser.close()}

@@ -35,3 +35,27 @@ El arreglo no aplica ningún plan ni modifica citas o datos existentes.
 Después de publicar: recargar ATLAS, cerrar el borrador anterior mediante
 Volver sin aplicar y generar una nueva propuesta. La revisión y aprobación
 de recepción siguen siendo obligatorias. No aplicar un borrador antiguo.
+
+Corrección posterior: compatibilidad con el catálogo profesional de Murcia
+
+Physicalm dinámico utiliza al readaptador elegido y comprueba que figure entre
+los autorizados de ese servicio; no obliga a usar al fisio/osteópata principal.
+La explicación de sesiones pendientes identifica al profesional seleccionado
+y la terapia para la que falta autorización en la configuración.
+
+El centro confirmó expresamente la autorización de osteopatía de Concepción
+Madrid Taverner. Se actualizan su competencia y los valores iniciales del
+catálogo. Al cargar la configuración central se incorpora únicamente esta
+terapia a su perfil activo, conservando horarios, otros profesionales y demás
+datos. El guardado debe confirmarse antes de usar el perfil actualizado.
+Una marca de aplicación única permite que una revocación posterior del centro
+se respete; no se vuelve a añadir la terapia en cada recarga. No se crean ni
+reactivan perfiles ausentes o inactivos. No se modifica ningún permiso de
+acceso a la base de datos ni se aplica ninguna planificación de pacientes.
+
+Regresión adicional: tests/planning-murcia-professional-catalog.cjs ejecuta
+las funciones reales de competencias y el catálogo publicado, con pacientes
+ficticios y sin conexión al CRM. Comprueba Concepción en el bloque de 60 min,
+Aitor en Readaptación+iMoove de 45 min y Physicalm dinámico, avisos específicos,
+aplicación única, revocación, perfiles inactivos y rechazo del guardado.
+La prueba visual también utiliza estos profesionales y funciones reales.
