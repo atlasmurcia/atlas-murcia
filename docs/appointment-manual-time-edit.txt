@@ -1,0 +1,33 @@
+Guardado de las horas editadas en citas combinadas
+
+Problema: al leer el formulario de una cita con Fisioterapia,
+Neuromodulación y Osteopatía, una capa de readModal imponía 60 minutos
+y calculaba de nuevo la hora final. El servidor recibía ese intervalo
+recalculado, de modo que podía confirmar correctamente una escritura que
+ya no contenía la hora final introducida por recepción.
+
+Cambio: retirar esa imposición durante la lectura del formulario. Se
+conservan la hora inicial, la final y la duración calculada que se editan
+manualmente. Seleccionar los tres servicios sigue proponiendo 60 minutos;
+el planificador automático mantiene sus bloques de 60 y 45 minutos y sus
+comprobaciones. Se mantienen validación de intervalos, solapamientos,
+asignación profesional, control de versiones y confirmación central.
+
+Comprobaciones sin acceso de escritura a datos reales:
+- tests/appointment-time-edit.cjs: ambas horas, intervalos más cortos y más
+  largos, intervalo inválido, servicio individual y duraciones por defecto;
+  sintaxis de los 109 scripts de agenda.
+- tests/planning-murcia-blocks.cjs: 21 casos sintéticos del planificador.
+- tests/planning-murcia-waiting.cjs y tests/appointment-confirmation.cjs.
+- Prueba de Chrome temporal con la página completa de agenda, funciones
+  reales de formulario y persistencia y manejador central, servidor en
+  memoria y conexiones externas bloqueadas. El original sustituye una
+  hora final editada por inicio + 60 minutos. Con la corrección, ambas
+  horas y los 45 minutos de la prueba sobreviven al guardado y reapertura;
+  la segunda cita no cambia. El listado real de la ficha muestra el nuevo
+  inicio y sus funciones de informe leen el nuevo final y la duración.
+  Esta simulación no equivale a guardar una cita en producción.
+
+Recepción: después de publicar y recargar ATLAS, abrir de nuevo la cita,
+introducir las horas correctas y guardar. No se corrige retrospectivamente
+ninguna cita ni se elige una hora real en nombre de la clínica.
