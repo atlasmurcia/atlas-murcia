@@ -3158,7 +3158,18 @@ window.sendPaymentDocumentsAutomatically=function(paymentId,patientName){central
   await loadPatients();parent.postMessage({type:'atlas:patient-deleted',patient:{code:String(code),name:patient.name}},'*');alert('Ficha enviada a la papelera correctamente.');return true;
  }
  async function updatePatient(message){
-  const p=(message.patientId&&patientMaster.find(x=>String(x.remoteId)===String(message.patientId)))||patientMaster.find(x=>String(x.code)===String(message.patientCode));
+  // FlowAtlas can create a patient after the agenda's patient list was loaded.
+  // Resolve a cache miss centrally, using the ID exclusively when it is present.
+  const patientId=clean(message.patientId),patientCode=clean(message.patientCode);
+  let p=patientId?patientMaster.find(x=>String(x.remoteId)===patientId):patientCode?patientMaster.find(x=>String(x.code)===patientCode):null;
+  if(!p&&(patientId||patientCode)){
+   try{
+    const row=await centralRequest('patients:resolve',patientId?{id:patientId}:{patientNumber:patientCode});
+    if(row&&(patientId?String(row.id)===patientId:String(row.patient_number)===patientCode))p=mapPatient(row);
+   }catch(error){
+    parent.postMessage({type:'atlas:central-patient-update-result',ok:false,error:'No se pudo recuperar el contacto para guardar. Tus cambios siguen en la ficha; vuelve a pulsar Guardar. '+error.message,silent:!!message.silent},'*');return;
+   }
+  }
   if(!p){parent.postMessage({type:'atlas:central-patient-update-result',ok:false,error:'La ficha activa ya no coincide con el paciente seleccionado. Vuelve a abrirla.',silent:!!message.silent},'*');return}
   if(message.patientId&&String(p.remoteId)!==String(message.patientId)){parent.postMessage({type:'atlas:central-patient-update-result',ok:false,error:'Se ha evitado guardar datos en otra ficha. Vuelve a abrir el paciente.',silent:!!message.silent},'*');return}
   const f=message.fields||{},has=key=>Object.prototype.hasOwnProperty.call(f,key);let payload={updated_by:userId};
