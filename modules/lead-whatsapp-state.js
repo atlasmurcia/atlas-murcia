@@ -8,6 +8,17 @@
     return digits.length === 9 ? '34' + digits : digits;
   };
   const time = value => Date.parse(value || '') || 0;
+  async function batches(values, work) {
+    const output = new Array(Math.ceil(values.length / 100));
+    let next = 0;
+    await Promise.all(Array.from({ length: Math.min(4, output.length) }, async () => {
+      while (next < output.length) {
+        const index = next++;
+        output[index] = await work(values.slice(index * 100, index * 100 + 100));
+      }
+    }));
+    return output.flat();
+  }
   async function hydrate(db, context, leads) {
     if (!leads.length || !context.organizationId || !context.clinicId) return leads;
     const failures = [];
@@ -33,19 +44,20 @@
     ).eq('organization_id', context.organizationId).eq('clinic_id', context.clinicId);
     // Batch and paginate so a large funnel cannot silently truncate statuses.
     async function rows(table, field, values) {
-      const unique = [...new Set(values.filter(Boolean))], result = [];
-      for (let i = 0; i < unique.length; i += 100) {
+      const unique = [...new Set(values.filter(Boolean))];
+      return batches(unique, async batch => {
+        const result = [];
         let complete = false;
         for (let from = 0; from < 20000; from += 1000) {
-          const query = await scope(table).in(field, unique.slice(i, i + 100))
+          const query = await scope(table).in(field, batch)
             .order('id', { ascending: true }).range(from, from + 999);
           if (query.error) throw query.error;
           result.push(...(query.data || []));
           if ((query.data || []).length < 1000) { complete = true; break; }
         }
         if (!complete) throw new Error('Incomplete WhatsApp status page');
-      }
-      return result;
+        return result;
+      });
     }
     async function optionalRows(table, field, values) {
       try { return await rows(table, field, values); }
@@ -55,21 +67,19 @@
       }
     }
     async function enrollmentStates() {
-      const result = [];
       const ids = [...new Set(leads.map(lead => lead.id))];
       try {
-        for (let i = 0; i < ids.length; i += 100) {
+        return await batches(ids, async batch => {
           const response = await db.functions.invoke('flow-lead-status', { body: {
             organizationId: context.organizationId, clinicId: context.clinicId,
-            leadIds: ids.slice(i, i + 100)
+            leadIds: batch
           } });
           if (response.error || !Array.isArray(response.data?.enrollments)) {
             throw response.error || new Error('status_unavailable');
           }
-          const requested = new Set(ids.slice(i, i + 100));
-          result.push(...response.data.enrollments.filter(item => requested.has(item.lead_id)));
-        }
-        return result;
+          const requested = new Set(batch);
+          return response.data.enrollments.filter(item => requested.has(item.lead_id));
+        });
       } catch (error) {
         failures.push({ table: 'whatsapp_ai_lead_pilot_enrollments',
           code: String(error?.code || 'status_read_failed') });
