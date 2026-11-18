@@ -1,0 +1,48 @@
+REGLAS DE PLANIFICACIÓN DE MURCIA — actualización confirmada el 18/11/2026
+
+Estas pautas se aplican al cálculo y a la comprobación antes de aprobar.
+Sustituyen las preferencias anteriores de PhysicalM en el mismo día y el
+inicio de camilla/robot en la segunda semana. No se aplican a Alicante.
+
+1. Fisioavanzada/Fisioterapia, Osteopatía y Neuromodulación, cuando están
+   prescritas las tres en el presupuesto, forman una cita de 60 minutos con
+   el profesional elegido. No se dividen ni se sustituyen profesionales.
+2. PhysicalM dinámico debe seguir inmediatamente a la sesión manual prescrita
+   (Fisioavanzada, Osteopatía o Neuromodulación, o el bloque combinado). Sin
+   espera ni otro tratamiento intermedio. Se reservan juntos como un grupo
+   indivisible, manteniendo cada cita, duración, equipo y profesional.
+3. Si coinciden ondas de choque, sesión manual y PhysicalM dinámico, el orden
+   es ondas → sesión manual → PhysicalM dinámico. No se admite PhysicalM
+   dinámico justo antes de ondas, tampoco disimulando el orden con una espera.
+   Si el presupuesto no incluye sesiones manuales, ondas → PhysicalM dinámico
+   está permitido; no se inventan tratamientos manuales. Sin PhysicalM se
+   conserva la regla previa de ondas inmediatamente después de fisioterapia.
+4. Readaptación debe terminar antes de empezar las sesiones manuales del mismo
+   día, nunca después. Se conserva Readaptación+iMoove en una cita de 45 min
+   cuando el presupuesto contiene ambas terapias.
+5. Camilla y robot no se programan en las dos primeras semanas. Se cuentan
+   semanas desde la fecha de inicio del tratamiento: primera fecha admitida
+   = inicio + 14 días (día 15), aunque el inicio caiga a mitad de semana.
+   Se conservan las frecuencias y demás restricciones de cada tratamiento.
+6. Se priorizan sesiones seguidas; como máximo una espera de hasta 15 minutos
+   en todo el día. Esa espera no puede separar la sesión manual de PhysicalM.
+   No se proponen visitas sueltas de 15 minutos.
+
+Las sesiones que no caben con profesionales, equipos, disponibilidad y orden
+correctos quedan pendientes; no se añaden tratamientos ni se omiten del
+recuento. Si hay más PhysicalM dinámicos que sesiones manuales presupuestadas,
+el exceso queda pendiente de revisión. La regla dinámica no afecta a PhysicalM
+estático. La revisión considera también las citas existentes del paciente.
+
+Implementación: modules/agenda.html (planGroups, planSequenceProblems,
+recurrenceOkay, planningRuleReport) y ayuda de modules/ficha.html.
+Regresión: tests/planning-murcia-clinical-order.cjs, además de los tests de
+bloques, profesionales, esperas y revisión visual con datos ficticios.
+Se comprueban todos los órdenes de líneas del presupuesto, contacto inmediato,
+esperas e intercalados incorrectos, cantidades desiguales, falta de horario o
+profesional, readaptación con terapias manuales individuales/combinadas,
+PhysicalM estático, inicio en miércoles, días 14/15 y citas existentes.
+
+El código no aplica ningún plan. Tras publicar: cerrar el borrador anterior
+con Volver sin aplicar, recargar ATLAS y generar una propuesta nueva para
+revisarla. No aprobar ni reutilizar un borrador calculado con reglas antiguas.

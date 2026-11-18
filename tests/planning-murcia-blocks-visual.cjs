@@ -56,6 +56,17 @@ function save(){throw Error('Unexpected save')}function render(){throw Error('Un
   await page.screenshot({path:path.join(__dirname,'../out/planning/compact-day.png'),fullPage:true});
   await page.evaluate(d=>api.showPlanningDraft(d),waiting.singleWaitDraft);
   assert.equal(await page.locator('#atlasPlanningDraftApprove').isEnabled(),true);
+  const clinical=require('./planning-murcia-clinical-order.cjs');
+  await page.evaluate(d=>api.showPlanningDraft(d),clinical.validDraft);
+  assert.equal(await page.locator('#atlasPlanningDraftApprove').isEnabled(),true);
+  const ordered=await page.locator('#atlasPlanningDraftRows tr').allTextContents();
+  assert(ordered[0].includes('Readaptación')&&ordered[1].includes('Onda de choque')&&ordered[2].includes('Fisioterapia')&&ordered[3].includes('PHYSICALM DINAMICO'));
+  await page.screenshot({path:path.join(__dirname,'../out/planning/clinical-order.png'),fullPage:true});
+  const badOrder=JSON.parse(JSON.stringify(clinical.validDraft)),dynamic=badOrder.created.find(row=>row.therapy==='PHYSICALM DINAMICO');
+  dynamic.time=String(Number(dynamic.time.slice(0,2))+1).padStart(2,'0')+dynamic.time.slice(2);
+  await page.evaluate(d=>api.showPlanningDraft(d),badOrder);
+  assert.equal(await page.locator('#atlasPlanningDraftApprove').isEnabled(),false);
+  assert((await page.locator('#atlasPlanningDraftWarning').innerText()).includes('inmediatamente'));
   assert.deepEqual(errors,[]);
   console.log('PASS real renderer: combined treatments, durations, chosen staff, machine and disabled approval on invalid draft');
  }finally{await browser.close()}

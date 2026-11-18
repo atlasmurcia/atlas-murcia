@@ -76,3 +76,8 @@ solapan, llamadas/cancelaciones, elección de hueco compacto, citas existentes,
 una segunda espera forzada por equipos ocupados y el límite por fecha.
 La prueba visual confirma el bloqueo del borrador antiguo y la aprobación
 disponible para propuestas sin esperas o con una única espera de 15 minutos.
+
+Reglas clínicas vigentes: consultar docs/clinical-planning-rules-murcia.txt.
+PhysicalM dinámico sigue inmediatamente a la sesión manual; con ondas se usa
+ondas → manual → PhysicalM. Readaptación antes de manual. Camilla y robot
+desde el día 15. Estas condiciones sustituyen las preferencias anteriores.
