@@ -10,7 +10,7 @@ const actualTypes=['VACU','SIS','PHYSICALM DINAMICO','Magnetophysio','Fisioterap
 function draft(times){return{...r.draft,created:actualTypes.map((service,i)=>({...r.rows.find(a=>a.services.includes(service)),time:times[i]}))}}
 const old=draft(['10:00','10:45','11:30','12:15','13:00']);assert.equal(r.c.planWaitStats(old.created).minutes,60);assert.equal(r.c.planWaitStats(old.created).gaps,4);assert(r.c.api.planningRuleViolations(old).some(x=>x.includes('Una sola espera')&&x.includes('60 minutos')));
 r.c.api.setDraft(old);r.c.api.applyPlanningDraft();assert.equal(r.c.alerts.length,1,'Old draft must fail before save');assert.equal(r.c.appointments.length,0);
-const single=draft(['10:00','10:30','11:00','11:30','12:15']);assert.deepEqual(Array.from(r.c.api.planningRuleViolations(single)),[]);assert.equal(r.c.planWaitStats(single.created).minutes,15);assert.equal(r.c.planWaitStats(single.created).gaps,1);
+const single=draft(['10:00','10:30','12:45','11:00','11:45']);assert.deepEqual(Array.from(r.c.api.planningRuleViolations(single)),[]);assert.equal(r.c.planWaitStats(single.created).minutes,15);assert.equal(r.c.planWaitStats(single.created).gaps,1);
 const row=(therapy,time,duration=30,extra={})=>({id:'synthetic-'+therapy+'-'+time,date,time,duration,therapy,services:[therapy],patientCode:patient.code,patient:patient.name,status:'Pendiente',resource:therapy,resources:[therapy],...extra});
 assert.equal(r.c.planWaitOkay([row('VACU','09:00'),row('SIS','09:35'),row('Magnetophysio','10:10')]),false,'Two small waits cannot hide below the total allowance');
 assert.equal(r.c.planWaitOkay([row('VACU','09:00'),row('SIS','09:50')]),false,'A single 20-minute wait is too long');
