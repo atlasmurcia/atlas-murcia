@@ -2,7 +2,7 @@ REGLAS DE PLANIFICACIÓN DE MURCIA — actualización confirmada el 18/11/2026
 
 Estas pautas se aplican al cálculo y a la comprobación antes de aprobar.
 Sustituyen las preferencias anteriores de PhysicalM en el mismo día y el
-inicio de camilla/robot en la segunda semana. No se aplican a Alicante.
+inicio de camilla/robot en la segunda semana. Alicante mantiene su adaptación en su repositorio, sin PhysicalM, con Robot denominado Tracción y división manual 30+45 solo si se elige expresamente.
 
 1. Fisioavanzada/Fisioterapia, Osteopatía y Neuromodulación, cuando están
    prescritas las tres en el presupuesto, forman una cita de 60 minutos con
@@ -46,3 +46,12 @@ PhysicalM estático, inicio en miércoles, días 14/15 y citas existentes.
 El código no aplica ningún plan. Tras publicar: cerrar el borrador anterior
 con Volver sin aplicar, recargar ATLAS y generar una propuesta nueva para
 revisarla. No aprobar ni reutilizar un borrador calculado con reglas antiguas.
+
+Las reglas se aplican a cualquier profesional seleccionado y autorizado, no
+solo a Concepción o Aitor. Pruebas: tests/planning-all-professionals.cjs y su
+revisión visual, con varias combinaciones de profesionales ficticios.
+La responsable ha confirmado además la autorización de María Pilar Iniesta
+Cárceles y María Visitación Martínez Ruiz para el bloque manual de 60 minutos.
+Se incorpora osteopatía a sus perfiles activos de Murcia una sola vez, tras
+confirmar el guardado, preservando horarios, otros perfiles y revocaciones.
+No se crean ni reactivan perfiles y no se traslada esa autorización a Alicante.
