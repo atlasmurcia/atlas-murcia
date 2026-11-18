@@ -5,7 +5,7 @@
  const norm=value=>String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();
  const activePayment=row=>['completed','refunded'].includes(row.status)&&!row.cancelled_at;
  function calculate({patient,appointments,payments,budgets,debts},now=Date.now()){
-  const clinical=appointments.filter(row=>!(row.services||[]).some(service=>/^(avisos?$|llamada\b|seguimiento\b)/.test(norm(service))));
+  const clinical=appointments.filter(row=>!window.atlasIsAppointmentRecord||window.atlasIsAppointmentRecord(row)).filter(row=>!(row.services||[]).some(service=>/^(avisos?$|llamada\b|seguimiento\b)/.test(norm(service))));
   const done=clinical.filter(row=>row.status==='completed');
   const pending=clinical.filter(row=>['pending','confirmed','arrived','in_progress'].includes(row.status));
   const upcoming=pending.filter(row=>Number.isFinite(Date.parse(row.starts_at))&&Date.parse(row.starts_at)>=now).sort((a,b)=>Date.parse(a.starts_at)-Date.parse(b.starts_at))[0];
@@ -40,7 +40,7 @@
    }
   }
   const [appointments,payments,budgets,debts]=await Promise.all([
-   all('appointments','id,starts_at,status,services'),
+   all('appointments','id,client_ref,metadata,starts_at,status,services'),
    all('payments','id,budget_id,amount,status,paid_at,cancelled_at,metadata'),
    all('budgets','id,client_ref,status,total'),
    all('patient_debts','id,amount_remaining,is_settled',false)

@@ -1,0 +1,36 @@
+Clasificación administrativa de registros históricos revisados
+
+El archivo original y su pago se conservan íntegros, incluidas sus claves,
+estados, recibos y relaciones. No se cambia ninguna protección del servidor.
+No se emplea modo de migración, no se desactivan disparadores y no se modifica
+la cita histórica para ocultarla.
+
+La clasificación de lectura se almacena separadamente en clinic_settings,
+sección appointment_record_classifications, dentro de la organización y clínica.
+Solo las decisiones explícitas payment_only con ID de registro, referencia
+original y vínculo de pago completos se aplican. Se exige que coincidan tanto
+el ID como la referencia; no se deduce una venta por su hora, tratamiento,
+estado realizado o ausencia de profesional.
+
+La portada carga esta configuración antes de responder al historial de citas,
+a la agenda y a los indicadores del paciente. El contador excluye la misma fila
+que excluye el listado. El historial financiero conserva la operación y muestra
+su vínculo como referencia histórica de cobro, sin afirmar que sea una sesión.
+Los mensajes a las fichas solo se aceptan desde su propia ventana padre.
+La configuración de una clínica no se reutiliza para otra.
+
+Validación exclusivamente con datos ficticios:
+- Dos registros históricos, uno expresamente revisado como venta y una sesión
+  real pagada: solo se excluye el primero; ninguna fila original se modifica.
+- El contador de realizadas y última asistencia excluyen el registro revisado;
+  el importe cobrado y el saldo no cambian.
+- Una venta que no está revisada se conserva; no hay limpieza automática.
+- Coincidencia de solo ID o solo referencia no basta para ocultar un registro.
+- Se conserva el cobro, su referencia y su vínculo histórico.
+- La lectura de configuración aplica organización y clínica y propaga errores.
+- Prueba visual de la ficha en ordenador/móvil con red bloqueada, y regresiones
+  existentes de citas, pagos, cancelaciones, indicadores y saldo.
+
+Los identificadores particulares de una revisión no se incluyen en este
+repositorio público, en fixtures ni en la descripción de la solicitud.
+Después de publicar y registrar una clasificación autorizada, recargar ATLAS.

@@ -11,9 +11,9 @@
  function draw(){
   const groups=model.paymentGroups(rows),selected=groups[$('atlasFinancialFilter').value]||groups.all;
   $('atlasFinancialRows').innerHTML=selected.length?'<table><thead><tr><th>Fecha del pago</th><th>Concepto</th><th>Tipo de operación</th><th>Importe</th><th>Método</th><th>Estado del pago</th><th>Referencia</th><th>Vinculación</th></tr></thead><tbody>'+selected.map(p=>{
-   const meta=p.metadata||{},lines=Array.isArray(meta.invoice_lines)?meta.invoice_lines:Array.isArray(meta.koibox?.lines)?meta.koibox.lines:[],concept=lines.map(l=>l.description||l.descripcion).filter(Boolean).join(' + ')||(Array.isArray(meta.services)?meta.services:[]).join(' + ')||meta.payment_label||'Pago',links=model.allocations(p),method=meta.payment_method_label||({cash:'Metálico',card:'Tarjeta',transfer:'Transferencia',mixed:'Pago mixto',bizum:'Bizum',financing:'Financiación'})[p.method]||p.method||'Sin indicar';
+   const meta=p.metadata||{},lines=Array.isArray(meta.invoice_lines)?meta.invoice_lines:Array.isArray(meta.koibox?.lines)?meta.koibox.lines:[],concept=lines.map(l=>l.description||l.descripcion).filter(Boolean).join(' + ')||(Array.isArray(meta.services)?meta.services:[]).join(' + ')||meta.payment_label||'Pago',links=model.allocations(p),sessionLinks=links.filter(link=>!window.atlasIsPaymentOnlyAppointmentId?.(link.appointmentId)),method=meta.payment_method_label||({cash:'Metálico',card:'Tarjeta',transfer:'Transferencia',mixed:'Pago mixto',bizum:'Bizum',financing:'Financiación'})[p.method]||p.method||'Sin indicar';
    const date=p.paid_at?new Date(p.paid_at).toLocaleString('es-ES',{timeZone:'Europe/Madrid'}):'Sin fecha confirmada';
-   return '<tr><td>'+esc(date)+'</td><td>'+esc(concept)+'</td><td>'+esc(model.operationType(p))+'</td><td>'+euro(p.amount)+'</td><td>'+esc(method)+'</td><td>'+esc(model.paymentState(p))+'</td><td>'+esc(p.receipt_number||p.external_reference||p.client_ref||'Sin referencia')+'</td><td>'+esc(links.length?links.length+' cita(s) vinculada(s)':p.budget_id?'Presupuesto':'Sin cita vinculada')+'</td></tr>';
+   return '<tr><td>'+esc(date)+'</td><td>'+esc(concept)+'</td><td>'+esc(model.operationType(p))+'</td><td>'+euro(p.amount)+'</td><td>'+esc(method)+'</td><td>'+esc(model.paymentState(p))+'</td><td>'+esc(p.receipt_number||p.external_reference||p.client_ref||'Sin referencia')+'</td><td>'+esc(sessionLinks.length?sessionLinks.length+' cita(s) vinculada(s)':links.length?'Referencia histórica de cobro':p.budget_id?'Presupuesto':'Sin cita vinculada')+'</td></tr>';
   }).join('')+'</tbody></table>':'<p>No hay operaciones con este filtro.</p>';
  }
  function request(action,payload){return new Promise((resolve,reject)=>{const id='financial-history-'+Date.now()+'-'+(++serial),timeout=setTimeout(()=>{waiting.delete(id);reject(Error('El servidor no ha respondido.'))},20000);waiting.set(id,{resolve,reject,timeout});parent.postMessage({type:'atlas:central-db-request',requestId:id,action,payload},'*')});}
@@ -28,6 +28,7 @@
   try{const [data,summary]=await Promise.all([request('payments:list',{patientId:id}),request('patients:financialSummary',{patientId:id})]);if(version!==generation||id!==patient?.remoteId)return;rows=Array.isArray(data)?data:[];draw();drawSummary(summary);$('atlasFinancialState').textContent=rows.length+' operaciones registradas. Las devoluciones y anulaciones se conservan en el historial.';}
   catch(e){if(version===generation)$('atlasFinancialState').textContent='No se han podido comprobar los pagos: '+e.message;}
  }
+ window.addEventListener('atlas:record-classifications-ready',draw);
  $('atlasFinancialFilter').onchange=draw;$('atlasFinancialRefresh').onclick=load;
  window.addEventListener('message',event=>{
   const m=event.data||{};if(m.type==='atlas:central-db-response'&&waiting.has(m.requestId)){const p=waiting.get(m.requestId);waiting.delete(m.requestId);clearTimeout(p.timeout);m.ok?p.resolve(m.data):p.reject(Error(m.error||'Error del servidor'));return;}

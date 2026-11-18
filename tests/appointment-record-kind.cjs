@@ -42,7 +42,7 @@ assert.equal(cancelledPayment.status,'completed','La cancelación de una sesión
 assert.equal(advance.appointment_id,null,'El anticipo continúa sin cita asociada');
 
 for(const name of ['modules/ficha.html','modules/agenda.html',fs.existsSync('atlas.html')?'atlas.html':'index.html']){
- const source=fs.readFileSync(name,'utf8');assert(source.includes('appointment-record-kind.js?v=1'));
+ const source=fs.readFileSync(name,'utf8');assert(source.includes('appointment-record-kind.js?v=2'));
  for(const script of source.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi))if(!/\bsrc\s*=|type\s*=\s*["'](?:application\/json|importmap)/i.test(script[1])&&script[2].trim())new vm.Script(script[2],{filename:name});
 }
 console.log('Clasificación, anticipos sin citas, sesiones pagadas pendientes/canceladas, devoluciones intactas, listado real y sintaxis: OK (solo datos sintéticos).');
