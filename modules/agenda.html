@@ -5742,14 +5742,16 @@ const kind=bombaKind(appointment);if(!kind)return;const nextResources=[...new Se
   setTimeout(()=>document.querySelectorAll('#statisticsContent table').forEach(table=>table.dispatchEvent(new Event('atlas:totals'))),0);
  }
  const statisticsServiceAliases={'1 fisio':'1 consulta','1 consulta':'1 consulta','1 consulta fisioterapia':'1 consulta','1 a consulta fisioterapia':'1 consulta','primera consulta':'1 consulta','valoracion descontada':'valoracion','fisioavanzada':'fisioterapia','fisio avanzada':'fisioterapia','seguimiento fisioterapia':'fisioterapia','readaptacion seguimiento':'readaptacion','seguimiento readaptacion':'readaptacion','mbst osteo':'mbst osteospin historico','mbst osteospin':'mbst osteospin historico','mbst osteo reactivacion':'mbst osteospin historico','magneto physio':'magnetophysio','camilla flexion distraccion':'camilla fd','ondas de choque':'onda de choque','poner traccion':'traccion','rmn inscanner':'resonancia magnetica de imagen','resonancia inscanner':'resonancia magnetica de imagen'};
+ const statisticsReportCategoryAliases={reserva:'VALORACION'};
  const statisticsCatalogService=(name,byName)=>{const original=norm(name),withoutClub=original.replace(/\bclub (?:de )?afiliados\b/g,'').trim(),alias=statisticsServiceAliases[withoutClub]||withoutClub;return byName.get(alias)||byName.get(withoutClub)||byName.get(original)||null};
  function configuredSalesHierarchy(lines,categories,services){
-  const orderedCategories=[...new Set(categories||[])],catalog=services||[],byName=new Map(catalog.map(service=>[norm(service.name),service]));
-  const groups=orderedCategories.map(label=>({category:{label,count:0,performed:0,value:0},services:catalog.filter(service=>service.category===label).map(service=>({label:service.name,count:0,performed:0,value:0}))}));
+  const catalog=services||[],orderedCategories=[...new Set([...(categories||[]),...catalog.map(service=>String(service.category||'').trim()).filter(Boolean),...Object.values(statisticsReportCategoryAliases)])],byName=new Map(catalog.map(service=>[norm(service.name),service]));
+  const groups=orderedCategories.map(label=>({category:{label,count:0,performed:0,value:0},services:catalog.filter(service=>String(service.category||'').trim()===label).map(service=>({label:service.name,count:0,performed:0,value:0}))}));
   const byCategory=new Map(groups.map(group=>[group.category.label,group]));
   const unresolved=new Map();
   for(const line of lines){
-   const service=statisticsCatalogService(line.service,byName),group=service&&byCategory.get(service.category),row=group?.services.find(item=>norm(item.label)===norm(service.name));
+   const service=statisticsCatalogService(line.service,byName),categoryLabel=String(service?.category||'').trim()||statisticsReportCategoryAliases[norm(line.service)]||'',group=categoryLabel?byCategory.get(categoryLabel):null,label=service?.name||String(line.service||'Concepto sin servicio').trim();let row=group?.services.find(item=>norm(item.label)===norm(label));
+   if(group&&!row&&statisticsReportCategoryAliases[norm(line.service)]===categoryLabel){row={label,count:0,performed:0,value:0};group.services.push(row)}
    if(row){row.count++;row.value=Number((row.value+line.amount).toFixed(2));group.category.count++;group.category.value=Number((group.category.value+line.amount).toFixed(2))}
    else{const label=String(line.service||'Concepto sin servicio').trim(),item=unresolved.get(label)||{label,count:0,value:0};item.count++;item.value=Number((item.value+line.amount).toFixed(2));unresolved.set(label,item)}
   }
@@ -5780,7 +5782,7 @@ const kind=bombaKind(appointment);if(!kind)return;const nextResources=[...new Se
  }
  renderAccurate=async function(){
   const body=document.getElementById('salesStatsBody');if(!body)return;
-  const range=salesStatsRange(),rangeKey=range.start+'|'+range.end,categories=Array.isArray(sales?.categories)?sales.categories:[],services=Array.isArray(sales?.services)?sales.services:[],previous=document.getElementById('statsExtra')?.value||'Todas las categorías',origin=document.getElementById('statsOrigin')?.value||'Todos los cobros',byService=activeStatisticsReport==='Por servicios';
+  const range=salesStatsRange(),rangeKey=range.start+'|'+range.end,services=Array.isArray(sales?.services)?sales.services:[],categories=[...new Set([...(Array.isArray(sales?.categories)?sales.categories:[]),...services.map(service=>String(service.category||'').trim()).filter(Boolean),...Object.values(statisticsReportCategoryAliases)])],previous=document.getElementById('statsExtra')?.value||'Todas las categorías',origin=document.getElementById('statsOrigin')?.value||'Todos los cobros',byService=activeStatisticsReport==='Por servicios';
   if(statisticsAppointmentRange!==rangeKey||statisticsSalesRange!==rangeKey){body.innerHTML=statsFilterHtml()+'<div class="statistics-ready"><span class="statistics-icon">⌛</span><h3>Comprobando citas y cobros del periodo…</h3><p>ATLAS está leyendo el mes completo del registro central.</p></div>';await Promise.all([loadStatisticsAppointments(range.start,range.end),loadStatisticsSales(range.start,range.end)]);if(!document.getElementById('salesStatsBody')||salesStatsRange().start!==range.start||salesStatsRange().end!==range.end)return}
   const selected=categories.includes(previous)?previous:'Todas las categorías',all=paidServiceLines(statisticsSalesRows).filter(line=>origin!=='Presupuestos'||line.movement?.saleKind==='budget'),ordered=configuredSalesHierarchy(all,categories,services);
   const performed=addPerformedAppointments(ordered.groups,statisticsAppointmentRows,services);
