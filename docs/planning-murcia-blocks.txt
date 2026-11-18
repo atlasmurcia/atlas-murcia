@@ -1,0 +1,37 @@
+Planificador de Murcia: citas combinadas y profesionales elegidos
+
+Cuando el presupuesto incluye las tres terapias, Fisioterapia/Fisioavanzada,
+Neuromodulación y Osteopatía forman una única cita de 60 minutos. El selector
+específico de fisioterapia, si se rellena, elige al profesional de toda esa
+cita; si está vacío se usa el principal elegido. Nunca se sustituye por otro.
+
+Cuando el presupuesto incluye Readaptación e iMoove, ambas forman una única
+cita de 45 minutos, con el readaptador elegido y el equipo iMoove reservados
+durante el bloque. Las competencias se comprueban para todos los servicios.
+Si falta horario, competencia o equipo, el bloque queda pendiente completo.
+Si difieren las cantidades, se proponen solo bloques completos y se informa
+del resto pendiente, sin añadir ni eliminar tratamientos del presupuesto.
+
+Las terapias cortas se colocan después de las largas y se intentan recolocar
+en visitas existentes. No se crea una visita de 15 minutos sin compañía. Si
+no existe una combinación compatible, queda pendiente y no se puede aplicar
+el borrador completo. Las llamadas y seguimientos no cuentan como compañía.
+
+La revisión antes de aprobar comprueba cada cita combinada (servicios,
+duración y equipo), el profesional y todas sus asignaciones por terapia,
+las cantidades y las visitas cortas. Una coincidencia en el mismo día no
+basta. El guardado central calcula la ocupación profesional completa de las
+citas combinadas del plan: 60 y 45 minutos, respectivamente.
+
+Validación con datos exclusivamente ficticios y sin conexión al CRM:
+- node tests/planning-murcia-blocks.cjs: 21 comprobaciones de comportamiento.
+- node tests/planning-murcia-blocks-visual.cjs: pantalla real del borrador,
+  grupos, tiempos, profesionales, equipo y bloqueo de aprobación; red anulada.
+- node tests/physicalm-selection.cjs: regresión de equipos, competencias,
+  duraciones y horarios existentes, además de sintaxis de Agenda.
+- Sintaxis de todos los scripts de Agenda, Ficha y portada (189 bloques).
+
+El arreglo no aplica ningún plan ni modifica citas o datos existentes.
+Después de publicar: recargar ATLAS, cerrar el borrador anterior mediante
+Volver sin aplicar y generar una nueva propuesta. La revisión y aprobación
+de recepción siguen siendo obligatorias. No aplicar un borrador antiguo.
