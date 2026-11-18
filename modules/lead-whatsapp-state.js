@@ -19,7 +19,9 @@
     }));
     return output.flat();
   }
-  async function hydrate(db, context, leads) {
+  async function hydrate(db, context, leads, options = {}) {
+    const signal = options.signal;
+    const check = () => { if (signal?.aborted) throw new Error('Status read cancelled'); };
     if (!leads.length || !context.organizationId || !context.clinicId) return leads;
     const failures = [];
     const report = () => {
@@ -49,8 +51,10 @@
         const result = [];
         let complete = false;
         for (let from = 0; from < 20000; from += 1000) {
-          const query = await scope(table).in(field, batch)
-            .order('id', { ascending: true }).range(from, from + 999);
+          check();
+          let request = scope(table).in(field, batch).order('id', { ascending: true }).range(from, from + 999);
+          if (signal) request = request.abortSignal(signal);
+          const query = await request;
           if (query.error) throw query.error;
           result.push(...(query.data || []));
           if ((query.data || []).length < 1000) { complete = true; break; }
@@ -70,7 +74,8 @@
       const ids = [...new Set(leads.map(lead => lead.id))];
       try {
         return await batches(ids, async batch => {
-          const response = await db.functions.invoke('flow-lead-status', { body: {
+          check();
+          const response = await db.functions.invoke('flow-lead-status', { signal, body: {
             organizationId: context.organizationId, clinicId: context.clinicId,
             leadIds: batch
           } });
@@ -151,3 +156,4 @@
   }
   root.atlasHydrateLeadWhatsappStates = hydrate;
 })(globalThis);
+

@@ -1,0 +1,70 @@
+const fs = require('node:fs');
+const vm = require('node:vm');
+const assert = require('node:assert/strict');
+const path = require('node:path');
+const local = path.join(__dirname, '../changes/flow-contact-performance/atlas-murcia');
+const dir = fs.existsSync(local) ? local : path.join(__dirname, '..');
+module.exports = async function verify() {
+  const source = fs.readFileSync(path.join(dir, 'modules/lead-whatsapp-state.js'), 'utf8');
+  new vm.Script(source);
+  const sandbox = {}; vm.runInNewContext(source, sandbox);
+  const context = { organizationId: 'synthetic-org', clinicId: 'synthetic-murcia' };
+  const firstAt = '2026-11-18T09:00:00.000Z', later = '2026-11-18T09:01:00.000Z';
+  const lead = { id: 'lead-synthetic', phone: '600000001', metadata: { first_whatsapp_sent_at: firstAt, follow_up: { step: 'call1' } } };
+  const conversation = { id: 'conversation-synthetic', contact_phone: '34600000001', metadata: {} };
+  const message = { id: 'message-synthetic', conversation_id: conversation.id, direction: 'outbound', status: 'sent', sent_at: firstAt, created_at: firstAt };
+  let checks = 0;
+  async function run({ leads = [lead], messages = [message], conversations = [conversation], enrollments = [], fail = '', expected, scope = context } = {}) {
+    const input = JSON.stringify(leads), queries = [];
+    const tables = { whatsapp_messages: messages, whatsapp_conversations: conversations, whatsapp_ai_lead_pilot_enrollments: enrollments };
+    const db = { functions: { async invoke(name, { body }) { assert.equal(name, 'flow-lead-status'); assert.equal(body.organizationId, context.organizationId); assert.equal(body.clinicId, context.clinicId); return fail === 'whatsapp_ai_lead_pilot_enrollments' ? { error: { code: '42501' } } : { data: { enrollments: enrollments.filter(e => body.leadIds.includes(e.lead_id)) } }; } }, from(table) {
+      assert.notEqual(table, 'whatsapp_ai_lead_pilot_enrollments', 'private table must not be read in browser');
+      const filters = [], equalities = [];
+      const q = { select() { return q; }, eq(k, v) { equalities.push([k, v]); return q; }, in(k, v) { filters.push([k, v]); return q; }, order() { return q; }, range(a, b) {
+        assert.deepEqual(equalities, [['organization_id', context.organizationId], ['clinic_id', context.clinicId]]);
+        queries.push({ table, a, b });
+        return Promise.resolve(table === fail ? { error: Error('Synthetic unavailable') } : { data: tables[table].filter(row => filters.every(([k, v]) => v.includes(row[k]))).slice(a, b + 1) });
+      } }; return q;
+    } };
+    const result = await sandbox.atlasHydrateLeadWhatsappStates(db, scope, leads);
+    assert.equal(JSON.stringify(leads), input, 'does not mutate input');
+    if (expected !== undefined) assert.equal(result[0]?.metadata?.whatsapp_ai_pilot?.status || null, expected);
+    checks++;
+    return { result, queries, diagnostic: sandbox.atlasLeadWhatsappStateDiagnostic };
+  }
+  for (const status of ['sent', 'delivered', 'read', 'failed']) await run({ messages: [{ ...message, status }], expected: status });
+  await run({ messages: [message, { ...message, id: 'reply', direction: 'inbound', created_at: later }], expected: 'replied' });
+  await run({ messages: [{ ...message, status: 'queued' }], expected: 'sent' });
+  await run({ messages: [{ ...message, sent_at: later, created_at: later }], expected: 'sent' });
+  await run({ messages: [], expected: 'sent' });
+  await run({ leads: [{ ...lead, metadata: {} }], expected: null });
+  const enrollment = { id: 'enrollment', lead_id: lead.id, conversation_id: conversation.id, status: 'active', enrolled_at: firstAt, updated_at: firstAt };
+  await run({ enrollments: [enrollment], expected: 'ai_active' });
+  await run({ enrollments: [enrollment], messages: [], expected: 'sent' });
+  for (const status of ['handoff', 'opted_out', 'completed', 'enrolled', 'awaiting_reply']) await run({ enrollments: [{ ...enrollment, status }], expected: 'sent' });
+  for (const flag of ['human_takeover', 'ai_paused']) await run({ enrollments: [enrollment], conversations: [{ ...conversation, metadata: { [flag]: true } }], expected: 'sent' });
+  await run({ enrollments: [enrollment], leads: [{ ...lead, metadata: { ...lead.metadata, no_contact: true } }], expected: 'sent' });
+  await run({ enrollments: [enrollment, { ...enrollment, id: 'new', status: 'handoff', enrolled_at: later }], expected: 'sent' });
+  for (const fail of Object.keys({ whatsapp_messages: 1, whatsapp_conversations: 1, whatsapp_ai_lead_pilot_enrollments: 1 })) await run({ fail, expected: 'sent' });
+  await run({ conversations: [conversation, { ...conversation, id: 'ambiguous' }], expected: 'sent' });
+  const enrollmentDenied = await run({ fail: 'whatsapp_ai_lead_pilot_enrollments', messages: [{ ...message, status: 'read' }], expected: 'read' });
+  assert.equal(enrollmentDenied.diagnostic.status, 'partial');
+  assert.equal(enrollmentDenied.diagnostic.errors[0].table, 'whatsapp_ai_lead_pilot_enrollments');
+  await run({ leads: [{ ...lead, metadata: {} }], fail: 'whatsapp_ai_lead_pilot_enrollments', expected: null });
+  await run({ leads: [{ ...lead, metadata: { whatsapp_ai_pilot: { status: 'failed' } } }], fail: 'whatsapp_ai_lead_pilot_enrollments', expected: 'failed' });
+  await run({ leads: [{ ...lead, metadata: { ...lead.metadata, whatsapp_ai_pilot: { status: 'read' } } }], fail: 'whatsapp_messages', expected: 'read' });
+  const full = await run({ expected: 'sent' });
+  assert.equal(full.diagnostic.status, 'ready');
+  assert.equal(full.diagnostic.errors.length, 0);
+  const paginated = await run({ messages: Array.from({ length: 1001 }, (_, i) => ({ ...message, id: String(i) })), expected: 'sent' });
+  assert(paginated.queries.some(q => q.table === 'whatsapp_messages' && q.a === 1000));
+  assert.equal((await run({ leads: [] })).queries.length, 0);
+  assert.equal((await run({ scope: { clinicId: context.clinicId }, expected: null })).queries.length, 0);
+  const html = fs.readFileSync(path.join(dir, 'atlas.html'), 'utf8');
+  for (const [, script] of html.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/gi)) if (script.trim()) new vm.Script(script);
+  assert(html.includes('window.atlasCreateFlowContactLoader(db,()=>context,window.atlasHydrateLeadWhatsappStates)'));
+  assert.equal((html.match(/modules\/lead-whatsapp-state.js\?v=3/g) || []).length, 1);
+  return { checks, syntax: 'all inline scripts and adapter', productionAccess: false };
+};
+
+if (require.main === module) module.exports().then(console.log).catch(error => { console.error(error); process.exitCode = 1; });

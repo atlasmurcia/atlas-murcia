@@ -1,0 +1,62 @@
+Flow Atlas Murcia — carga de contactos — 18/11/2026
+
+ESTADO: candidato probado, sin publicar. Solo Murcia; Alicante no se modifica.
+
+Origen del candidato: atlasmurcia/atlas-murcia, main da849ff362a739ff45d0fefb5c0395c1ed24c033.
+Blob atlas.html: 88c882eaf85a2de422c989f88ee184729e7cafd5.
+Se conservan agenda v218 y ficha v140 del cambio simultáneo #162.
+
+Causa confirmada en código público:
+- La pantalla de Flow descarta respuestas centrales después de 10 segundos.
+- Murcia esperaba todas las páginas de contactos en serie, después perfiles,
+  después auditoría y después varias consultas de estados WhatsApp/IA.
+- Los refrescos automáticos cada 15 s y los manuales podían solaparse.
+- El historial de cada contacto también encadenaba sus consultas.
+No se afirma haber diagnosticado la latencia ni la disponibilidad reales del CRM.
+
+Cambios:
+- modules/flow-contact-loader.js: agrupa solicitudes simultáneas por usuario,
+  organización, clínica, acción, contacto y revisión. No conserva contactos en
+  disco ni reutiliza una lista terminada: cada nueva actualización lee de nuevo.
+- Paginación ordenada con hasta tres páginas simultáneas después de la primera.
+  No devuelve éxito parcial ante un fallo ni trunca en silencio a 20.000 contactos.
+- Máximo de 5,4 s para lectura principal y 1,4 s para información complementaria
+  consultada en paralelo; sesión previa limitada a 1,2 s. Presupuesto programado
+  de 8 s, inferior a los 10 s de la pantalla (no es una medición del CRM).
+- Cancela consultas al vencer el plazo; un único reintento de lectura ante
+  errores de red o HTTP transitorios. No reintenta permisos ni escrituras.
+- Los estados complementarios lentos no impiden mostrar los contactos. Se
+  conserva la información ya registrada; no se inventan entregas, lecturas ni IA.
+  Si no llegan a tiempo, pueden completarse en una actualización posterior.
+- Historial y metadatos del contacto se consultan en paralelo. Se mantienen
+  eventos históricos, su deduplicación y los nombres disponibles de los actores.
+- Invalidación tras cambios relacionados y rechazo de respuestas anteriores
+  a una escritura, cambio de clínica o sesión.
+- Adaptador WhatsApp v3: admite cancelación de consultas y del servicio de lectura.
+  No cambia la lógica de etiquetas ni envía mensajes.
+
+Validación:
+- 15 grupos sintéticos de rendimiento, paginación, concurrencia, fallos, límites,
+  identidad, sesión y respuesta del manejador real de atlas.html.
+- 32 escenarios de regresión de estados WhatsApp e IA, sin cambiar su semántica.
+- Sintaxis de todos los scripts inline de atlas.html y de los dos módulos.
+- Chrome temporal: interfaz pública actual de Flow reproducida localmente;
+  manejador central real del candidato con servidor ficticio. Fallo HTTP 503
+  recuperado automáticamente, listado visible e historial individual cargado,
+  sin errores de página. Todas las peticiones interceptadas; sin acceso al CRM.
+- Capturas: atlas-murcia/list-synthetic.png y screen-synthetic.png.
+
+No se han consultado contactos, pacientes, conversaciones ni almacenamiento
+reales. No se han cambiado Supabase, permisos, funciones de envío ni citas.
+El guardado sigue usando las operaciones existentes, sin reintentos de escritura.
+No se ha validado una sesión clínica real ni medido tiempos de producción.
+
+La carpeta carece de .git. El candidato de Murcia se mantiene en carpeta y
+rama propias; no se aplica a out/, que es una copia aislada de Alicante.
+Publicar requiere autorización expresa como excepción a AGENTS.md.
+
+Pruebas locales:
+node tests/flow-contact-performance.cjs
+node tests/flow-contact-status-regression.cjs
+La prueba de pantalla usa Playwright, Chrome y archivos públicos descargados
+en /tmp. No se suben esos archivos ni la configuración de hosting.
