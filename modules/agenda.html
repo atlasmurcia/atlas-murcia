@@ -4778,8 +4778,6 @@ function printInvoice(x,openedWindow){const issuer=x.issuer||{},recipient=x.reci
 
 <script id="atlas-v136-combined-duration-fix">
 (()=>{
- const combinedServices=['Fisioterapia','Osteopatía','Neuromodulación'];
- const isCombined=services=>combinedServices.every(service=>(services||[]).includes(service));
  const previousApplySelectedServicesDuration=applySelectedServicesDuration;
  applySelectedServicesDuration=function(services){
   const duration=previousApplySelectedServicesDuration(services);
@@ -4787,17 +4785,8 @@ function printInvoice(x,openedWindow){const issuer=x.issuer||{},recipient=x.reci
   if(start?.value&&end)end.value=timeStr(mins(start.value)+duration);
   return duration;
  };
- const previousReadModalForDuration=readModal;
- readModal=function(){
-  const appointment=previousReadModalForDuration();
-  if(isCombined(appointment.services)){
-   appointment.duration=60;
-   appointment.endTime=timeStr(mins(appointment.time)+60);
-   const duration=document.getElementById('mDuration'),end=document.getElementById('mEndTime');
-   if(duration)duration.value=60;if(end)end.value=appointment.endTime;
-  }
-  return appointment;
- };
+ // La selección de servicios propone la duración del catálogo. Al guardar,
+ // se respetan la hora final y duración que recepción ha editado en el formulario.
 })();
 </script>
 
