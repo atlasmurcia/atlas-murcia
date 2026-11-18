@@ -279,7 +279,7 @@ const AGENDA_FEATURES={multiServices:true,multiResources:true,cancellations:true
 let agendaAvailabilityOverrides=[];
 const schedules={
  'Rubén Soler':{1:[],2:[],3:[],4:[],5:[]},
- 'María Pilar Iniesta Cárceles':{1:[],2:[[510, 810], [990, 1230]],3:[[570, 840]],4:[[510, 810], [990, 1230]],5:[[990, 1230]]},
+ 'María Pilar Iniesta Cárceles':{1:[],2:[[510, 810], [990, 1230]],3:[[570, 810]],4:[[510, 810], [990, 1230]],5:[[990, 1230]]},
  'Alejandro Castillo Viudes':{1:[[510, 870], [990, 1230]],2:[[510, 870], [990, 1260]],3:[[990, 1290]],4:[[570, 840], [960, 1260]],5:[[540, 840]]},
  'Lisardo Esteve Montava':{1:[[900, 1230]],2:[[510, 825], [845, 900], [960, 1260]],3:[[540, 900]],4:[[510, 870], [875, 960]],5:[[900, 1260]]},
  'Concepción Madrid Taverner':{1:[[780, 960], [980, 1230]],2:[[510, 795], [815, 960]],3:[[570, 870], [930, 1230]],4:[[510, 795], [815, 960]],5:[[510, 795], [815, 960]]},
@@ -2633,6 +2633,8 @@ if(by.other){others=Object.assign({},others,by.other,{attendance:others.attendan
  window.atlasProductRuntimeV136={getSales:()=>sales,getCash:()=>cashMovements,getPatients:()=>patientMaster,persistSales:(message)=>persistSales(message),persistCash:()=>persistCash(),renderCash:()=>renderCash(),cashToday:()=>cashToday()};
  const exposeProductRuntime=(name,getter,setter)=>{if(Object.getOwnPropertyDescriptor(window,name))return;Object.defineProperty(window,name,{configurable:true,get:getter,set:setter})};
  exposeProductRuntime('sales',()=>sales);exposeProductRuntime('cashMovements',()=>cashMovements,value=>{cashMovements=value});exposeProductRuntime('patientMaster',()=>patientMaster);exposeProductRuntime('appointments',()=>appointments);exposeProductRuntime('professionals',()=>professionals);exposeProductRuntime('alicanteTherapyPrices',()=>alicanteTherapyPrices);exposeProductRuntime('persistSales',()=>persistSales);exposeProductRuntime('persistCash',()=>persistCash,value=>{persistCash=value});exposeProductRuntime('renderCash',()=>renderCash,value=>{renderCash=value});exposeProductRuntime('cashToday',()=>cashToday);exposeProductRuntime('salesStatsRange',()=>salesStatsRange);exposeProductRuntime('statsFilterHtml',()=>statsFilterHtml);exposeProductRuntime('statsPieHtml',()=>statsPieHtml);exposeProductRuntime('statsTableHtml',()=>statsTableHtml);exposeProductRuntime('hesc',()=>hesc);exposeProductRuntime('money',()=>money);exposeProductRuntime('productsView',()=>productsView,value=>{productsView=value});exposeProductRuntime('editProduct',()=>editProduct,value=>{editProduct=value});exposeProductRuntime('salesView',()=>salesView);exposeProductRuntime('adjustStock',()=>adjustStock);exposeProductRuntime('downloadCsv',()=>downloadCsv);exposeProductRuntime('importSalesCsv',()=>importSalesCsv);exposeProductRuntime('renderActiveSalesReport',()=>renderActiveSalesReport,value=>{renderActiveSalesReport=value});exposeProductRuntime('activeStatisticsSection',()=>activeStatisticsSection,value=>{activeStatisticsSection=value});exposeProductRuntime('activeStatisticsReport',()=>activeStatisticsReport,value=>{activeStatisticsReport=value});exposeProductRuntime('statisticsExportRows',()=>statisticsExportRows,value=>{statisticsExportRows=value});
+ // Aplicar el horario guardado también antes de recibir la configuración central.
+ applyRuntimeSettings();
  window.atlasAgendaConfig=()=>cfg;
 })();
 </script>
