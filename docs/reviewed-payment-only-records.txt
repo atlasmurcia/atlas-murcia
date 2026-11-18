@@ -6,7 +6,10 @@ No se emplea modo de migración, no se desactivan disparadores y no se modifica
 la cita histórica para ocultarla.
 
 La clasificación de lectura se almacena separadamente en clinic_settings,
-sección appointment_record_classifications, dentro de la organización y clínica.
+en la clave appointmentRecordClassifications de la sección company existente,
+dentro de la organización y clínica. No se amplía el esquema ni se cambia
+la restricción de secciones. Guardar la configuración general conserva esta
+clasificación, incluso si una pantalla envía una copia anterior.
 Solo las decisiones explícitas payment_only con ID de registro, referencia
 original y vínculo de pago completos se aplican. Se exige que coincidan tanto
 el ID como la referencia; no se deduce una venta por su hora, tratamiento,

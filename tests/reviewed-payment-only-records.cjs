@@ -18,14 +18,15 @@ window.atlasSetAppointmentRecordClassifications({records:[{...payload.records[0]
 listeners.message({source:{},data:{type:'atlas:record-classifications',payload}});assert.equal(window.atlasIsAppointmentRecord(sale),true,'No se aceptan mensajes de otra ventana');
 listeners.message({source:window.parent,data:{type:'atlas:record-classifications',payload}});assert.equal(window.atlasIsAppointmentRecord(sale),false);
 const trace=[];let fail=false,config=payload;
-const db={from(table){assert.equal(table,'clinic_settings');return{select(cols){assert.equal(cols,'payload');return this},eq(k,v){trace.push([k,v]);return this},async maybeSingle(){return{data:config?{payload:config}:null,error:fail?Error('Fallo ficticio'):null}}}}};
+const db={from(table){assert.equal(table,'clinic_settings');return{select(cols){assert.equal(cols,'payload');return this},eq(k,v){trace.push([k,v]);return this},async maybeSingle(){return{data:config?{payload:{appointmentRecordClassifications:config}}:null,error:fail?Error('Fallo ficticio'):null}}}}};
 (async()=>{
  const context={organizationId:'synthetic-org',clinicId:'synthetic-clinic'};
  await window.atlasLoadAppointmentRecordClassifications(db,context);assert.equal(window.atlasIsAppointmentRecord(sale),false);
- for(const pair of [['organization_id',context.organizationId],['clinic_id',context.clinicId],['section','appointment_record_classifications']])assert(trace.some(x=>JSON.stringify(x)===JSON.stringify(pair)));
+ for(const pair of [['organization_id',context.organizationId],['clinic_id',context.clinicId],['section','company']])assert(trace.some(x=>JSON.stringify(x)===JSON.stringify(pair)));
  config=null;await window.atlasLoadAppointmentRecordClassifications(db,context);assert.equal(window.atlasIsAppointmentRecord(sale),true,'Otra clínica sin clasificación conserva sus citas');
  fail=true;await assert.rejects(window.atlasLoadAppointmentRecordClassifications(db,context),/Fallo ficticio/);
  const shell=fs.readFileSync('atlas.html','utf8');assert(shell.includes("['appointments:list','appointments:listForPatient','patients:indicators'].includes(m.action)"));assert(shell.indexOf('await window.atlasLoadAppointmentRecordClassifications(db,context)')<shell.indexOf("else if(m.action==='patients:indicators')"));
  assert(fs.readFileSync('modules/patient-indicators.js','utf8').includes("all('appointments','id,client_ref,metadata,starts_at,status,services')"));
+ assert(shell.includes("if(Object.hasOwn(current,'appointmentRecordClassifications'))nextPayload.appointmentRecordClassifications=current.appointmentRecordClassifications"));
  console.log('Clasificación privada exacta: lista/contador sin venta, sesión real y cobro intactos, ámbito de clínica, mensajes y fallos: OK.');
 })().catch(e=>{console.error(e);process.exitCode=1});
