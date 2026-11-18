@@ -45,6 +45,17 @@ function save(){throw Error('Unexpected save')}function render(){throw Error('Un
   assert.equal(await page.locator('#atlasPlanningDraftApprove').isEnabled(),true);
   for(const tr of await page.locator('#atlasPlanningDraftRows tr').all()){const cells=await tr.locator('td').allTextContents();assert(cells[3].includes(cells[2].includes('Fisioterapia')?'Concepción Madrid Taverner':'Aitor Inglés Barrena'))}
   await page.screenshot({path:path.join(__dirname,'../out/planning/confirmed-professionals.png'),fullPage:true});
+  const waiting=require('./planning-murcia-waiting.cjs');
+  await page.evaluate(d=>api.showPlanningDraft(d),waiting.oldDraft);
+  assert.equal(await page.locator('#atlasPlanningDraftApprove').isEnabled(),false);
+  assert((await page.locator('#atlasPlanningDraftWarning').innerText()).includes('60 minutos sin tratamiento'));
+  await page.screenshot({path:path.join(__dirname,'../out/planning/excessive-wait-blocked.png'),fullPage:true});
+  await page.evaluate(d=>api.showPlanningDraft(d),waiting.validDraft);
+  assert.equal(await page.locator('#atlasPlanningDraftApprove').isEnabled(),true);
+  assert.equal(await page.locator('#atlasPlanningDraftRows tr').count(),5);
+  await page.screenshot({path:path.join(__dirname,'../out/planning/compact-day.png'),fullPage:true});
+  await page.evaluate(d=>api.showPlanningDraft(d),waiting.singleWaitDraft);
+  assert.equal(await page.locator('#atlasPlanningDraftApprove').isEnabled(),true);
   assert.deepEqual(errors,[]);
   console.log('PASS real renderer: combined treatments, durations, chosen staff, machine and disabled approval on invalid draft');
  }finally{await browser.close()}
