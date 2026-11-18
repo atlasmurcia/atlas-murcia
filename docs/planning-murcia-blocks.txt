@@ -59,3 +59,20 @@ ficticios y sin conexión al CRM. Comprueba Concepción en el bloque de 60 min,
 Aitor en Readaptación+iMoove de 45 min y Physicalm dinámico, avisos específicos,
 aplicación única, revocación, perfiles inactivos y rechazo del guardado.
 La prueba visual también utiliza estos profesionales y funciones reales.
+
+Esperas diarias: se permite como máximo una espera de hasta 15 minutos en
+total por día. Antes se comprobaba cada hueco por separado, lo que permitía
+varios huecos de 15 minutos y alargaba la estancia sin tratamiento.
+La generación y la aprobación comprueban ahora toda la jornada, incluidas
+las citas existentes del paciente. La elección de horas prioriza primero
+la continuidad; no favorece empezar antes si eso añade espera entre sesiones.
+Las llamadas y cancelaciones no ocultan huecos. Si los horarios, equipos o
+intervalos clínicos obligan a superar el límite, queda pendiente lo que no
+encaja. No se cambian esos intervalos ni se sustituyen profesionales.
+tests/planning-murcia-waiting.cjs reproduce un día con cuatro esperas y 60
+minutos sin tratamiento, comprueba su rechazo, un día sin esperas, una única
+espera admitida, dos esperas pequeñas, una espera excesiva, intervalos que se
+solapan, llamadas/cancelaciones, elección de hueco compacto, citas existentes,
+una segunda espera forzada por equipos ocupados y el límite por fecha.
+La prueba visual confirma el bloqueo del borrador antiguo y la aprobación
+disponible para propuestas sin esperas o con una única espera de 15 minutos.

@@ -1,0 +1,27 @@
+// Offline regression: one daily wait of at most 15 minutes, using synthetic appointments.
+const assert=require('node:assert/strict'),vm=require('node:vm');
+const {setup,generate,patient}=require('./planning-murcia-blocks.cjs');
+const {catalogCode}=require('./planning-murcia-professional-catalog.cjs');
+const date='2027-01-18',selected={mainProfessional:'Concepción Madrid Taverner',readaptProfessional:'Aitor Inglés Barrena',physioProfessional:'',availabilityMode:'dates',availabilityDates:[{date,from:'10:00',to:'14:00'}],startDate:date};
+function catalog(){const c=setup();c.professionals=[selected.mainProfessional,selected.readaptProfessional,'María Pilar Iniesta Cárceles'];c.equipment.push('Physicalm','Magnetophysio');c.therapyDurations['PHYSICALM DINAMICO']=30;c.therapyDurations.Magnetophysio=30;c.therapiesWithoutProfessional.add('Magnetophysio');vm.runInContext(catalogCode,c);return c}
+const lines=[['VACU',1],['SIS',1],['PHYSICALM DINAMICO',1],['Magnetophysio',1],['Fisioterapia',1],['Neuromodulación',1],['Osteopatía',1]];
+const r=generate(lines,selected,catalog());assert.deepEqual(r.errors,[]);assert.equal(r.rows.length,5);assert.equal(r.c.planWaitStats(r.rows).minutes,0,'Unoccupied diary should produce consecutive sessions');
+const actualTypes=['VACU','SIS','PHYSICALM DINAMICO','Magnetophysio','Fisioterapia'];
+function draft(times){return{...r.draft,created:actualTypes.map((service,i)=>({...r.rows.find(a=>a.services.includes(service)),time:times[i]}))}}
+const old=draft(['10:00','10:45','11:30','12:15','13:00']);assert.equal(r.c.planWaitStats(old.created).minutes,60);assert.equal(r.c.planWaitStats(old.created).gaps,4);assert(r.c.api.planningRuleViolations(old).some(x=>x.includes('Una sola espera')&&x.includes('60 minutos')));
+r.c.api.setDraft(old);r.c.api.applyPlanningDraft();assert.equal(r.c.alerts.length,1,'Old draft must fail before save');assert.equal(r.c.appointments.length,0);
+const single=draft(['10:00','10:30','11:00','11:30','12:15']);assert.deepEqual(Array.from(r.c.api.planningRuleViolations(single)),[]);assert.equal(r.c.planWaitStats(single.created).minutes,15);assert.equal(r.c.planWaitStats(single.created).gaps,1);
+const row=(therapy,time,duration=30,extra={})=>({id:'synthetic-'+therapy+'-'+time,date,time,duration,therapy,services:[therapy],patientCode:patient.code,patient:patient.name,status:'Pendiente',resource:therapy,resources:[therapy],...extra});
+assert.equal(r.c.planWaitOkay([row('VACU','09:00'),row('SIS','09:35'),row('Magnetophysio','10:10')]),false,'Two small waits cannot hide below the total allowance');
+assert.equal(r.c.planWaitOkay([row('VACU','09:00'),row('SIS','09:50')]),false,'A single 20-minute wait is too long');
+assert.equal(r.c.planWaitOkay([row('VACU','09:00'),row('SIS','09:30'),row('Magnetophysio','10:00')]),true);
+assert.equal(r.c.planWaitStats([row('VACU','09:00'),row('SIS','10:00'),row('Llamada seguimiento','09:30')]).minutes,30,'Phone calls must not disguise patient waiting');
+assert.equal(r.c.planWaitStats([row('VACU','09:00'),row('SIS','10:00'),row('Magnetophysio','09:30',30,{status:'Cancelada'})]).minutes,30,'Cancelled sessions must not fill gaps');
+assert.equal(r.c.planWaitStats([row('VACU','09:00',60),row('SIS','09:15',15),row('Magnetophysio','10:00')]).minutes,0,'Overlapping intervals use the latest end');
+const c=setup();c.appointments.push(row('VACU','09:45'));const compact=generate([['SIS',1]],{...selected,availabilityDates:[{date,from:'09:00',to:'11:00'}]},c);assert.deepEqual(compact.errors,[]);assert.equal(compact.rows[0].time,'09:15','Prefer zero wait over the earliest possible start');
+const forced=catalog();forced.appointments.push(row('VACU','10:00'),row('SIS','09:00',100,{patientCode:'OTHER-SYNTHETIC'}),row('Magnetophysio','09:00',145,{patientCode:'OTHER-SYNTHETIC'}));
+const partial=generate([['SIS',1],['Magnetophysio',1]],{...selected,availabilityDates:[{date,from:'10:00',to:'12:00'}]},forced);assert.equal(partial.rows.length,1);assert.equal(partial.rows[0].therapy,'SIS');assert.equal(partial.rows[0].time,'10:45');assert(partial.errors.length,'Second forced wait must stay pending');assert.equal(forced.planWaitStats([...partial.rows,forced.appointments[0]]).minutes,15);
+const another=generate([['SIS',2],['VACU',2]],{...selected,availabilityDates:[{date,from:'10:00',to:'12:00'},{date:'2027-01-20',from:'10:00',to:'12:00'}]},setup());assert.deepEqual(another.errors,[]);assert.equal(new Set(another.rows.map(a=>a.date)).size,2,'Daily allowance resets on each date');
+const grouped=setup();grouped.appointments.push(row('SIS','09:00'),row('VACU','11:00'));const filled=generate([['Fisioterapia',1],['Neuromodulación',1],['Osteopatía',1],['Onda de choque',1]],{availabilityMode:'dates',availabilityDates:[{date,from:'09:00',to:'11:30'}],startDate:date},grouped);assert.deepEqual(filled.errors,[]);assert.equal(filled.rows.length,2);assert.equal(filled.rows[0].time,'09:30');assert.equal(filled.rows[1].time,'10:30');assert.equal(grouped.planWaitStats([...filled.rows,...grouped.appointments]).minutes,15,'Whole treatment group must be considered when filling an existing gap');
+console.log('PASS daily waiting: 60-minute screenshot rejected; consecutive plan; one 15-minute wait allowed; two small waits and one excessive wait rejected; contacts/cancellations/overlaps; compact slot priority; forced second wait stays pending; independent dates');
+module.exports={oldDraft:old,validDraft:r.draft,singleWaitDraft:single,catalogCode};
