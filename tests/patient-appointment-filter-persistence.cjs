@@ -1,0 +1,39 @@
+const fs=require('fs'),path=require('path'),vm=require('vm'),assert=require('assert/strict');
+const {chromium}=require('playwright');
+(async()=>{const browser=await chromium.launch({headless:true,executablePath:'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'});const report={};try{
+ const context=await browser.newContext({viewport:{width:1500,height:950}});
+ for(const clinic of ["murcia"]){
+ const root=path.resolve(__dirname,'..'),html=fs.readFileSync(path.join(root,'modules/ficha.html'),'utf8');let scripts=0;
+ for(const f of ['modules/ficha.html',clinic==='murcia'?'atlas.html':'index.html','modules/agenda.html'])for(const m of fs.readFileSync(path.join(root,f),'utf8').matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi))if(!/src=/.test(m[1])&&m[2].trim()){new vm.Script(m[2],{filename:f});scripts++}
+ const renderer=html.split('\n').find(x=>x.includes('window.atlasRenderPatientAppointmentList=function()')),helper=html.match(/<script id="atlas-patient-appointment-filter-preferences">([\s\S]*?)<\/script>/)[1];
+ const css=Array.from(html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi,'').matchAll(/<style\b[^>]*>([\s\S]*?)<\/style>/gi),m=>m[1]).join('\n');
+ const bootstrap=`window.currentAtlasPatient={code:new URL(location.href).searchParams.get('patient')||'A',remoteId:'synthetic-id'};window.atlasIsAppointmentRecord=()=>true;window.fixtures=[['Pendiente','A'],['Realizada','A'],['Confirmada','B'],['Cancelada usuario','B']].map(([status,service],i)=>({id:'test-'+i,status,date:'2030-12-'+(10+i),time:'10:00',services:[service],professional:'Profesional ficticio'}));window.patientAppointments=()=>fixtures;window.statusOf=a=>atlasCareFinance.appointmentState(a);window.escapeHtml=s=>String(s).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('"','&quot;');`;
+ const body='<meta charset="utf-8"><style>'+css+'</style><main><a href="/'+clinic+'/agenda">Salir a agenda</a><section id="agenda"></section></main><script>'+bootstrap+'</script><script>'+fs.readFileSync(path.join(root,'modules/care-finance-model.js'),'utf8')+'</script><script>'+helper+'</script><script>'+renderer+';atlasRenderPatientAppointmentList();</script>';
+ const page=await context.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));
+ await context.route('http://atlas.test/'+clinic+'/**',route=>route.fulfill({contentType:'text/html',body:route.request().url().includes('/agenda')?'<a href="/'+clinic+'/ficha?patient=A">Volver a la ficha A</a>':body}));
+ await context.route(url=>url.origin!=='http://atlas.test',r=>r.abort());
+ const url='http://atlas.test/'+clinic+'/ficha?patient=A';await page.goto(url);assert.equal(await page.locator('[data-group]:checked').count(),0);assert.equal(await page.locator('[data-service]:checked').count(),0);
+ const choose=async(kind,values)=>{const ids={group:'Group',status:'Status',service:'Service'};await page.locator('#atlasAppointment'+ids[kind]+' summary').click();for(const value of values)await page.locator('[data-'+kind+'][value="'+value+'"]').check()};
+ await choose('group',['pending','completed']);await choose('status',['Pendiente','Realizada']);await choose('service',['A']);
+ if(clinic==='murcia'){await page.locator('#atlasAppointmentFrom').fill('2030-12-11');await page.locator('#atlasAppointmentFrom').dispatchEvent('change');await page.locator('#atlasAppointmentTo').fill('2030-12-12');await page.locator('#atlasAppointmentTo').dispatchEvent('change');}
+ const snapshot=()=>page.evaluate(()=>({groups:[...document.querySelectorAll('[data-group]:checked')].map(e=>e.value),statuses:[...document.querySelectorAll('[data-status]:checked')].map(e=>e.value),services:[...document.querySelectorAll('[data-service]:checked')].map(e=>e.value),from:document.getElementById('atlasAppointmentFrom')?.value||'',to:document.getElementById('atlasAppointmentTo')?.value||'',rows:atlasFilteredPatientAppointments.map(a=>a.id)}));
+ const expected=await snapshot();assert.equal(expected.groups.length,2);assert.equal(expected.statuses.length,2);assert.deepEqual(expected.rows,clinic==='murcia'?['test-1']:['test-0','test-1']);
+ await page.getByRole('link',{name:'Salir a agenda'}).click();await page.getByRole('link',{name:'Volver a la ficha A'}).click();assert.deepEqual(await snapshot(),expected);await page.reload();assert.deepEqual(await snapshot(),expected);
+ await page.goto('http://atlas.test/'+clinic+'/ficha?patient=B');assert.equal((await snapshot()).groups.length,0);await choose('service',['B']);
+ await page.goto(url);assert.deepEqual(await snapshot(),expected);
+ await page.evaluate(()=>{window.currentAtlasPatient={code:'B',remoteId:'synthetic-B'};atlasRenderPatientAppointmentList()});assert.deepEqual((await snapshot()).services,['B']);assert.deepEqual((await snapshot()).groups,[]);
+ await page.evaluate(()=>{window.currentAtlasPatient={code:'A',remoteId:'synthetic-A'};atlasRenderPatientAppointmentList()});assert.deepEqual(await snapshot(),expected);
+ await page.evaluate(()=>{window.currentAtlasPatient={};atlasRenderPatientAppointmentList()});assert.deepEqual((await snapshot()).services,[]);
+ await page.evaluate(()=>{window.currentAtlasPatient={code:'A'};window.backup=fixtures;fixtures=[];atlasRenderPatientAppointmentList();atlasRenderPatientAppointmentList()});assert.deepEqual((await snapshot()).services,['A']);await page.evaluate(()=>{fixtures=backup;atlasRenderPatientAppointmentList()});assert.deepEqual(await snapshot(),expected);
+ await page.evaluate(()=>{document.getElementById('atlasPatientAppointmentList').remove();atlasRenderPatientAppointmentList()});assert.deepEqual(await snapshot(),expected);
+ await page.screenshot({path:path.join(__dirname,clinic+'-restored-synthetic.png')});
+ for(const [id,all] of [['Group','groups'],['Status','statuses'],['Service','services']]){await page.locator('#atlasAppointment'+id+' summary').click();await page.locator('[data-all-'+all+']').check()}
+ if(clinic==='murcia'){await page.locator('#atlasAppointmentFrom').fill('');await page.locator('#atlasAppointmentFrom').dispatchEvent('change');await page.locator('#atlasAppointmentTo').fill('');await page.locator('#atlasAppointmentTo').dispatchEvent('change');}
+ await page.reload();assert.equal((await snapshot()).groups.length,0);assert.equal((await snapshot()).statuses.length,0);assert.equal((await snapshot()).services.length,0);assert.equal((await snapshot()).from,'');
+ const key='atlas:'+clinic+':patient-appointment-filters:v1:code:A';await page.evaluate(key=>localStorage.setItem(key,'{corrupt'),key);await page.reload();assert.equal((await snapshot()).groups.length,0);
+ await page.evaluate(key=>localStorage.setItem(key,JSON.stringify({groups:['invalid','pending','pending'],statuses:['invalid','Realizada'],services:'not-array',from:'not-date'})),key);await page.reload();assert.deepEqual((await snapshot()).groups,['pending']);assert.deepEqual((await snapshot()).statuses,['Realizada']);assert.deepEqual((await snapshot()).services,[]);assert.deepEqual((await snapshot()).rows,[]);
+ await page.evaluate(()=>{Object.defineProperty(Storage.prototype,'setItem',{value(){throw Error('disabled')}});Object.defineProperty(Storage.prototype,'getItem',{value(){throw Error('disabled')}});window.currentAtlasPatient={code:'blocked'};atlasRenderPatientAppointmentList()});await choose('service',['A']);await page.evaluate(()=>{document.getElementById('atlasPatientAppointmentList').remove();atlasRenderPatientAppointmentList()});assert.deepEqual((await snapshot()).services,['A']);
+ assert.deepEqual(errors,[]);report[clinic]={scripts,reopen:'passed',reload:'passed',patientIsolation:'passed',delayedAppointments:'passed',resetAndCorruptStorage:'passed',blockedStorage:'no crash'};await page.close();
+ }
+ fs.writeFileSync(path.join(__dirname,'test-report.json'),JSON.stringify(report,null,2));console.log(report);
+ }finally{await browser.close()}})().catch(e=>{console.error(e);process.exit(1)});
