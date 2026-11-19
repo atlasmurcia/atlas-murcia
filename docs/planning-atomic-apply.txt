@@ -14,7 +14,9 @@ Cambio
   de aprobar. Solo horarios, recursos y profesionales: sin pacientes, contactos,
   notas o tratamientos ajenos. Se conserva la separación por clínica/organización.
 - Nueva función de servidor atlas_apply_treatment_plan: una transacción para todo
-  el plan, con el bloqueo de clínica ya usado por los controles de solapamiento.
+  el plan, con un bloqueo breve de escritura y el bloqueo de clínica existente.
+  El bloqueo de escritura cubre también los guardados antiguos de Alicante;
+  las lecturas siguen disponibles y la espera del bloqueo se limita a 5 segundos.
   Conserva los permisos y RLS existentes; SECURITY INVOKER. No usa claves elevadas.
 - Una incidencia revierte todas las citas de esa operación. No hay alternativa
   automática de guardado por filas si falta la función o falla el servidor.
@@ -39,7 +41,7 @@ clínica impuesta por la sesión y falta de función del servidor.
 Pantalla real del borrador en Chrome con red bloqueada: espera, rechazo visible,
 doble clic, reintento y confirmación final. Regresiones de reglas clínicas.
 
-Instalación propuesta (pendiente de autorización expresa)
+Instalación autorizada expresamente por Gely
 1. Revisar e instalar server-proposals/planning-atomic-apply/database.sql en el
    proyecto de esta clínica. Es una función nueva, sin modificar filas, políticas,
    roles ni controles de solapamiento existentes. Necesita los mismos permisos
@@ -51,7 +53,13 @@ Instalación propuesta (pendiente de autorización expresa)
 4. Recargar y generar borradores nuevos. No volver a aplicar planes existentes.
 Si se publicase la pantalla sin la función, la aplicación de nuevos planes se
 bloquea de forma segura: no vuelve al guardado antiguo por filas.
-No se han consultado ni modificado pacientes/citas reales en este desarrollo.
+La instalación solo añade la función; no modifica citas ya existentes.
+El desarrollo y las pruebas de funcionamiento utilizan únicamente datos ficticios.
+
+Compatibilidad del servidor
+Si existe atlas_resource_capacity se conserva su capacidad; si no existe,
+se usa una unidad por equipo, igual que el control actual de Alicante.
+La prueba de Alicante se ejecuta sin ese helper para comprobar esta diferencia.
 
 Pruebas reproducibles
 Instalar PGlite 0.5.17 en un entorno de pruebas aislado y ejecutar:

@@ -7,7 +7,7 @@ create function public.atlas_apply_treatment_plan(
 declare
  item jsonb; existing public.appointments%rowtype; saved public.appointments%rowtype;
  digest text; total integer; found_count integer; plan_budget text; device text;
- from_at timestamptz; to_at timestamptz; turnaround integer;
+ from_at timestamptz; to_at timestamptz; turnaround integer; resource_capacity integer;
  answer jsonb := '[]'::jsonb;
 begin
  if auth.uid() is null or not public.has_clinic_permission(p_organization_id,p_clinic_id,'agenda_read') or not public.has_clinic_permission(p_organization_id,p_clinic_id,'agenda_write') then
@@ -38,7 +38,10 @@ begin
   if from_at is null or to_at is null or to_at<=from_at or to_at-from_at>interval '4 hours' then raise exception 'Duración de cita inválida.'; end if;
   if coalesce(item->'metadata'->>'professional_minutes','') !~ '^[0-9]+$' then raise exception 'Falta la ocupación del profesional.'; end if;
  end loop;
- -- Same lock used by the existing overlap trigger. Concurrent plans serialize.
+ -- Short write lock also serializes legacy writers whose triggers do not use
+ -- the clinic advisory lock. Reads remain available; no network work is done here.
+ perform set_config('lock_timeout','5s',true);
+ lock table public.appointments in share row exclusive mode;
  perform pg_advisory_xact_lock(hashtextextended(p_clinic_id::text,0));
  select count(*) into found_count from public.appointments a where a.organization_id=p_organization_id and a.clinic_id=p_clinic_id and a.patient_id=p_patient_id and a.metadata->>'planId'=p_plan_key;
  if found_count>0 then
@@ -59,6 +62,10 @@ begin
   from_at:=(item->>'starts_at')::timestamptz;to_at:=(item->>'ends_at')::timestamptz;
   for device in select distinct value from jsonb_array_elements_text(item->'resources') where not (item->'professionals' ? value) loop
    turnaround:=case when device='MBST OSTEOSPIN' then 0 else 5 end;
+   resource_capacity:=1;
+   if to_regprocedure('public.atlas_resource_capacity(text)') is not null then
+    execute 'select public.atlas_resource_capacity($1)' into resource_capacity using device;
+   end if;
    if exists(
     with overlapping as (
      select distinct a.id,a.starts_at,a.ends_at+make_interval(mins=>turnaround) as occupied_to
@@ -68,7 +75,7 @@ begin
        case when lower(r) like '%magneto%' then 'magnetophysio' when lower(r) like '%bomba%' then 'bomba' else lower(r) end =
        case when lower(device) like '%magneto%' then 'magnetophysio' when lower(device) like '%bomba%' then 'bomba' else lower(device) end)
     ), instants as (select from_at as t union select starts_at from overlapping where starts_at>from_at)
-    select 1 from instants i where (select count(*) from overlapping o where o.starts_at<=i.t and i.t<o.occupied_to)>=public.atlas_resource_capacity(device)
+    select 1 from instants i where (select count(*) from overlapping o where o.starts_at<=i.t and i.t<o.occupied_to)>=resource_capacity
    ) then raise exception using errcode='23P01',message=format('El recurso %s ya está reservado el %s. No se ha aplicado ninguna cita del plan.',device,to_char(from_at at time zone 'Europe/Madrid','DD/MM/YYYY HH24:MI')); end if;
   end loop;
   begin
