@@ -1,0 +1,4 @@
+Ficha > Listado de citas: selección múltiple de opciones del historial mediante casillas.
+Próximas, pendientes, realizadas y canceladas se combinan por unión, sin duplicar citas aunque pertenezcan a varios grupos. Historial de citas limpia este filtro y muestra todo conservando estados, servicios y fechas. Foco, Escape y menú móvil.
+Chrome aislado con red bloqueada y diez citas ficticias: cada grupo, solapamientos, combinaciones, filtros cruzados, todos/ninguno, teclado y móvil. Excel y PDF usan el filtro sin modificar citas. Regresiones de servicios (siete citas) y estados (nueve citas), estilos reales y sintaxis de ficha, entrada y agenda correctos.
+Solicitud expresa de Gely para comprobar y publicar en ambas clínicas, dentro de la excepción autorizada de esta conversación. Sin sesión clínica ni datos reales.
