@@ -58,6 +58,7 @@ header{background:#fff!important;border-bottom:1px solid #e3e8eb!important;box-s
 #budgetLines .atlas-budget-session-control,#budgetLines .atlas-budget-price-control,#budgetLines .atlas-budget-discount-control{width:100%;min-width:0}
 @media(max-width:850px){#budgetLines .line{grid-template-columns:minmax(220px,1fr) 112px 112px 120px 110px 40px!important}}
 </style>
+<style>.identity h1.patient-payment-highlight{color:#b42318!important}</style>
 </head><body>
 <header><button class="btn" id="backToAgendaBtn" onclick="parent.postMessage({type:'atlas:show-patient'},'*')">← Agenda</button><div class="logo">ATLAS <span>CLINIC</span></div><span class="muted">Ficha de paciente · Presupuestos v1</span></header><main>
 <section class="hero"><div class="identity"><div class="avatar">—</div><div><h1>Paciente</h1><div class="muted">Selecciona un paciente desde la agenda</div><div class="chips"><span class="chip">Sin tratamiento activo</span><span class="chip">Sin saldo registrado</span><span class="chip">Responsable: sin asignar</span></div></div></div><div class="actions"><button class="btn" id="editPatientBtn">✎ Editar</button><button class="btn danger" id="deletePatientFromRecordBtn">🗑 Eliminar paciente</button><button class="btn" id="newPatientAppointmentBtn">＋ Nueva cita</button><button class="btn primary" id="chargePatientAppointmentBtn">💳 Cobrar sesión</button><button class="btn primary" onclick="plan()">⚡ Planificar sesiones</button><button class="btn" onclick="openPatientPanel('planesTratamiento')">📋 Ver planes</button></div></section>
@@ -2047,6 +2048,7 @@ clinicalRecognition.onend=retry;try{clinicalRecognition.start()}catch(e){retry()
   try{
    if(!patientId){const patient=await request('patients:resolve',{patientNumber:patientCode});if(currentGeneration!==generation)return;if(!patient?.id)throw new Error('No se ha encontrado esta ficha en la clínica.');patientId=String(patient.id)}
    const data=await request('patients:indicators',{patientId});if(currentGeneration!==generation)return;
+   document.querySelector('.identity h1')?.classList.toggle('patient-payment-highlight',data.collected!=null&&Number(data.collected)>=1300);
    const fields=[data.completed,data.pending,date(data.next),currency(data.balance),date(data.last),data.progress==null?'—':data.progress+'%',data.totalSales==null?'—':currency(data.totalSales)];
    values().forEach((node,i)=>node.textContent=fields[i]);const chip=document.querySelector('.hero .chips .chip:nth-child(2)');if(chip)chip.textContent=data.balance>0?'Saldo pendiente: '+currency(data.balance):'Sin saldo pendiente';
    state.textContent='Actualizado: '+date(data.checkedAt)+(data.totalSales==null?' · Total ventas pendiente de verificar: falta la fecha del histórico.':'')+' · Se revisa cada minuto.';
@@ -2059,9 +2061,9 @@ clinicalRecognition.onend=retry;try{clinicalRecognition.start()}catch(e){retry()
   const message=event.data||{},item=waiting.get(message.requestId);
   if(message.type==='atlas:central-db-response'&&item){waiting.delete(message.requestId);clearTimeout(item.timeout);message.ok?item.resolve(message.data):item.reject(new Error(message.error||'No se pudo consultar el resumen.'));return}
   if(message.type==='atlas:central-ready'){ready=true;schedule()}
-  if(message.type==='atlas:load-patient'&&message.patient){const code=String(message.patient.code||''),next=String(message.patient.remoteId||(code&&code===patientCode?patientId:'')||'');if(next!==patientId||code!==patientCode){generation++;patientId=next;patientCode=code;clear();state.textContent='Consultando el resumen…'}schedule()}
+  if(message.type==='atlas:load-patient'&&message.patient){document.querySelector('.identity h1')?.classList.toggle('patient-payment-highlight',Number(message.patient.income)>=1300);const code=String(message.patient.code||''),next=String(message.patient.remoteId||(code&&code===patientCode?patientId:'')||'');if(next!==patientId||code!==patientCode){generation++;patientId=next;patientCode=code;clear();state.textContent='Consultando el resumen…'}schedule()}
   if(['atlas:payment-recorded','atlas:budget-payment-recorded','atlas:central-payments-changed','atlas:central-budgets-changed','atlas:central-cash-changed','atlas:central-appointments-changed','atlas:appointment-progress-changed','atlas:patient-appointment-cancelled','atlas:server-recovered'].includes(message.type))schedule();
-  if(message.type==='atlas:patient-deleted'){generation++;patientId='';patientCode='';clear();state.textContent='Selecciona un paciente.'}
+  if(message.type==='atlas:patient-deleted'){document.querySelector('.identity h1')?.classList.remove('patient-payment-highlight');generation++;patientId='';patientCode='';clear();state.textContent='Selecciona un paciente.'}
  });
  document.addEventListener('visibilitychange',()=>{if(!document.hidden)schedule()});window.addEventListener('focus',schedule);
  setInterval(()=>{if(!document.hidden)load()},60000);
