@@ -1,0 +1,4 @@
+Selección múltiple de estados en Ficha > Listado de citas del paciente.
+Casillas acumulables, Todos los estados para limpiar, selección conservada al cambiar servicio/grupo/fechas, contador y filas sincronizados. Teclado: Tab, espacio y Escape. Se conserva la lógica existente de informes y comunicaciones.
+Prueba Chrome aislado: nueve estados ficticios, combinaciones, todos/ninguno, filtros adicionales, sin resultados, foco, Escape y móvil. Conexiones externas bloqueadas, sin consulta ni modificación de pacientes reales. Sintaxis de ficha, shell y agenda comprobada.
+Autorización expresa de Gely para publicar en ambas clínicas como excepción a AGENTS.md, 19/11/2026.
