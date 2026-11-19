@@ -10,15 +10,15 @@ const {chromium}=require('playwright');
  await page.evaluate(()=>{window.atlasIsAppointmentRecord=()=>true});
  await page.addScriptTag({content:fs.readFileSync(path.join(root,'modules/care-finance-model.js'),'utf8')});
  await page.evaluate(()=>{window.states=['Pendiente','Confirmada','En atención','Realizada','Cancelada usuario','Cancelada clínica','No presentada','Reagendada','Eliminada'];window.fixtures=states.map((status,i)=>({id:'test-'+i,status:status==='En atención'?'arrived':status,date:'2026-12-'+(10+i),time:'10:00',services:[i%2?'Servicio B':'Servicio A'],professional:'Profesional ficticio'}));window.patientAppointments=()=>fixtures;window.statusOf=a=>atlasCareFinance.appointmentState(a);window.escapeHtml=s=>String(s).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('"','&quot;');});
- await page.addScriptTag({content:render});await page.evaluate(()=>atlasRenderPatientAppointmentList());
+ await page.addScriptTag({content:render});await page.evaluate(()=>atlasRenderPatientAppointmentList());const setGroup=async value=>{if(!await page.locator('[data-all-groups]').isVisible())await page.locator('#atlasAppointmentGroup summary').click();await page.locator('[data-all-groups]').check();if(value!=='history')await page.locator('[data-group][value=\"'+value+'\"]').check()};
  const ids=()=>page.evaluate(()=>atlasFilteredPatientAppointments.map(x=>x.id));assert.equal((await ids()).length,9);
  await page.locator('#atlasAppointmentStatus summary').click();
  await page.locator('input[value="Pendiente"]').check();await page.locator('input[value="Confirmada"]').check();assert.deepEqual(await ids(),['test-0','test-1']);assert.equal(await page.locator('#atlasAppointmentStatus').getAttribute('open'),'');
  assert.equal(await page.locator('input[value="Confirmada"]').evaluate(e=>e===document.activeElement),true);
  await page.locator('input[value="Confirmada"]').press('Escape');assert.equal(await page.locator('#atlasAppointmentStatus').getAttribute('open'),null);
  await page.locator('#atlasAppointmentService summary').click();await page.locator('[data-service][value="Servicio A"]').check();assert.deepEqual(await ids(),['test-0']);assert.equal(await page.locator('#atlasAppointmentStatus input:checked').count(),2);
- await page.locator('[data-all-services]').check();await page.selectOption('#atlasAppointmentGroup','completed');assert.deepEqual(await ids(),[]);assert.match(await page.locator('tbody').innerText(),/No hay citas/);
- await page.selectOption('#atlasAppointmentGroup','history');
+ await page.locator('[data-all-services]').check();await setGroup('completed');assert.deepEqual(await ids(),[]);assert.match(await page.locator('tbody').innerText(),/No hay citas/);
+ await setGroup('history');
  if(clinic==='murcia'){await page.locator('#atlasAppointmentFrom').fill('2026-12-11');await page.locator('#atlasAppointmentFrom').dispatchEvent('change');assert.deepEqual(await ids(),['test-1']);await page.locator('#atlasAppointmentFrom').fill('');await page.locator('#atlasAppointmentFrom').dispatchEvent('change');}
  await page.locator('#atlasAppointmentStatus summary').click();await page.locator('[data-all-statuses]').check();assert.equal((await ids()).length,9);assert.equal(await page.locator('[data-status]:checked').count(),0);
  for(let i=0;i<9;i++){await page.locator('[data-status]').nth(i).check();assert.equal((await ids()).length,i+1)}
