@@ -1,0 +1,4 @@
+Ficha > Listado de citas: selección múltiple de servicios mediante casillas.
+Citas con cualquiera de los servicios elegidos, sin duplicados. Todos los servicios restablece el listado sin borrar otros filtros. Mantiene la selección al cambiar estados, grupo o fechas; foco conservado, Escape y ajuste para nombres largos.
+Validado en Chrome con red bloqueada y datos ficticios: combinación con estados, citas con varios servicios, terapia antigua, caracteres especiales, todos/ninguno, lista vacía, teclado y móvil. CSV y PDF usan exactamente el filtro, sin cambiar citas. Regresión de nueve estados y sintaxis de ficha/entrada/agenda correctas.
+Gely solicita y autoriza publicar el cambio en ambas clínicas, 19/11/2026, dentro de la excepción expresa de esta conversación. Sin CRM ni datos reales.
