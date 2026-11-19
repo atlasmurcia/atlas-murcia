@@ -47,10 +47,12 @@
 })();
 </script><script>
 const agendaFrame=document.getElementById('agendaFrame'),fichaFrame=document.getElementById('fichaFrame'),financeFrame=document.getElementById('financeFrame'),commissionsFrame=document.getElementById('commissionsFrame'),marketingFrame=document.getElementById('marketingFrame'),stage=document.getElementById('stage');
-const atlasModulePaths={agenda:'./modules/agenda.html?v=224&menuNotice=20261117&flowSave=20261118',ficha:'./modules/ficha.html?v=145',finance:'./modules/finance.html?v=100',commissions:'./modules/commissions.html?v=99',marketing:'./modules/marketing.html?v=3'};
+const atlasModulePaths={agenda:'./modules/agenda.html?v=223&menuNotice=20261117&flowSave=20261118',ficha:'./modules/ficha.html?v=146',finance:'./modules/finance.html?v=100',commissions:'./modules/commissions.html?v=99',marketing:'./modules/marketing.html?v=3'};
 const atlasModuleFrames={agenda:agendaFrame,ficha:fichaFrame,finance:financeFrame,commissions:commissionsFrame,marketing:marketingFrame};
 const atlasLoadedModules=new Set();
 let atlasVisibleModule='';
+// Recarga del guardado completo independiente de otras versiones de módulos.
+atlasModulePaths.agenda+='&planningCommit=20261119';
 function notifyAtlasModuleVisibility(){
  const agendaVisible=['agenda','configuration','split'].includes(atlasVisibleModule);
  if(atlasLoadedModules.has('agenda'))agendaFrame.contentWindow?.postMessage({type:'atlas:module-visibility',visible:agendaVisible},'*');

@@ -27,7 +27,7 @@ Cambio
 - Borrador visible mientras está pendiente/rechazado; no se puede sustituir por
   otro durante el guardado. No se anuncia que no existen citas si el resultado
   de un envío es incierto. Se bloquean clics repetidos y respuestas incompletas.
-- Agenda v224; se conserva la adaptación clínica y las reglas de planificación.
+- Agenda con recarga planningCommit=20261119; se conserva la adaptación clínica y las reglas de planificación.
 
 Validación exclusivamente sintética
 PostgreSQL local en memoria (PGlite 0.5.17), con RLS, autenticación simulada y copia
