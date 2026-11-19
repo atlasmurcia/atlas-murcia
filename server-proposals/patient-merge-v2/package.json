@@ -1,0 +1,14 @@
+{
+  "name": "atlas-patient-merge-validation",
+  "version": "1.0.0",
+  "private": true,
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "test": "node runtime.test.cjs && node data.test.cjs"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "0.3.14"
+  }
+}

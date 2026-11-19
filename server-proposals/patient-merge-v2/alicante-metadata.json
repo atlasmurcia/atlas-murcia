@@ -1,0 +1,854 @@
+{
+  "triggers": [
+    {
+      "table": "patients",
+      "routine": "CREATE OR REPLACE FUNCTION public.atlas_archive_soft_delete()\n RETURNS trigger\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\nbegin\n  if old.deleted_at is null and new.deleted_at is not null then\n    insert into public.deleted_records(organization_id,clinic_id,source_table,source_id,snapshot,deleted_by,deleted_at,reason)\n    values(\n      new.organization_id,\n      case when to_jsonb(new) ? 'clinic_id' then nullif(to_jsonb(new)->>'clinic_id','')::uuid else null end,\n      tg_table_name,new.id,to_jsonb(old),auth.uid(),new.deleted_at,\n      coalesce(nullif(to_jsonb(new)->>'delete_reason',''),'Eliminación desde ATLAS')\n    );\n  end if;\n  return new;\nend $function$\n",
+      "definition": "CREATE TRIGGER patients_archive_soft_delete BEFORE UPDATE OF deleted_at ON public.patients FOR EACH ROW EXECUTE FUNCTION atlas_archive_soft_delete()"
+    },
+    {
+      "table": "patients",
+      "routine": "CREATE OR REPLACE FUNCTION public.atlas_audit_change()\n RETURNS trigger\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\ndeclare row_data jsonb; org uuid; clinic uuid; rec uuid;\nbegin\n  row_data := case when tg_op='DELETE' then to_jsonb(old) else to_jsonb(new) end;\n  begin org := nullif(row_data->>'organization_id','')::uuid; exception when others then org := null; end;\n  begin clinic := nullif(row_data->>'clinic_id','')::uuid; exception when others then clinic := null; end;\n  begin rec := nullif(row_data->>'id','')::uuid; exception when others then rec := null; end;\n  insert into public.audit_log(organization_id,clinic_id,actor_id,table_name,record_id,action,metadata)\n  values(org,clinic,auth.uid(),tg_table_name,rec,lower(tg_op),jsonb_build_object('source','atlas','transaction_at',now()));\n  if tg_op='DELETE' then return old; end if;\n  return new;\nend $function$\n",
+      "definition": "CREATE TRIGGER patients_atlas_audit AFTER INSERT OR DELETE OR UPDATE ON public.patients FOR EACH ROW EXECUTE FUNCTION atlas_audit_change()"
+    },
+    {
+      "table": "patients",
+      "routine": "CREATE OR REPLACE FUNCTION public.touch_updated_at()\n RETURNS trigger\n LANGUAGE plpgsql\n SET search_path TO 'public'\nAS $function$\nbegin new.updated_at = now(); return new; end $function$\n",
+      "definition": "CREATE TRIGGER patients_touch_updated_at BEFORE UPDATE ON public.patients FOR EACH ROW EXECUTE FUNCTION touch_updated_at()"
+    }
+  ],
+  "relations": [
+    {
+      "cols": [
+        {
+          "name": "id",
+          "type": "uuid"
+        },
+        {
+          "name": "organization_id",
+          "type": "uuid"
+        },
+        {
+          "name": "clinic_id",
+          "type": "uuid"
+        },
+        {
+          "name": "patient_id",
+          "type": "uuid"
+        }
+      ],
+      "table": "atlas_internal_tasks"
+    },
+    {
+      "cols": [
+        {
+          "name": "id",
+          "type": "uuid"
+        },
+        {
+          "name": "organization_id",
+          "type": "uuid"
+        },
+        {
+          "name": "clinic_id",
+          "type": "uuid"
+        },
+        {
+          "name": "patient_id",
+          "type": "uuid"
+        }
+      ],
+      "table": "whatsapp_conversations"
+    },
+    {
+      "cols": [
+        {
+          "name": "id",
+          "type": "uuid"
+        },
+        {
+          "name": "organization_id",
+          "type": "uuid"
+        },
+        {
+          "name": "clinic_id",
+          "type": "uuid"
+        },
+        {
+          "name": "patient_id",
+          "type": "uuid"
+        }
+      ],
+      "table": "whatsapp_messages"
+    },
+    {
+      "cols": [
+        {
+          "name": "id",
+          "type": "uuid"
+        },
+        {
+          "name": "organization_id",
+          "type": "uuid"
+        },
+        {
+          "name": "clinic_id",
+          "type": "uuid"
+        },
+        {
+          "name": "patient_id",
+          "type": "uuid"
+        }
+      ],
+      "table": "leads"
+    },
+    {
+      "cols": [
+        {
+          "name": "id",
+          "type": "uuid"
+        },
+        {
+          "name": "organization_id",
+          "type": "uuid"
+        },
+        {
+          "name": "clinic_id",
+          "type": "uuid"
+        },
+        {
+          "name": "patient_id",
+          "type": "uuid"
+        }
+      ],
+      "table": "payments"
+    },
+    {
+      "cols": [
+        {
+          "name": "id",
+          "type": "uuid"
+        },
+        {
+          "name": "organization_id",
+          "type": "uuid"
+        },
+        {
+          "name": "clinic_id",
+          "type": "uuid"
+        },
+        {
+          "name": "patient_id",
+          "type": "uuid"
+        }
+      ],
+      "table": "budgets"
+    },
+    {
+      "cols": [
+        {
+          "name": "id",
+          "type": "uuid"
+        },
+        {
+          "name": "organization_id",
+          "type": "uuid"
+        },
+        {
+          "name": "clinic_id",
+          "type": "uuid"
+        },
+        {
+          "name": "patient_id",
+          "type": "uuid"
+        }
+      ],
+      "table": "appointments"
+    },
+    {
+      "cols": [
+        {
+          "name": "id",
+          "type": "uuid"
+        },
+        {
+          "name": "organization_id",
+          "type": "uuid"
+        },
+        {
+          "name": "clinic_id",
+          "type": "uuid"
+        },
+        {
+          "name": "patient_id",
+          "type": "uuid"
+        }
+      ],
+      "table": "consents"
+    },
+    {
+      "cols": [
+        {
+          "name": "id",
+          "type": "uuid"
+        },
+        {
+          "name": "organization_id",
+          "type": "uuid"
+        },
+        {
+          "name": "clinic_id",
+          "type": "uuid"
+        },
+        {
+          "name": "patient_id",
+          "type": "uuid"
+        }
+      ],
+      "table": "documents"
+    },
+    {
+      "cols": [
+        {
+          "name": "id",
+          "type": "uuid"
+        },
+        {
+          "name": "organization_id",
+          "type": "uuid"
+        },
+        {
+          "name": "clinic_id",
+          "type": "uuid"
+        },
+        {
+          "name": "patient_id",
+          "type": "uuid"
+        }
+      ],
+      "table": "clinical_records"
+    },
+    {
+      "cols": [
+        {
+          "name": "id",
+          "type": "uuid"
+        },
+        {
+          "name": "organization_id",
+          "type": "uuid"
+        },
+        {
+          "name": "clinic_id",
+          "type": "uuid"
+        },
+        {
+          "name": "patient_id",
+          "type": "uuid"
+        }
+      ],
+      "table": "patient_communications"
+    },
+    {
+      "cols": [
+        {
+          "name": "id",
+          "type": "uuid"
+        },
+        {
+          "name": "organization_id",
+          "type": "uuid"
+        },
+        {
+          "name": "clinic_id",
+          "type": "uuid"
+        },
+        {
+          "name": "patient_id",
+          "type": "uuid"
+        }
+      ],
+      "table": "treatment_plans"
+    },
+    {
+      "cols": [
+        {
+          "name": "id",
+          "type": "uuid"
+        },
+        {
+          "name": "organization_id",
+          "type": "uuid"
+        },
+        {
+          "name": "clinic_id",
+          "type": "uuid"
+        },
+        {
+          "name": "patient_id",
+          "type": "uuid"
+        }
+      ],
+      "table": "treasury_receivables"
+    },
+    {
+      "cols": [
+        {
+          "name": "id",
+          "type": "uuid"
+        },
+        {
+          "name": "organization_id",
+          "type": "uuid"
+        },
+        {
+          "name": "clinic_id",
+          "type": "uuid"
+        },
+        {
+          "name": "patient_id",
+          "type": "uuid"
+        }
+      ],
+      "table": "inventory_movements"
+    },
+    {
+      "cols": [
+        {
+          "name": "id",
+          "type": "uuid"
+        },
+        {
+          "name": "organization_id",
+          "type": "uuid"
+        },
+        {
+          "name": "clinic_id",
+          "type": "uuid"
+        },
+        {
+          "name": "patient_id",
+          "type": "uuid"
+        }
+      ],
+      "table": "quality_cases"
+    },
+    {
+      "cols": [
+        {
+          "name": "id",
+          "type": "uuid"
+        },
+        {
+          "name": "organization_id",
+          "type": "uuid"
+        },
+        {
+          "name": "clinic_id",
+          "type": "uuid"
+        },
+        {
+          "name": "patient_id",
+          "type": "uuid"
+        }
+      ],
+      "table": "patient_experience_surveys"
+    },
+    {
+      "cols": [
+        {
+          "name": "id",
+          "type": "uuid"
+        },
+        {
+          "name": "organization_id",
+          "type": "uuid"
+        },
+        {
+          "name": "clinic_id",
+          "type": "uuid"
+        },
+        {
+          "name": "patient_id",
+          "type": "uuid"
+        }
+      ],
+      "table": "patient_reactivation_tasks"
+    },
+    {
+      "cols": [
+        {
+          "name": "id",
+          "type": "uuid"
+        },
+        {
+          "name": "organization_id",
+          "type": "uuid"
+        },
+        {
+          "name": "clinic_id",
+          "type": "uuid"
+        },
+        {
+          "name": "patient_id",
+          "type": "uuid"
+        }
+      ],
+      "table": "patient_debts"
+    },
+    {
+      "cols": [
+        {
+          "name": "id",
+          "type": "uuid"
+        },
+        {
+          "name": "organization_id",
+          "type": "uuid"
+        },
+        {
+          "name": "clinic_id",
+          "type": "uuid"
+        },
+        {
+          "name": "patient_id",
+          "type": "uuid"
+        }
+      ],
+      "table": "appointment_reminder_jobs"
+    }
+  ],
+  "patient_columns": [
+    {
+      "name": "id",
+      "type": "uuid",
+      "default": "gen_random_uuid()",
+      "notnull": true
+    },
+    {
+      "name": "organization_id",
+      "type": "uuid",
+      "default": null,
+      "notnull": true
+    },
+    {
+      "name": "clinic_id",
+      "type": "uuid",
+      "default": null,
+      "notnull": true
+    },
+    {
+      "name": "patient_number",
+      "type": "bigint",
+      "default": null,
+      "notnull": true
+    },
+    {
+      "name": "first_name",
+      "type": "text",
+      "default": null,
+      "notnull": true
+    },
+    {
+      "name": "last_name_1",
+      "type": "text",
+      "default": null,
+      "notnull": false
+    },
+    {
+      "name": "last_name_2",
+      "type": "text",
+      "default": null,
+      "notnull": false
+    },
+    {
+      "name": "dni_nie",
+      "type": "text",
+      "default": null,
+      "notnull": false
+    },
+    {
+      "name": "phone",
+      "type": "text",
+      "default": null,
+      "notnull": false
+    },
+    {
+      "name": "landline",
+      "type": "text",
+      "default": null,
+      "notnull": false
+    },
+    {
+      "name": "email",
+      "type": "text",
+      "default": null,
+      "notnull": false
+    },
+    {
+      "name": "birth_date",
+      "type": "date",
+      "default": null,
+      "notnull": false
+    },
+    {
+      "name": "sex",
+      "type": "text",
+      "default": null,
+      "notnull": false
+    },
+    {
+      "name": "address",
+      "type": "text",
+      "default": null,
+      "notnull": false
+    },
+    {
+      "name": "city",
+      "type": "text",
+      "default": null,
+      "notnull": false
+    },
+    {
+      "name": "postal_code",
+      "type": "text",
+      "default": null,
+      "notnull": false
+    },
+    {
+      "name": "source",
+      "type": "text",
+      "default": null,
+      "notnull": false
+    },
+    {
+      "name": "category",
+      "type": "text",
+      "default": null,
+      "notnull": false
+    },
+    {
+      "name": "responsible_professional_id",
+      "type": "uuid",
+      "default": null,
+      "notnull": false
+    },
+    {
+      "name": "administrative_notes",
+      "type": "text",
+      "default": null,
+      "notnull": false
+    },
+    {
+      "name": "active",
+      "type": "boolean",
+      "default": "true",
+      "notnull": true
+    },
+    {
+      "name": "created_by",
+      "type": "uuid",
+      "default": null,
+      "notnull": false
+    },
+    {
+      "name": "created_at",
+      "type": "timestamp with time zone",
+      "default": "now()",
+      "notnull": true
+    },
+    {
+      "name": "updated_by",
+      "type": "uuid",
+      "default": null,
+      "notnull": false
+    },
+    {
+      "name": "updated_at",
+      "type": "timestamp with time zone",
+      "default": "now()",
+      "notnull": true
+    },
+    {
+      "name": "deleted_at",
+      "type": "timestamp with time zone",
+      "default": null,
+      "notnull": false
+    },
+    {
+      "name": "deleted_by",
+      "type": "uuid",
+      "default": null,
+      "notnull": false
+    },
+    {
+      "name": "delete_reason",
+      "type": "text",
+      "default": null,
+      "notnull": false
+    },
+    {
+      "name": "historical_income",
+      "type": "numeric(14,2)",
+      "default": null,
+      "notnull": false
+    },
+    {
+      "name": "historical_debt",
+      "type": "numeric(14,2)",
+      "default": null,
+      "notnull": false
+    },
+    {
+      "name": "historical_financials_at",
+      "type": "timestamp with time zone",
+      "default": null,
+      "notnull": false
+    },
+    {
+      "name": "category_date",
+      "type": "date",
+      "default": null,
+      "notnull": false
+    }
+  ],
+  "policies": [
+    {
+      "cmd": "SELECT",
+      "qual": "has_clinic_permission(organization_id, clinic_id, 'agenda_read'::text)",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "appointments",
+      "permissive": "PERMISSIVE",
+      "policyname": "appointments_read",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "ALL",
+      "qual": "has_clinic_permission(organization_id, clinic_id, 'agenda_write'::text)",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "appointments",
+      "permissive": "PERMISSIVE",
+      "policyname": "appointments_write",
+      "schemaname": "public",
+      "with_check": "has_clinic_permission(organization_id, clinic_id, 'agenda_write'::text)"
+    },
+    {
+      "cmd": "ALL",
+      "qual": "has_permission(organization_id, 'budgets_read'::text)",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "budget_lines",
+      "permissive": "PERMISSIVE",
+      "policyname": "budget_lines_access",
+      "schemaname": "public",
+      "with_check": "has_permission(organization_id, 'budgets_write'::text)"
+    },
+    {
+      "cmd": "SELECT",
+      "qual": "has_clinic_permission(organization_id, clinic_id, 'budgets_read'::text)",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "budgets",
+      "permissive": "PERMISSIVE",
+      "policyname": "budgets_read",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "ALL",
+      "qual": "has_clinic_permission(organization_id, clinic_id, 'budgets_write'::text)",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "budgets",
+      "permissive": "PERMISSIVE",
+      "policyname": "budgets_write",
+      "schemaname": "public",
+      "with_check": "has_clinic_permission(organization_id, clinic_id, 'budgets_write'::text)"
+    },
+    {
+      "cmd": "SELECT",
+      "qual": "has_clinic_permission(organization_id, clinic_id, 'clinical_read'::text)",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "clinical_records",
+      "permissive": "PERMISSIVE",
+      "policyname": "clinical_records_read",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "ALL",
+      "qual": "has_clinic_permission(organization_id, clinic_id, 'clinical_write'::text)",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "clinical_records",
+      "permissive": "PERMISSIVE",
+      "policyname": "clinical_records_write",
+      "schemaname": "public",
+      "with_check": "has_clinic_permission(organization_id, clinic_id, 'clinical_write'::text)"
+    },
+    {
+      "cmd": "SELECT",
+      "qual": "has_clinic_permission(organization_id, clinic_id, 'consents_read'::text)",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "consents",
+      "permissive": "PERMISSIVE",
+      "policyname": "consents_read",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "ALL",
+      "qual": "has_clinic_permission(organization_id, clinic_id, 'consents_write'::text)",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "consents",
+      "permissive": "PERMISSIVE",
+      "policyname": "consents_write",
+      "schemaname": "public",
+      "with_check": "has_clinic_permission(organization_id, clinic_id, 'consents_write'::text)"
+    },
+    {
+      "cmd": "SELECT",
+      "qual": "\nCASE\n    WHEN (category = ANY (ARRAY['clinical'::text, 'diagnostic'::text])) THEN has_clinic_permission(organization_id, clinic_id, 'clinical_read'::text)\n    ELSE has_clinic_permission(organization_id, clinic_id, 'documents_read'::text)\nEND",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "documents",
+      "permissive": "PERMISSIVE",
+      "policyname": "documents_read",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "ALL",
+      "qual": "\nCASE\n    WHEN (category = ANY (ARRAY['clinical'::text, 'diagnostic'::text])) THEN has_clinic_permission(organization_id, clinic_id, 'clinical_write'::text)\n    ELSE has_clinic_permission(organization_id, clinic_id, 'documents_write'::text)\nEND",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "documents",
+      "permissive": "PERMISSIVE",
+      "policyname": "documents_write",
+      "schemaname": "public",
+      "with_check": "\nCASE\n    WHEN (category = ANY (ARRAY['clinical'::text, 'diagnostic'::text])) THEN has_clinic_permission(organization_id, clinic_id, 'clinical_write'::text)\n    ELSE has_clinic_permission(organization_id, clinic_id, 'documents_write'::text)\nEND"
+    },
+    {
+      "cmd": "INSERT",
+      "qual": null,
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "patients",
+      "permissive": "PERMISSIVE",
+      "policyname": "patients_insert",
+      "schemaname": "public",
+      "with_check": "has_clinic_permission(organization_id, clinic_id, 'patients_write'::text)"
+    },
+    {
+      "cmd": "SELECT",
+      "qual": "has_clinic_permission(organization_id, clinic_id, 'patients_read'::text)",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "patients",
+      "permissive": "PERMISSIVE",
+      "policyname": "patients_read",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "UPDATE",
+      "qual": "has_clinic_permission(organization_id, clinic_id, 'patients_write'::text)",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "patients",
+      "permissive": "PERMISSIVE",
+      "policyname": "patients_update",
+      "schemaname": "public",
+      "with_check": "has_clinic_permission(organization_id, clinic_id, 'patients_write'::text)"
+    },
+    {
+      "cmd": "SELECT",
+      "qual": "has_clinic_permission(organization_id, clinic_id, 'payments_read'::text)",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "payments",
+      "permissive": "PERMISSIVE",
+      "policyname": "payments_read",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "ALL",
+      "qual": "has_clinic_permission(organization_id, clinic_id, 'payments_write'::text)",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "payments",
+      "permissive": "PERMISSIVE",
+      "policyname": "payments_write",
+      "schemaname": "public",
+      "with_check": "has_clinic_permission(organization_id, clinic_id, 'payments_write'::text)"
+    },
+    {
+      "cmd": "SELECT",
+      "qual": "has_clinic_permission(organization_id, clinic_id, 'budgets_read'::text)",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "treatment_plans",
+      "permissive": "PERMISSIVE",
+      "policyname": "treatment_plans_read",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "ALL",
+      "qual": "has_clinic_permission(organization_id, clinic_id, 'budgets_write'::text)",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "treatment_plans",
+      "permissive": "PERMISSIVE",
+      "policyname": "treatment_plans_write",
+      "schemaname": "public",
+      "with_check": "has_clinic_permission(organization_id, clinic_id, 'budgets_write'::text)"
+    }
+  ],
+  "routines": [
+    {
+      "name": "atlas_charge_budget_checked",
+      "definition": "CREATE OR REPLACE FUNCTION public.atlas_charge_budget_checked(p_payload jsonb)\n RETURNS jsonb\n LANGUAGE plpgsql\n SET search_path TO 'public', 'pg_temp'\nAS $function$\ndeclare\n  v_budget public.budgets;\n  v_existing public.payments;\n  v_new public.payments;\n  v_paid numeric(12,2);\n  v_amount numeric(12,2);\n  v_advance numeric(12,2);\n  v_manual_discount numeric(12,2);\n  v_assessment_discount numeric(12,2);\n  v_manual_adjustment numeric(12,2);\n  v_settled numeric(12,2);\n  v_invoice_total numeric(12,2);\n  v_ref text;\n  v_advance_ref text;\nbegin\n  if auth.uid() is null then raise exception 'Se requiere una sesión activa'; end if;\n  v_ref := nullif(p_payload->>'client_ref','');\n  v_amount := round(coalesce((p_payload->>'amount')::numeric,0),2);\n  v_advance := round(coalesce((p_payload->'metadata'->>'advance_amount')::numeric,0),2);\n  v_manual_discount := round(coalesce((p_payload->'metadata'->>'manual_discount')::numeric,0),2);\n  v_assessment_discount := round(coalesce((p_payload->'metadata'->>'assessment_discount')::numeric,0),2);\n  v_manual_adjustment := round(coalesce((p_payload->'metadata'->>'manual_adjustment')::numeric,0),2);\n  v_settled := round(v_amount+v_advance+v_manual_discount+v_assessment_discount+v_manual_adjustment,2);\n  v_advance_ref := nullif(btrim(p_payload->'metadata'->>'advance_reference'),'');\n  if v_ref is null or v_amount<=0 then raise exception 'Referencia o importe de cobro inválido'; end if;\n  if least(v_advance,v_manual_discount,v_assessment_discount,v_manual_adjustment)<0 then\n    raise exception 'Las señales y descuentos no pueden ser negativos';\n  end if;\n  if v_advance>0 and v_advance_ref is null then\n    raise exception 'Indica la referencia de la señal o anticipo previo';\n  end if;\n  if v_advance>0 and nullif(btrim(p_payload->'metadata'->>'advance_concept'),'') is null then\n    raise exception 'Indica el concepto al que corresponde la señal o anticipo';\n  end if;\n  if (v_manual_discount>0 or v_manual_adjustment>0)\n     and nullif(btrim(p_payload->'metadata'->>'discount_concept'),'') is null then\n    raise exception 'Indica el concepto al que corresponde el descuento';\n  end if;\n  if p_payload->'metadata'->>'kind' <> 'budget' or p_payload->>'status' <> 'completed' then\n    raise exception 'Esta operación solo admite cobros de presupuestos';\n  end if;\n  if abs(coalesce((p_payload->'metadata'->>'settled_amount')::numeric,v_settled)-v_settled)>0.01 then\n    raise exception 'El desglose del cobro no coincide con el importe liquidado';\n  end if;\n  select coalesce(sum(coalesce((line->>'amount')::numeric,0)),0) into v_invoice_total\n  from jsonb_array_elements(coalesce(p_payload->'metadata'->'invoice_lines','[]'::jsonb)) line;\n  if abs(v_invoice_total-v_amount)>0.01 then\n    raise exception 'El desglose de factura no coincide con el importe final cobrado';\n  end if;\n\n  select * into v_budget from public.budgets\n    where id=(p_payload->>'budget_id')::uuid and organization_id=(p_payload->>'organization_id')::uuid\n      and clinic_id=(p_payload->>'clinic_id')::uuid and patient_id=(p_payload->>'patient_id')::uuid\n      and deleted_at is null for update;\n  if not found then raise exception 'Presupuesto no disponible en esta clínica'; end if;\n  if abs(v_budget.total-(p_payload->'metadata'->>'budget_total')::numeric)>0.01 then\n    raise exception 'El presupuesto no coincide con la versión central. Recarga la ficha.';\n  end if;\n\n  select * into v_existing from public.payments\n    where organization_id=v_budget.organization_id and clinic_id=v_budget.clinic_id and client_ref=v_ref;\n  if found then\n    if v_existing.status<>'completed' or v_existing.cancelled_at is not null then\n      raise exception 'Este intento de cobro ya fue anulado. Actualiza la ficha antes de continuar.';\n    end if;\n    return to_jsonb(v_existing)||jsonb_build_object('already_exists',true);\n  end if;\n\n  if v_advance_ref is not null and exists(\n    select 1 from public.payments payment\n    where payment.organization_id=v_budget.organization_id\n      and payment.clinic_id=v_budget.clinic_id\n      and payment.status='completed' and payment.cancelled_at is null and payment.deleted_at is null\n      and payment.metadata->>'kind'='budget'\n      and lower(btrim(payment.metadata->>'advance_reference'))=lower(v_advance_ref)\n  ) then\n    raise exception 'La señal o anticipo con referencia % ya se utilizó en otro cobro.',v_advance_ref;\n  end if;\n\n  select coalesce(sum(coalesce((metadata->>'settled_amount')::numeric,amount)),0) into v_paid\n  from public.payments\n  where budget_id=v_budget.id and status='completed' and cancelled_at is null and deleted_at is null;\n  if v_paid+v_settled>v_budget.total+0.01 then\n    raise exception 'Este presupuesto ya tiene % € liquidados. Solo quedan % € pendientes.',v_paid,greatest(0,v_budget.total-v_paid);\n  end if;\n\n  insert into public.payments(organization_id,clinic_id,patient_id,budget_id,appointment_id,payment_type,\n    amount,method,status,external_reference,notes,paid_at,created_by,client_ref,metadata)\n  values(v_budget.organization_id,v_budget.clinic_id,v_budget.patient_id,v_budget.id,\n    nullif(p_payload->>'appointment_id','')::uuid,p_payload->>'payment_type',v_amount,\n    p_payload->>'method','completed',p_payload->>'external_reference',p_payload->>'notes',\n    coalesce((p_payload->>'paid_at')::timestamptz,now()),(p_payload->>'created_by')::uuid,\n    v_ref,jsonb_set(coalesce(p_payload->'metadata','{}'::jsonb),'{settled_amount}',to_jsonb(v_settled),true))\n  returning * into v_new;\n  return to_jsonb(v_new)||jsonb_build_object('already_exists',false);\nend;$function$\n"
+    },
+    {
+      "name": "atlas_replace_budget_lines",
+      "definition": "CREATE OR REPLACE FUNCTION private.atlas_replace_budget_lines(p_budget_id uuid, p_lines jsonb DEFAULT '[]'::jsonb)\n RETURNS integer\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public', 'pg_temp'\nAS $function$\ndeclare\n  v_org uuid;\n  v_user uuid := auth.uid();\n  v_line jsonb;\n  v_order integer := 0;\nbegin\n  if v_user is null then\n    raise exception 'Se requiere una sesión autenticada';\n  end if;\n  select organization_id into v_org\n  from public.budgets\n  where id=p_budget_id and deleted_at is null;\n  if v_org is null then\n    raise exception 'Presupuesto no encontrado';\n  end if;\n  if not public.has_permission(v_org,'budgets_write') then\n    raise exception 'Sin permiso para modificar presupuestos';\n  end if;\n  if jsonb_typeof(coalesce(p_lines,'[]'::jsonb)) <> 'array' then\n    raise exception 'Las líneas del presupuesto deben ser una lista';\n  end if;\n\n  delete from public.budget_lines where budget_id=p_budget_id;\n  for v_line in select value from jsonb_array_elements(coalesce(p_lines,'[]'::jsonb))\n  loop\n    v_order := v_order + 1;\n    insert into public.budget_lines(\n      organization_id,budget_id,service_code,service_name,sessions,\n      unit_price,discount,line_order,metadata\n    ) values (\n      v_org,p_budget_id,nullif(v_line->>'service_code',''),\n      coalesce(nullif(btrim(v_line->>'service_name'),''),'Tratamiento'),\n      greatest(1,coalesce((v_line->>'sessions')::integer,1)),\n      greatest(0,coalesce((v_line->>'unit_price')::numeric,0)),\n      greatest(0,least(100,coalesce((v_line->>'discount')::numeric,0))),\n      v_order,coalesce(v_line->'metadata','{}'::jsonb)\n    );\n  end loop;\n  return v_order;\nend;\n$function$\n"
+    },
+    {
+      "name": "atlas_upsert_budget",
+      "definition": "CREATE OR REPLACE FUNCTION public.atlas_upsert_budget(p_patient_id uuid, p_client_ref text, p_budget jsonb, p_lines jsonb DEFAULT '[]'::jsonb)\n RETURNS jsonb\n LANGUAGE plpgsql\n SET search_path TO 'public', 'pg_temp'\nAS $function$\ndeclare\n  v_org uuid;\n  v_clinic uuid;\n  v_user uuid := auth.uid();\n  v_budget public.budgets;\n  v_saved_lines integer;\nbegin\n  if v_user is null then raise exception 'Se requiere una sesión autenticada'; end if;\n  if p_patient_id is null or nullif(btrim(p_client_ref),'') is null then\n    raise exception 'Paciente y referencia del presupuesto son obligatorios';\n  end if;\n\n  select organization_id,clinic_id into v_org,v_clinic\n  from public.patients where id=p_patient_id and deleted_at is null;\n  if v_org is null or v_clinic is null then raise exception 'Paciente no encontrado'; end if;\n  if not public.has_permission(v_org,'budgets_write') then\n    raise exception 'Sin permiso para modificar presupuestos';\n  end if;\n\n  insert into public.budgets(\n    organization_id,clinic_id,patient_id,client_ref,name,status,discount,total,\n    payment_terms,accepted_at,created_by,metadata,deleted_at,updated_at\n  ) values (\n    v_org,v_clinic,p_patient_id,btrim(p_client_ref),\n    coalesce(nullif(btrim(p_budget->>'name'),''),'Presupuesto'),\n    coalesce(nullif(p_budget->>'status',''),'draft'),\n    greatest(0,least(100,coalesce((p_budget->>'discount')::numeric,0))),\n    greatest(0,coalesce((p_budget->>'total')::numeric,0)),\n    coalesce(p_budget->'payment_terms','{}'::jsonb),\n    case when coalesce(p_budget->>'accepted_at','')='' then null else (p_budget->>'accepted_at')::timestamptz end,\n    v_user,coalesce(p_budget->'metadata','{}'::jsonb),null,now()\n  )\n  on conflict (clinic_id,client_ref) where client_ref is not null\n  do update set patient_id=excluded.patient_id,name=excluded.name,status=excluded.status,\n    discount=excluded.discount,total=excluded.total,payment_terms=excluded.payment_terms,\n    accepted_at=excluded.accepted_at,metadata=excluded.metadata,deleted_at=null,updated_at=now()\n  returning * into v_budget;\n\n  v_saved_lines := private.atlas_replace_budget_lines(v_budget.id,p_lines);\n\n  return jsonb_build_object('id',v_budget.id,'budget_number',v_budget.budget_number,\n    'client_ref',v_budget.client_ref,'updated_at',v_budget.updated_at,'saved_lines',v_saved_lines);\nend;\n$function$\n"
+    },
+    {
+      "name": "atlas_upsert_budget_checked",
+      "definition": "CREATE OR REPLACE FUNCTION public.atlas_upsert_budget_checked(p_patient_id uuid, p_client_ref text, p_budget jsonb, p_lines jsonb, p_expected_updated_at timestamp with time zone, p_operation_id text)\n RETURNS jsonb\n LANGUAGE plpgsql\n SET search_path TO 'public', 'pg_temp'\nAS $function$\ndeclare\n  v_clinic uuid;\n  v_old public.budgets;\nbegin\n  if auth.uid() is null or nullif(p_operation_id, '') is null then\n    raise exception 'Se requiere una sesión y referencia de guardado';\n  end if;\n\n  select clinic_id\n  into v_clinic\n  from public.patients\n  where id = p_patient_id\n    and deleted_at is null;\n\n  if v_clinic is null then\n    raise exception 'Paciente no disponible';\n  end if;\n\n  if not pg_try_advisory_xact_lock(hashtextextended(v_clinic::text || ':' || p_client_ref, 0)) then\n    raise exception 'Otro guardado de este presupuesto sigue en curso. Vuelve a intentarlo.'\n      using errcode = '40001';\n  end if;\n\n  select *\n  into v_old\n  from public.budgets\n  where clinic_id = v_clinic\n    and client_ref = p_client_ref\n  for update;\n\n  if found then\n    if v_old.patient_id <> p_patient_id or v_old.deleted_at is not null then\n      raise exception 'Presupuesto no disponible';\n    end if;\n    if v_old.metadata ->> 'last_server_operation' = p_operation_id then\n      return jsonb_build_object(\n        'id', v_old.id,\n        'budget_number', v_old.budget_number,\n        'client_ref', v_old.client_ref,\n        'updated_at', v_old.updated_at\n      );\n    end if;\n    if p_expected_updated_at is null or v_old.updated_at is distinct from p_expected_updated_at then\n      raise exception 'Otro usuario ha actualizado este presupuesto. Revisa la versión del servidor antes de guardar.'\n        using errcode = '40001';\n    end if;\n  end if;\n\n  return public.atlas_upsert_budget(\n    p_patient_id,\n    p_client_ref,\n    jsonb_set(\n      p_budget,\n      '{metadata}',\n      coalesce(p_budget -> 'metadata', '{}'::jsonb)\n        || jsonb_build_object('last_server_operation', p_operation_id)\n    ),\n    p_lines\n  );\nend;\n$function$\n"
+    },
+    {
+      "name": "has_permission",
+      "definition": "CREATE OR REPLACE FUNCTION public.has_permission(target_org uuid, permission_name text)\n RETURNS boolean\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\n  select exists(\n    select 1 from public.memberships m\n    where m.organization_id=target_org and m.user_id=auth.uid() and m.active\n      and (m.role in ('owner','administrator') or coalesce((m.permissions->>permission_name)::boolean,false))\n  )\n$function$\n"
+    }
+  ]
+}

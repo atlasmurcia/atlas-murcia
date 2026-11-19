@@ -1,0 +1,10 @@
+[
+  {
+    "name": "atlas_permitted_clinics",
+    "definition": "CREATE OR REPLACE FUNCTION public.atlas_permitted_clinics(permission_name text)\n RETURNS TABLE(organization_id uuid, clinic_id uuid)\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\n  select c.organization_id, c.id\n  from public.clinics c\n  join public.memberships m on m.organization_id = c.organization_id\n  where m.user_id = (select auth.uid()) and m.active\n    and (m.role in ('owner', 'administrator')\n         or ((m.clinic_id is null or m.clinic_id = c.id) and coalesce((m.permissions ->> permission_name)::boolean, false)));\n$function$\n"
+  },
+  {
+    "name": "has_clinic_permission",
+    "definition": "CREATE OR REPLACE FUNCTION public.has_clinic_permission(target_org uuid, target_clinic uuid, permission_name text)\n RETURNS boolean\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\n  select exists (\n    select 1\n    from public.memberships m\n    where m.organization_id = target_org\n      and m.user_id = (select auth.uid())\n      and m.active\n      and (\n        m.role in ('owner', 'administrator')\n        or (\n          (m.clinic_id is null or m.clinic_id = target_clinic)\n          and coalesce((m.permissions ->> permission_name)::boolean, false)\n        )\n      )\n  )\n$function$\n"
+  }
+]

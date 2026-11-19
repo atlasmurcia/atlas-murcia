@@ -1,0 +1,40 @@
+FUSIÓN DE FICHAS POR ALIAS — MURCIA
+
+Acceso previsto: Ficha del paciente → Fusionar ficha duplicada. Disponible para
+Gestión y Recepción con lectura/escritura de pacientes, o autorización específica.
+Elegir la ficha principal, buscar la duplicada, comparar, resolver datos personales
+y confirmar que ambas pertenecen a la misma persona. Conservar como principal la
+que tenga el DNI/NIE correcto. Si hay DNI/NIE distintos se bloquea la operación.
+
+No se borran ni mueven citas, presupuestos, documentos, notas clínicas o cobros.
+La ficha secundaria conserva sus datos de origen y permanece protegida. Las
+consultas de ATLAS reúnen los dos identificadores y los enlaces antiguos abren la
+principal. Los presupuestos y sus cobros conservan la referencia fiscal original;
+las funciones de cobro, emisión de facturas y VeriFactu no se reemplazan.
+Los importes históricos se calculan con la fecha de corte de cada ficha antes de
+agruparlos. No se eliminan registros repetidos ni se compensan saldos al fusionar.
+
+Fusión, confirmación, detección de cambios y auditoría forman una transacción.
+Es posible deshacer desde el resultado mientras no exista actividad posterior.
+Una fusión ya activa no se puede encadenar con una tercera ficha en esta versión.
+La pérdida de respuesta conserva la referencia para consultar o repetir exactamente
+la misma operación. Se comprueban sesión, clínica, origen y marco.
+
+Servidor: install.sql instala la función desactivada. No contiene actualizaciones de
+pacientes reales ni habilita la fusión. activate.sql se ejecuta únicamente después
+de publicar y verificar la interfaz; revisa de nuevo la firma del esquema.
+No aplicar el candidato antiguo del PR #146: esta variante no reemplaza rutinas de
+presupuestos ni instala disparadores en tablas clínicas o económicas.
+
+Validación: runtime.test.cjs reproduce columnas e índices de pacientes, políticas y
+rutinas vigentes de presupuestos de las dos clínicas sobre datos ficticios locales.
+data.test.cjs comprueba agrupación, origen de UUID, saldos, consultas y escrituras.
+Dependencia de prueba fijada: PGlite 0.3.14. También se revisan controlador,
+transporte, sintaxis de Agenda/Ficha/portada y recorrido visual de ambas fichas.
+El resto de servicios del navegador recibe respuestas simuladas; esa prueba no es
+una sesión clínica real. No se han probado operaciones con pacientes de producción.
+La prueba de concurrencia en el proyecto sintético existente fue rechazada y no se
+aplicó. No se crearon proyectos, ramas ni entornos de pago.
+
+Publicación: solicitud de cambios sobre main; después del despliegue, recargar ATLAS.
+Si faltan servidor, permisos o certificación, el botón permanece oculto.
