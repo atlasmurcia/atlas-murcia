@@ -1,0 +1,48 @@
+Murcia — origen de futuras cancelaciones en ATLAS
+
+Al cancelar desde Agenda o Ficha, ATLAS añade el registro a la misma escritura
+que cambia el estado de la cita: no hay una segunda petición que pueda fallar
+después de haber confirmado la cancelación. El historial incluye el origen
+legible; Citas canceladas lo muestra bajo el motivo. No modifica históricos.
+
+Cada evento guarda versión de formato, identificador de operación y petición,
+hora del puente, usuario de la sesión autenticada, pantalla observada por el
+puente (Agenda/Ficha/desconocida), acción central, acceso, cita seleccionada,
+cita afectada (también al cancelar copias), versión y horario anteriores.
+La pantalla aporta además la cita/versión revisada, hora y control de apertura
+y de confirmación, y las señales isTrusted/detail del evento del navegador.
+Se distingue apertura automática desde el listado de Ficha de la confirmación.
+Los nombres de pantalla/control se limitan a una lista; el puente no acepta
+una pantalla inventada en el contenido de la petición.
+
+Si un guardado ordinario cambia a cancelada, queda identificado con la acción
+appointments:upsertMany, sin inventar un clic de confirmación. Los reintentos
+de una cita ya cancelada no añaden eventos duplicados. Cada nueva cancelación
+tras restablecer conserva las anteriores. Los guardados normales preservan
+la traza canónica, aunque el cliente no la incluya o intente sustituirla.
+
+Persistencia: metadata.cancellationTraceEvents, metadata.lastCancellationTrace
+y la entrada correspondiente de metadata.history. La auditoría del servidor
+ya existente continúa registrando usuario y hora de transacción; no se cambia.
+Sin tablas, migraciones, permisos, secretos, almacenamiento local ni nuevos
+servicios. No se guardan URLs, teléfonos, cuerpos de WhatsApp, notas clínicas,
+teclas escritas, credenciales o capturas. Los datos se conservan dentro de la
+misma cita, bajo sus permisos existentes.
+
+Límites: la señal de interacción la declara la pantalla; no prueba quién estaba
+delante ni la intención de la persona. No es un registro forense inmutable.
+Los intentos rechazados antes de escribir no cuentan como cancelaciones.
+Los cambios hechos directamente fuera de estas rutas de ATLAS no pueden
+atribuirse a una pantalla mediante este registro. No reconstruye incidentes
+anteriores ni afirma resolver el motivo de una cancelación histórica.
+
+Pruebas con datos ficticios: tres accesos, origen observado frente a origen
+declarado, petición antigua sin detalle, guardado de estado sin botón, fallos
+y versiones concurrentes sin registro persistido, reintento, nueva cancelación,
+conservación ante guardado desactualizado y metadatos inventados. Chrome con
+diálogo y renderizadores reales, apertura programática, confirmación desde
+botón y origen visible; Ficha directa y regresiones de selección/versiones.
+Todas las conexiones bloqueadas. Sin consultas o cambios de citas reales,
+sin mensajes, sin cambios en la política de comunicaciones. Solo Murcia.
+
+Recargar ATLAS tras publicar para cargar los tres archivos y el módulo nuevo.

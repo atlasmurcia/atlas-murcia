@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="es">
 <head>
-<meta charset="utf-8"><script src="./planning-commit.js?v=1"></script>
+<meta charset="utf-8"><script src="./cancellation-trace.js?v=1"></script><script src="./planning-commit.js?v=1"></script>
 <script src="./appointment-record-kind.js?v=2"></script><script src="./care-finance-model.js?v=1"></script>
 <script src="../src/mixed-payments.js"></script>
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -2099,7 +2099,7 @@ document.getElementById('moveBtn').onclick=()=>{
 }
 document.getElementById('doneBtn').onclick=()=>{let a=appointments.find(x=>x.id===selectedId);if(a){a.status='Realizada';a.history.push({at:new Date().toISOString(),user:agendaActorName(),action:'Marcada como realizada'});logAgenda('Cita marcada realizada',a);save();render();openDrawer(selectedId)}}
 document.getElementById('pendingBtn').onclick=()=>{let a=appointments.find(x=>x.id===selectedId);if(a){a.status='Pendiente';a.history.push({at:new Date().toISOString(),user:agendaActorName(),action:'Restaurada de realizada a pendiente'});logAgenda('Cita restaurada a pendiente',a);save();render();openDrawer(selectedId)}}
-document.getElementById('deleteBtn').onclick=()=>{const a=appointments.find(item=>String(item.id)===String(selectedId));if(!a)return alert('La cita ya no está disponible. Actualiza la agenda.');pendingCancellation=Object.freeze({id:a.id,snapshot:cancellationSnapshot(a)});document.getElementById('cancelAppointmentSummary').textContent=[a.patient,[a.date,a.time+(a.endTime?'–'+a.endTime:'')].join(' · '),(a.services||[a.therapy]).filter(Boolean).join(' + '),a.professional||a.resource||''].filter(Boolean).join('\n');document.getElementById('cancelWho').value='Paciente';document.getElementById('cancelReason').value='';document.getElementById('cancelBack').classList.add('open')}
+document.getElementById('deleteBtn').onclick=event=>{const a=appointments.find(item=>String(item.id)===String(selectedId));if(!a)return alert('La cita ya no está disponible. Actualiza la agenda.');pendingCancellation=Object.freeze({id:a.id,snapshot:cancellationSnapshot(a),origin:window.atlasCancellationTrace.open(a,window.atlasCancellationEntryPoint||'agenda_detail',event,'deleteBtn')});window.atlasCancellationEntryPoint=null;document.getElementById('cancelAppointmentSummary').textContent=[a.patient,[a.date,a.time+(a.endTime?'–'+a.endTime:'')].join(' · '),(a.services||[a.therapy]).filter(Boolean).join(' + '),a.professional||a.resource||''].filter(Boolean).join('\n');document.getElementById('cancelWho').value='Paciente';document.getElementById('cancelReason').value='';document.getElementById('cancelBack').classList.add('open')}
 document.getElementById('receiveBtn').onclick=receiveSelectedPatient;
 document.getElementById('waAppointmentBtn').onclick=openAppointmentWhatsapp;
 document.getElementById('waitingRoomBtn').onclick=openWaitingRoom;
@@ -2272,7 +2272,7 @@ function dropAppointmentToCell(target,time){
  test.conflictOverride=!!c.length;test.history.push({at:new Date().toISOString(),user:agendaActorName(),action:`Movida a ${time} / ${target}`});appointments=appointments.map(x=>x.id===a.id?test:x);logAgenda('Cita movida mediante arrastre',test);draggedAppointment=null;save();render();
 }
 
-document.getElementById('confirmCancelBtn').onclick=async()=>{
+document.getElementById('confirmCancelBtn').onclick=async event=>{
  const button=document.getElementById('confirmCancelBtn');if(button.disabled)return;
  const target=pendingCancellation,id=target?.id,who=document.getElementById('cancelWho').value,reason=document.getElementById('cancelReason').value.trim();
  button.disabled=true;button.textContent='Guardando cancelación…';document.getElementById('closeCancelBtn').disabled=true;
@@ -2280,7 +2280,7 @@ document.getElementById('confirmCancelBtn').onclick=async()=>{
   const current=appointments.find(item=>String(item.id)===String(id));
   if(!target||String(selectedId)!==String(id)||!current||cancellationSnapshot(current)!==target.snapshot)throw new Error('La cita seleccionada ha cambiado. Cierra esta ventana y revisa la cita antes de cancelar.');
   if(typeof window.atlasCancelAppointmentCentral!=='function')throw new Error('La agenda todavía no está preparada. Espera a que termine de cargar.');
-  const a=await window.atlasCancelAppointmentCentral(id,who,reason,target.snapshot);
+  const a=await window.atlasCancelAppointmentCentral(id,who,reason,target.snapshot,window.atlasCancellationTrace.confirm(target.origin,event,'confirmCancelBtn'));
   pendingCancellation=null;
   logAgenda(`Cita cancelada por ${a.cancelledBy}`,a);
   document.getElementById('cancelBack').classList.remove('open');document.getElementById('drawer').classList.remove('open');render();
@@ -2294,7 +2294,7 @@ document.getElementById('confirmCancelBtn').onclick=async()=>{
 };
 document.getElementById('closeCancelBtn').onclick=()=>{pendingCancellation=null;document.getElementById('cancelBack').classList.remove('open')};
 let cancelledShowAllDates=false;
-function renderCancelledList(){const dateInput=document.getElementById('cancelledDateFilter'),selectedDate=dateInput?.value||currentDate,all=appointments.filter(a=>a.status==='Cancelada').sort((a,b)=>(String(b.date)+String(b.time)).localeCompare(String(a.date)+String(a.time))),list=cancelledShowAllDates?all:all.filter(a=>a.date===selectedDate),count=document.getElementById('cancelledCount');if(count)count.textContent=list.length+' cita'+(list.length===1?'':'s');let lastDate='';document.getElementById('cancelledList').innerHTML=list.length?list.map(a=>{const heading=cancelledShowAllDates&&a.date!==lastDate?`<h3 class="cancelled-date-heading">${hesc(a.date)}</h3>`:'';lastDate=a.date;return heading+`<div class="route"><b>${hesc(a.patient)}</b><div>${hesc(a.date)} · ${hesc(a.time)} · ${hesc((a.services||[a.therapy]).join(' + '))}</div><div class="muted">Cancelada por ${hesc(a.cancelledBy||'—')} · ${hesc(a.cancelReason||'Sin motivo')}</div><button type="button" data-restore-cancelled="${hesc(String(a.id))}">Restablecer cita</button></div>`}).join(''):`<div class="muted">No hay citas canceladas ${cancelledShowAllDates?'':'para el '+hesc(selectedDate)}.</div>`;document.querySelectorAll('[data-restore-cancelled]').forEach(button=>button.onclick=()=>restoreCancelled(button.dataset.restoreCancelled))}
+function renderCancelledList(){const dateInput=document.getElementById('cancelledDateFilter'),selectedDate=dateInput?.value||currentDate,all=appointments.filter(a=>a.status==='Cancelada').sort((a,b)=>(String(b.date)+String(b.time)).localeCompare(String(a.date)+String(a.time))),list=cancelledShowAllDates?all:all.filter(a=>a.date===selectedDate),count=document.getElementById('cancelledCount');if(count)count.textContent=list.length+' cita'+(list.length===1?'':'s');let lastDate='';document.getElementById('cancelledList').innerHTML=list.length?list.map(a=>{const heading=cancelledShowAllDates&&a.date!==lastDate?`<h3 class="cancelled-date-heading">${hesc(a.date)}</h3>`:'';lastDate=a.date;return heading+`<div class="route"><b>${hesc(a.patient)}</b><div>${hesc(a.date)} · ${hesc(a.time)} · ${hesc((a.services||[a.therapy]).join(' + '))}</div><div class="muted">Cancelada por ${hesc(a.cancelledBy||'—')} · ${hesc(a.cancelReason||'Sin motivo')}</div>${a.lastCancellationTrace?'<div class="small muted">Origen registrado: '+hesc(window.atlasCancellationTrace.describe(a.lastCancellationTrace))+'</div>':''}<button type="button" data-restore-cancelled="${hesc(String(a.id))}">Restablecer cita</button></div>`}).join(''):`<div class="muted">No hay citas canceladas ${cancelledShowAllDates?'':'para el '+hesc(selectedDate)}.</div>`;document.querySelectorAll('[data-restore-cancelled]').forEach(button=>button.onclick=()=>restoreCancelled(button.dataset.restoreCancelled))}
 function restoreCancelled(id){const a=appointments.find(x=>x.id===id);if(!a)return;const c=conflictsFor({...a,status:'Pendiente'},a.id);if(blockFor(a)){alert('No se puede restablecer: el horario está bloqueado.');return}if(c.length&&!confirm(`La cita restaurada se solapará con ${c.map(x=>x.patient).join(', ')}. ¿Desea continuar?`))return;a.status='Pendiente';a.conflictOverride=!!c.length;a.history.push({at:new Date().toISOString(),user:agendaActorName(),action:'Cita cancelada restablecida'});logAgenda('Cita cancelada restablecida',a);save();renderCancelledList();render()}
 document.getElementById('cancelledBtn').onclick=()=>{cancelledShowAllDates=false;document.getElementById('cancelledDateFilter').value=currentDate;document.getElementById('cancelledAllDatesBtn').textContent='Todas las fechas';renderCancelledList();document.getElementById('cancelledBack').classList.add('open')};document.getElementById('cancelledDateFilter').onchange=()=>{cancelledShowAllDates=false;document.getElementById('cancelledAllDatesBtn').textContent='Todas las fechas';renderCancelledList()};document.getElementById('cancelledAllDatesBtn').onclick=function(){cancelledShowAllDates=!cancelledShowAllDates;this.textContent=cancelledShowAllDates?'Ver fecha seleccionada':'Todas las fechas';renderCancelledList()};document.getElementById('closeCancelledBtn').onclick=()=>document.getElementById('cancelledBack').classList.remove('open');
 
@@ -2354,7 +2354,7 @@ window.addEventListener('message',function(event){const msg=event.data||{};if(ms
        currentDate=exact.date;
        const status=document.getElementById('statusFilter');if(status)status.value=exact.status==='Conflicto'||exact.planConflict===true?'Conflicto':'';
        save();render();
-       if(msg.appointmentAction==='reschedule'){openModal(exact);beginCancelledRescheduleMode(exact)}else{openDrawer(exact.id);if(msg.appointmentAction){const button=document.getElementById(msg.appointmentAction==='cancel'?'deleteBtn':'moveBtn');if(!button||button.disabled)throw new Error('La acción no está disponible para esta cita.');button.click()}}
+       if(msg.appointmentAction==='reschedule'){openModal(exact);beginCancelledRescheduleMode(exact)}else{openDrawer(exact.id);if(msg.appointmentAction){const button=document.getElementById(msg.appointmentAction==='cancel'?'deleteBtn':'moveBtn');if(!button||button.disabled)throw new Error('La acción no está disponible para esta cita.');if(msg.appointmentAction==='cancel')window.atlasCancellationEntryPoint='patient_list_via_agenda';try{button.click()}finally{window.atlasCancellationEntryPoint=null}}}
      }catch(error){if(navigation===patientNavigationSequence)alert('No se ha abierto la cita: '+String(error.message||error))}
      return;
    }
@@ -3424,7 +3424,7 @@ window.sendPaymentDocumentsAutomatically=function(paymentId,patientName){central
   }catch(error){tell('Cita sin reprogramar: '+error.message,'error');throw error}finally{cancelling=false;if(syncRequested)queueSync();else if(remoteRefreshPending)requestCentralRefresh(120)}
  };
  // Cancellation is a confirmed single-row operation, serialized with background writes and reads.
- window.atlasCancelAppointmentCentral=async function(id,who,reason,expectedSnapshot){
+ window.atlasCancelAppointmentCentral=async function(id,who,reason,expectedSnapshot,cancellationOrigin){
   if(cancelling)throw new Error('Ya hay una cancelación en curso.');
   if(!ready)throw new Error('Espera a que termine de cargar la agenda central.');
   cancelling=true;clearTimeout(syncTimer);clearTimeout(reloadTimer);syncRequested=false;
@@ -3436,7 +3436,7 @@ window.sendPaymentDocumentsAutomatically=function(paymentId,patientName){central
    for(const item of staleCopies)dirtyRefs.delete(clientRef(item));
    const row=toRow(current);if(!row)throw new Error('La cita necesita una ficha de paciente vinculada antes de guardarse.');
    tell('Guardando cancelación en la agenda central…');
-   const saved=await request('appointments:cancel',{id:current.centralId||null,clientRef:clientRef(current),expectedUpdatedAt:current.centralUpdatedAt||null,who,reason,row});
+   const saved=await request('appointments:cancel',{id:current.centralId||null,clientRef:clientRef(current),expectedUpdatedAt:current.centralUpdatedAt||null,who,reason,row,cancellationOrigin});
    if(!saved?.id||saved.status!=='cancelled')throw new Error('El servidor no ha confirmado la cancelación.');
    const mapped=fromRow(saved);
    appointments=appointments.filter(item=>!sameAppointmentSlot(item,mapped));appointments.push(mapped);
