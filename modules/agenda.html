@@ -434,6 +434,8 @@ const therapiesWithoutProfessional=new Set(['MBST OSTEOSPIN Artrosis','MBST OSTE
 function professionalDuration(a){
  if(atlasIsNonClinicalContactAppointment(a))return 0;
  const services=Array.isArray(a.services)?a.services:[];
+ const mode=physicalmMode(a.therapy||(services.length===1?services[0]:''));
+ if(mode)return mode==='dynamic'&&a.professional?30:0;
  // Las citas combinadas del plan bloquean al profesional durante la cita completa.
  if(a.planId&&a.professional){const names=services.map(s=>normalizeSearch(s));if(['fisioterapia','neuromodulacion','osteopatia'].every(s=>names.includes(s))||['readaptacion','imoove'].every(s=>names.includes(s)))return Number(a.duration||0);}
  if(services.some(x=>normalizeSearch(x).includes('neuromodulacion'))&&services.some(x=>normalizeSearch(x).includes('osteopatia')))return a.professional?45:0;
@@ -4928,7 +4930,7 @@ function printInvoice(x,openedWindow){const issuer=x.issuer||{},recipient=x.reci
   const dynamic=physicalmMode(service)==='dynamic';
   alicanteTherapyResources[service]=['Physicalm'];
   alicanteTherapyProfessionals[service]=dynamic?[...physicalmDynamicProfessionals]:[];
-  therapyProfessionalDurations[service]=dynamic?15:0;
+  therapyProfessionalDurations[service]=dynamic?30:0;
   if(dynamic){therapyCompetencyRequirement[service]='poner Physicalm';therapiesWithoutProfessional.delete(service)}
   else{delete therapyCompetencyRequirement[service];therapiesWithoutProfessional.add(service)}
  }

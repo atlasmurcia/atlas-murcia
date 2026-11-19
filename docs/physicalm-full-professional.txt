@@ -1,0 +1,24 @@
+Murcia: PhysicalM Dinámico reserva 30 minutos del profesional
+
+El catálogo asignaba solo 15 minutos al profesional y 30 al equipo. La agenda,
+los conflictos y el guardado usaban el valor corto incluso si los metadatos de
+una cita guardada ya indicaban 30.
+
+PhysicalM Dinámico reserva 30 minutos del profesional elegido, sin limitar la
+regla a un nombre. PhysicalM Estático conserva cero minutos de profesional.
+La duración del equipo y las reglas de agrupación y orden no cambian.
+La lectura también reconoce las variantes con acento y citas con metadatos
+antiguos de 15 minutos; el siguiente guardado conserva 30. No se añaden citas
+ni se cambian horarios o profesionales al desplegar esta corrección.
+
+Validación sintética sin conexión clínica:
+- Selección de terapeutas, horarios y validación del modal: physicalm-selection.cjs.
+- Duración de dinámico/estático, otros equipos, ocupación total y solapamiento
+  en el segundo cuarto de hora; permite la cita adyacente justo al finalizar.
+- Serialización y recarga reales, guardado de professional_minutes=30 y renderer
+  de columna de profesional de 30 minutos: physicalm-full-professional.cjs.
+- Chrome con datos ficticios y red bloqueada: physicalm-full-professional-screen.cjs.
+- Compilación de los scripts de la agenda. Agenda v221 para forzar recarga.
+
+Publicación expresamente autorizada por Gely únicamente para Murcia.
+No modifica Alicante, permisos ni estructura de base de datos.

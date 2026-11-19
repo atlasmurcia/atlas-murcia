@@ -1,0 +1,7 @@
+const fs=require('node:fs'),assert=require('node:assert/strict'),{chromium}=require('playwright');
+const {display,html}=require('./physicalm-full-professional.cjs');
+(async()=>{const browser=await chromium.launch({headless:true,executablePath:'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'});try{const page=await browser.newPage({viewport:{width:850,height:460}});await page.route('**/*',r=>r.abort());
+await page.setContent('<style>'+[...html.matchAll(/<style[^>]*>([\s\S]*?)<\/style>/g)].map(m=>m[1]).join('\n')+' .fixture{margin:30px;width:280px}.fixture-column{position:relative;height:128px;background:repeating-linear-gradient(white 0,white 31px,#dbe6eb 31px,#dbe6eb 32px)}.fixture-column .appt{position:absolute;left:4px;right:4px}</style><div class="fixture"><h2>Prueba con datos ficticios</h2><p>PhysicalM Dinámico · 10:00–10:30</p><h3>Terapeuta ficticio</h3><div class="fixture-column">'+display+'</div></div>');
+assert.equal(await page.locator('.appt').count(),1);assert((await page.locator('.appt').innerText()).includes('30m profesional'));assert.equal(await page.locator('.appt').evaluate(el=>el.style.height),'60px');
+await page.screenshot({path:__dirname+'/../physicalm-full-professional-synthetic.png'});console.log('PASS Chrome: actual professional hold renderer shows 30 minutes across two quarter-hour rows, with all network blocked.');
+}finally{await browser.close()}})().catch(e=>{console.error(e);process.exitCode=1});
