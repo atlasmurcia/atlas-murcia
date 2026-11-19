@@ -1,0 +1,27 @@
+const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict'),path=require('node:path');
+const root=path.join(__dirname,'..'),agenda=fs.readFileSync(path.join(root,'modules/agenda.html'),'utf8'),ficha=fs.readFileSync(path.join(root,'modules/ficha.html'),'utf8');
+function fn(source,name){const start=source.indexOf('function '+name+'('),end=source.indexOf('\nfunction ',start+1);assert(start>=0);return source.slice(start,end)}
+let scripts=0;for(const file of ['atlas.html','modules/agenda.html','modules/ficha.html']){const html=fs.readFileSync(path.join(root,file),'utf8');for(const match of html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script\s*>/gi)){if(/\bsrc=|application\/json/.test(match[1]))continue;new vm.Script(match[2],{filename:file});scripts++}}
+const context={patientPaymentTotals:new Map()};vm.createContext(context);vm.runInContext(fn(agenda,'patientPaymentHighlight'),context);
+for(const [income,expected] of [[1299.99,false],[1300,true],[1300.01,true],[0,false],['1300',true],[undefined,false],[NaN,false]])assert.equal(context.patientPaymentHighlight({income}),expected);
+assert.equal(context.patientPaymentHighlight({income:1200,debt:9000}),false);
+assert.equal(context.patientPaymentHighlight(null),false);
+assert.equal((agenda.match(/class="\$\{appointmentPaymentClass\(a\)\}"/g)||[]).length,2);
+assert(agenda.lastIndexOf('src="./patient-payment-highlight.js?v=1"')>agenda.lastIndexOf('</script>')-100);
+(async()=>{
+const {chromium}=require('playwright');const browser=await chromium.launch({headless:true,executablePath:'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'});
+try{const page=await browser.newPage({viewport:{width:1250,height:650}});await page.route('**/*',route=>route.abort());
+await page.setContent('<style>'+[...agenda.matchAll(/<style[^>]*>([\s\S]*?)<\/style>/g)].map(m=>m[1]).join('\n')+'</style><h2>Pacientes ficticios · comprobación visual</h2><select id="patientPageSize"><option>25</option></select><span id="patientTotal"></span><span id="patientPageInfo"></span><button id="patientPrevPage">Anterior</button><button id="patientNextPage">Siguiente</button><table class="patients-table"><thead><tr><th>Foto</th><th>Nombre</th><th>Primer apellido</th><th>Segundo apellido</th><th>Móvil</th><th>Email</th><th>Categoría</th><th>Fecha</th><th>Código</th><th>Pagos</th><th>Deuda</th></tr></thead><tbody id="patientsTableBody"></tbody></table><h2 id="dName">Paciente ficticio</h2>');
+await page.evaluate(source=>{window.patientPaymentTotals=new Map();window.patientMaster=[{remoteId:'a',code:'1',name:'Prueba Debajo Umbral',income:1299.99},{remoteId:'b',code:'2',name:'Prueba Exactamente Umbral',income:1300},{remoteId:'c',code:'3',name:'Prueba Supera Umbral',income:2000}];window.patientListPage=1;window.updatePatientSortHeaders=()=>{};window.filteredPatientMaster=()=>patientMaster;window.validPatientPhoto=()=>false;window.hesc=v=>String(v??'').replace(/[&<>"']/g,'');window.render=()=>{};window.appointments=[];window.selectedId='';window.eval(source);renderPatientsTable()},fn(agenda,'patientPaymentHighlight')+'\n'+fn(agenda,'patientNameColumns')+'\n'+fn(agenda,'renderPatientsTable'));
+const colors=()=>page.locator('#patientsTableBody tr td:nth-child(2) b').evaluateAll(nodes=>nodes.map(n=>getComputedStyle(n).color));
+assert.deepEqual((await colors()).map(c=>c==='rgb(180, 35, 24)'),[false,true,true]);
+await page.screenshot({path:path.join(root,'payment-highlight-synthetic.png')});
+await page.evaluate(()=>{window.requests=[];window.newTotal=1300;window.atlasCentralRequest=async action=>{requests.push(action);return [{id:'a',income:newTotal},{id:'b',income:1300},{id:'c',income:2000}]}});
+await page.addScriptTag({content:fs.readFileSync(path.join(root,'modules/patient-payment-highlight.js'),'utf8')});
+await page.evaluate(()=>window.postMessage({type:'atlas:central-payments-changed'},'*'));await page.waitForTimeout(600);
+assert.equal((await colors())[0],'rgb(180, 35, 24)');assert.equal(await page.evaluate(()=>patientMaster[0].income),1299.99);
+await page.evaluate(()=>{newTotal=1299;window.postMessage({type:'atlas:budget-payment-recorded'},'*')});await page.waitForTimeout(600);assert.notEqual((await colors())[0],'rgb(180, 35, 24)');assert.deepEqual(await page.evaluate(()=>requests),['patients:list','patients:list']);
+// La ficha usa los cobros del resumen, nunca totalSales (que incluye pendientes).
+assert(ficha.includes("data.collected!=null&&Number(data.collected)>=1300"));
+console.log(JSON.stringify({inlineScriptsValid:scripts,thresholdCases:10,screen:'directory actual renderer, synthetic patients, all network blocked',liveEvents:'crossing and refund below threshold; read-only actions only'}));
+}finally{await browser.close()}})().catch(e=>{console.error(e);process.exitCode=1});

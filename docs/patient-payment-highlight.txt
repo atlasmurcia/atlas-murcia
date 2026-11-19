@@ -1,0 +1,43 @@
+Murcia — nombre rojo por cobros acumulados desde 1.300 € (19/11/2026)
+
+Regla visual inclusiva (>= 1300): nombre y apellidos del directorio,
+nombre en citas de agenda y detalle de cita, y título de la ficha.
+Usa income de patients:list, que incorpora el histórico y los cobros
+posteriores al corte sin duplicar. En la ficha usa collected del resumen
+existente, no totalSales (incluye pendientes) ni importe presupuestado.
+No cambia el cálculo financiero ni tarifas del Club, ni guarda marcas,
+ni escribe pacientes, pagos, citas, presupuestos o configuración.
+La actualización visual de agenda guarda totales en un mapa de pantalla
+independiente; no cambia siquiera los valores del paciente en memoria.
+
+Retroactividad: al cargar el directorio completo se evalúan todos sus
+pacientes, sin limitar por fecha de pago, creación o página visible.
+Los nuevos cobros/cambios disparan una lectura y repintado con debounce;
+al volver a la ventana o recuperar la conexión se vuelve a comprobar.
+La ficha reutiliza su actualización existente por eventos y cada minuto.
+Las consultas fallidas conservan el último resultado y se reintentan con
+el siguiente evento o al volver a la ventana. No hay migración de datos.
+
+Verificación: sintaxis de 189 scripts en línea; 10 casos de umbral,
+renderer real del directorio en Chrome con datos ficticios y red bloqueada;
+cruce de umbral y bajada tras devolución, acciones exclusivamente de
+lectura y valores del paciente conservados; regresiones de indicadores y
+refresco de ficha (cambio de paciente, respuesta tardía, error y reintento).
+Comprobación visual de captura payment-highlight-synthetic.png.
+No se han consultado registros reales ni contado pacientes afectados.
+
+Alicante: código publicado consultado sin sesión; agenda.html y ficha.html
+coinciden exactamente con main 9c7d5a11ce269fce1027219f70aa8b08bdd5055f.
+Conserva patientInvoiceAlert >=1300 basado en collectedTotal/income,
+clase patient-invoice-alert #b42318 en directorio y agenda y título de ficha.
+No se modifica Alicante. La comprobación confirma código publicado,
+no una sesión clínica con datos reales.
+
+Murcia: base 2395923e7428f0090938c48b9f439729e2d8665a;
+atlas.html publicado coincide exactamente con la base comprobada.
+Se integra también main 3ef9b3f2ad0380e9ad85b73bf474485b55cc3241,
+conservando la mejora simultánea de alergias en mayúsculas (#168).
+Propuesta https://github.com/atlasmurcia/atlas-murcia/pull/169.
+Preparado en rama independiente y PR; publicación pendiente de autorización
+expresa como excepción a la prohibición Cloud del AGENTS.md del espacio.
+Recepción: después de publicar, recargar Murcia. No hay correcciones manuales.
