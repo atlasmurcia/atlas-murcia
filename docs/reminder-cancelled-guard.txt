@@ -1,0 +1,41 @@
+Murcia — respuestas de recordatorios sobre citas canceladas
+
+Problema reproducido con datos ficticios: appointmentReminders:respond podía
+escribir whatsappConfirmationStatus=confirmed en una cita cuyo estado seguía
+siendo cancelled. El fallback de una lista diaria vacía volvía a seleccionar
+esa cita. Si había otras citas activas ese día, podía escribir sobre ellas
+aunque el recordatorio seleccionado correspondiera a una cita cancelada.
+La pantalla priorizaba los metadatos de confirmación y mostraba Confirmado.
+
+Corrección:
+- Rechazar la operación si la cita seleccionada está cancelada y explicar
+  que debe restablecerse desde Citas canceladas antes de registrar respuesta.
+- Exigir que la cita seleccionada siga en la lista activa del día.
+- Condicionar cada escritura a que siga sin cancelar, no esté borrada y
+  conserve su updated_at. Un cambio concurrente devuelve error para revisión.
+- Dar prioridad visual al estado cancelled: Cita cancelada, sin botones de
+  confirmar/no confirmar ni inclusión en contador o filtro Confirmados.
+- Agenda v222 para cargar la pantalla nueva.
+
+Validación:
+15 escenarios sintéticos: ambas respuestas, cita cancelada sola o con otras
+citas, confirmaciones activas, exclusión de otra clínica, cancelación/edición/
+borrado concurrentes, desaparición de la lista diaria, errores de lectura,
+entrada inválida y error visible si cambia un elemento de un grupo.
+La fuente anterior reproduce una escritura de confirmación en cita cancelada.
+139 scripts de Entrada y Agenda analizados sin error de sintaxis.
+Chrome ejecuta el renderer real de recordatorios y el manejador corregido con
+datos ficticios; botones, etiqueta, contador, filtro y aviso ante cancelación
+concurrente comprobados. Todas las conexiones bloqueadas, sin errores de página.
+
+Los cambios son de interfaz y del registro manual de respuestas. No cambian
+el horario, destinatario, plantilla ni política del servicio de envíos.
+No reparan citas ya canceladas ni reactivan trabajos descartados.
+El grupo conserva las escrituras independientes anteriores: si cambia una
+cita concurrentemente, otras del grupo pueden haberse guardado; se avisa de
+error y se pide actualizar y revisar las respuestas.
+
+Publicación autorizada expresamente por la usuaria solo en Murcia.
+Tras publicar: recargar ATLAS Murcia.
+Para recuperar una cita ya cancelada, recepción debe comprobar el hueco y
+restablecer la misma cita desde Citas canceladas. No crear un duplicado.

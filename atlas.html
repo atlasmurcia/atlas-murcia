@@ -47,7 +47,7 @@
 })();
 </script><script>
 const agendaFrame=document.getElementById('agendaFrame'),fichaFrame=document.getElementById('fichaFrame'),financeFrame=document.getElementById('financeFrame'),commissionsFrame=document.getElementById('commissionsFrame'),marketingFrame=document.getElementById('marketingFrame'),stage=document.getElementById('stage');
-const atlasModulePaths={agenda:'./modules/agenda.html?v=221&menuNotice=20261117&flowSave=20261118',ficha:'./modules/ficha.html?v=143',finance:'./modules/finance.html?v=100',commissions:'./modules/commissions.html?v=99',marketing:'./modules/marketing.html?v=3'};
+const atlasModulePaths={agenda:'./modules/agenda.html?v=222&menuNotice=20261117&flowSave=20261118',ficha:'./modules/ficha.html?v=143',finance:'./modules/finance.html?v=100',commissions:'./modules/commissions.html?v=99',marketing:'./modules/marketing.html?v=3'};
 const atlasModuleFrames={agenda:agendaFrame,ficha:fichaFrame,finance:financeFrame,commissions:commissionsFrame,marketing:marketingFrame};
 const atlasLoadedModules=new Set();
 let atlasVisibleModule='';
@@ -351,9 +351,10 @@ async function atlasAllRows(make){const rows=[];for(let from=0;from<30000;from+=
       if(!p.appointmentId||!response){
         result={data:null,error:{message:'La respuesta de la cita no es válida.'}};
       }else{
-        const current=await db.from('appointments').select('id,patient_id,starts_at,metadata').eq('id',p.appointmentId).eq('organization_id',context.organizationId).eq('clinic_id',context.clinicId).is('deleted_at',null).maybeSingle();
+        const current=await db.from('appointments').select('id,patient_id,starts_at,status,updated_at,metadata').eq('id',p.appointmentId).eq('organization_id',context.organizationId).eq('clinic_id',context.clinicId).is('deleted_at',null).maybeSingle();
         if(current.error)result=current;
         else if(!current.data)result={data:null,error:{message:'No se encuentra la cita asociada al recordatorio.'}};
+        else if(current.data.status==='cancelled')result={data:null,error:{message:'Esta cita está cancelada. Si debe volver a la agenda, restablécela desde Citas canceladas antes de registrar la respuesta.'}};
         else{
           const patientIds=await reminderPatientIds(current.data.patient_id);
           if(patientIds.error)result=patientIds;
@@ -361,13 +362,14 @@ async function atlasAllRows(make){const rows=[];for(let from=0;from<30000;from+=
             const reminderDate=agendaDateString(new Date(current.data.starts_at));
             const dayStart=agendaLocalIso(reminderDate,'00:00');
             const dayEnd=agendaLocalIso(agendaDateAdd(reminderDate,1),'00:00');
-            const dayAppointments=await db.from('appointments').select('id,status,metadata').in('patient_id',patientIds.data).eq('organization_id',context.organizationId).eq('clinic_id',context.clinicId).is('deleted_at',null).neq('status','cancelled').gte('starts_at',dayStart).lt('starts_at',dayEnd).order('starts_at',{ascending:true});
+            const dayAppointments=await db.from('appointments').select('id,status,updated_at,metadata').in('patient_id',patientIds.data).eq('organization_id',context.organizationId).eq('clinic_id',context.clinicId).is('deleted_at',null).neq('status','cancelled').gte('starts_at',dayStart).lt('starts_at',dayEnd).order('starts_at',{ascending:true});
             if(dayAppointments.error)result=dayAppointments;
             else{
               const now=new Date().toISOString();
               const reason=String(p.reason||'').trim();
               const rows=dayAppointments.data||[];
-              const targetRows=rows.length?rows:[{id:current.data.id,status:null,metadata:current.data.metadata||{}}];
+              if(!rows.some(appointment=>appointment.id===current.data.id))throw new Error('La cita ha cambiado. Actualiza Automatismos antes de registrar la respuesta.');
+              const targetRows=rows;
               const updates=await Promise.all(targetRows.map(async appointment=>{
                 const meta={...(appointment.metadata||{})};
                 const history=Array.isArray(meta.whatsappResponseHistory)?meta.whatsappResponseHistory.slice(-19):[];
@@ -384,10 +386,10 @@ async function atlasAllRows(make){const rows=[];for(let from=0;from<30000;from+=
                   delete meta.whatsappConfirmationAt;
                 }
                 meta.whatsappResponseHistory=[...history,{at:now,response,reason:reason||null,by:context.userId||null}];
-                return db.from('appointments').update({metadata:meta,updated_at:now}).eq('id',appointment.id).eq('organization_id',context.organizationId).eq('clinic_id',context.clinicId).is('deleted_at',null).select('id,status,metadata').single();
+                return db.from('appointments').update({metadata:meta,updated_at:now}).eq('id',appointment.id).eq('organization_id',context.organizationId).eq('clinic_id',context.clinicId).is('deleted_at',null).neq('status','cancelled').eq('updated_at',appointment.updated_at).select('id,status,metadata').single();
               }));
               const failed=updates.find(update=>update.error);
-              result=failed||{data:updates.map(update=>update.data),error:null};
+              result=failed?.error?.code==='PGRST116'?{data:null,error:{message:'Una cita ha cambiado o se ha cancelado. Actualiza Automatismos y revisa las respuestas antes de continuar.'}}:failed||{data:updates.map(update=>update.data),error:null};
             }
           }
         }
