@@ -1,0 +1,45 @@
+ATLAS Murcia — botón WhatsApp en el detalle de cita (19/11/2026)
+
+Causa: agenda.html cargaba ../appointment-whatsapp-copy.js, ausente del
+repositorio. showTemplate invocaba un objeto inexistente y abortaba el clic.
+Además, fillWaTokens accedía a company fuera de su ámbito cuando no había
+cuenta manual, y el selector de paciente ignoraba patientRemoteId.
+
+Corrección candidata, sin publicar:
+- Apertura directa de wa.me con el teléfono de la ficha y la plantilla manual
+  configurada (manualText; en su defecto, waDefaultReminder ya existente).
+  Se completan las variables de la cita seleccionada y de esa misma ficha.
+- Se retira el selector de las tres plantillas cuyo archivo falta; no se
+  reconstruyen sus textos ni se cambian las plantillas automáticas.
+- Prioridad de identidad: ID vinculado; si falta ID, código. Solo sin ambos
+  se admite un nombre exacto y único. Un ID sin resolver nunca cae por nombre.
+- Si la ficha aún no está en memoria, patients:resolve recupera exclusivamente
+  su ID/código. No guarda citas, pacientes ni configura el servidor.
+- Prefijo español automático, prefijos internacionales y 00; rechazo de
+  teléfono vacío, demasiado corto/largo, con extensiones o varios números.
+- Apertura síncrona para ficha cargada. Con consulta pendiente, se reserva
+  ventana durante el clic y se comprueba que la cita sigue seleccionada.
+- Con número inválido o bloqueo de ventanas se presenta el panel de revisión
+  con explicación y, si corresponde, un enlace ordinario a WhatsApp.
+- No se envía ningún mensaje: se revisa y se envía dentro de WhatsApp.
+  No se crea un registro de mensaje enviado ni se cambia la cola automática.
+
+Validación:
+- Chrome con la agenda completa, pacientes ficticios, funciones de apertura
+  simuladas y red externa bloqueada. tests/appointment-whatsapp.cjs.
+- Pendiente, Confirmada, Ha llegado, Realizada, No se presentó y Cancelada.
+- Plantilla con caracteres especiales, email correcto entre homónimos,
+  formatos españoles/internacionales, número ausente/inválido, ventanas
+  bloqueadas, ficha no cargada, consulta rechazada, ID devuelto incorrecto
+  y cambio de cita durante la consulta.
+- Sintaxis de los 139 scripts en atlas.html y agenda.html; regresión del
+  resumen del detalle: tests/appointment-drawer-current-route.cjs.
+- Revisión visual: whatsapp-appointment-synthetic.png y
+  whatsapp-fallback-synthetic.png (archivos locales, no incluidos en Git).
+
+Publicación pendiente de autorización expresa según las instrucciones del
+espacio: publicación y comunicaciones con pacientes requieren validación
+específica. Si se aprueba y publica: recargar ATLAS Murcia (Agenda v220), abrir
+una cita y comprobar la apertura en el equipo con WhatsApp/WhatsApp Web.
+La entrega al sistema WhatsApp real no se prueba desde esta copia aislada.
+No se consultó el CRM real ni se contactó con pacientes. Alicante no cambia.

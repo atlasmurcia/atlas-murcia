@@ -1376,7 +1376,7 @@ function waDailyAppointments(a){const key=waPatientDayKey(a);return appointments
 function isFirstWhatsappAppointmentOfDay(a){const first=waDailyAppointments(a)[0];return !!first&&String(first.id)===String(a.id)}
 function whatsappDailySummary(a){const day=waDailyAppointments(a),first=day[0]||a,therapies=[...new Set(day.flatMap(x=>(x.therapies||x.services||[x.therapy]).filter(Boolean)))],professionals=[...new Set(day.map(x=>x.professional||x.therapist).filter(Boolean))];return {...first,therapies,duration:day.reduce((n,x)=>n+Number(x.duration||0),0)||first.duration,professional:professionals.join(' + ')}}
 function buildWhatsappReminderQueue(date){const firstByPatient=new Map();appointments.filter(a=>a.date===date&&a.status!=='Cancelada').sort((x,y)=>String(x.start||x.time||'').localeCompare(String(y.start||y.time||''))).forEach(a=>{const key=waPatientDayKey(a);if(!firstByPatient.has(key))firstByPatient.set(key,whatsappDailySummary(a))});return [...firstByPatient.values()]}
-function fillWaTokens(text,a){const p=patientMaster.find(p=>String(p.code)===String(a.patientCode))||patientMaster.find(p=>normalizeSearch(p.name)===normalizeSearch(a.patient))||{};const services=(a.therapies||a.services||[a.therapy]).filter(Boolean).join(' + '),clinicPhone=waConfig().account||company?.center?.appointmentPhone||company?.center?.phone||'el teléfono habitual de la clínica';return String(text||'').replaceAll('[CENTRO]','ATLAS Clínica Murcia').replaceAll('[CLIENTE]',a.patient||p.name||'Paciente').replaceAll('[FECHA]',a.date||'').replaceAll('[HORA]',a.start||a.time||'').replaceAll('[SERVICIOS]',services||'Tratamiento').replaceAll('[DURACION]',String(a.duration||'')).replaceAll('[EMPLEADO]',a.professional||a.therapist||'').replaceAll('[TELEFONO]',clinicPhone).replaceAll('[EMAIL]',p.email||'')}
+function fillWaTokens(text,a,linkedPatient){let company={};try{company=JSON.parse(localStorage.getItem('atlasAlicanteCompanyConfig_V1')||'{}')||{}}catch(error){}const p=linkedPatient||patientMaster.find(p=>String(p.code)===String(a.patientCode))||patientMaster.find(p=>normalizeSearch(p.name)===normalizeSearch(a.patient))||{};const services=(a.therapies||a.services||[a.therapy]).filter(Boolean).join(' + '),clinicPhone=waConfig().account||company?.center?.appointmentPhone||company?.center?.phone||'el teléfono habitual de la clínica';return String(text||'').replaceAll('[CENTRO]','ATLAS Clínica Murcia').replaceAll('[CLIENTE]',a.patient||p.name||'Paciente').replaceAll('[FECHA]',a.date||'').replaceAll('[HORA]',a.start||a.time||'').replaceAll('[SERVICIOS]',services||'Tratamiento').replaceAll('[DURACION]',String(a.duration||'')).replaceAll('[EMPLEADO]',a.professional||a.therapist||'').replaceAll('[TELEFONO]',clinicPhone).replaceAll('[EMAIL]',p.email||'')}
 function testWaMessage(){const c=waConfig(),a=whatsappDailySummary(waExampleAppointment()),p=patientMaster.find(p=>String(p.code)===String(a.patientCode))||{};whatsappSent.push({id:String(Date.now()),date:new Date().toISOString(),message:fillWaTokens(c.manualText,a),phone:p.phone||'',patient:a.patient||p.name||'Paciente',type:'Prueba manual',status:'Simulado'});persistMarketing();alert('Mensaje único del día generado y registrado en WhatsApps enviados.')}
 function openAppointmentWhatsapp(){const a=appointments.find(x=>x.id===selectedId);if(!a)return;const p=patientMaster.find(p=>String(p.code)===String(a.patientCode))||patientMaster.find(p=>normalizeSearch(p.name)===normalizeSearch(a.patient))||{},phone=String(p.phone||a.phone||'').replace(/\D/g,''),message=fillWaTokens(waConfig().manualText||waDefaultReminder,a);if(!phone){alert('Este paciente no tiene un móvil registrado.');return}whatsappSent.push({id:String(Date.now()),date:new Date().toISOString(),message,phone,patient:a.patient,type:'Manual desde cita',status:'Preparado'});persistMarketing();window.open(`https://wa.me/${phone}?text=${encodeURIComponent(message)}`,'_blank')}
 function renderWaTemplates(){const c=waConfig();document.getElementById('waPanel').innerHTML=`<div class="callout">Personaliza los recordatorios y confirmaciones. La vista previa utiliza una cita de ejemplo y se actualiza al escribir.</div><div class="wa-tabs"><button class="wa-tab active" id="waReminderTab" onclick="editWaSystemTemplate('reminder')">Recordatorio</button><button class="wa-tab" id="waConfirmationTab" onclick="editWaSystemTemplate('confirmation')">Confirmación</button></div><div id="waTemplateEditor"></div>`;editWaSystemTemplate('reminder')}
@@ -5023,55 +5023,69 @@ const kind=bombaKind(appointment);if(!kind)return;const nextResources=[...new Se
   <h2 id="atlasAppointmentWhatsappTitle">Enviar WhatsApp de la cita</h2>
   <div id="atlasAppointmentWhatsappPatient"></div>
   <label>Teléfono del paciente<input id="atlasAppointmentWhatsappPhone" type="tel" inputmode="tel" autocomplete="tel"></label>
-  <label>Tipo de mensaje<select id="atlasAppointmentWhatsappKind"><option value="first">Confirmación · primera visita</option><option value="returning">Confirmación · ya ha acudido</option><option value="dayBefore">Confirmar cita de mañana</option></select></label>
   <label>Mensaje preparado<textarea id="atlasAppointmentWhatsappMessage"></textarea></label>
   <div id="atlasAppointmentWhatsappStatus"></div>
   <div id="atlasAppointmentWhatsappActions">
    <button id="atlasAppointmentWhatsappCopy" type="button">Copiar mensaje</button>
-   <button id="atlasAppointmentWhatsappClose" type="button">Cancelar</button>
+   <button id="atlasAppointmentWhatsappClose" type="button">Cerrar</button>
    <button id="atlasAppointmentWhatsappOpen" class="primary" type="button">💬 Abrir WhatsApp</button>
   </div>
  </section>
 </div>
-<script src="../appointment-whatsapp-copy.js?v=1"></script>
 <script id="atlas-v136-appointment-whatsapp">
 (()=>{
- const back=document.getElementById('atlasAppointmentWhatsappBack'),patientText=document.getElementById('atlasAppointmentWhatsappPatient'),phoneInput=document.getElementById('atlasAppointmentWhatsappPhone'),kindInput=document.getElementById('atlasAppointmentWhatsappKind'),messageInput=document.getElementById('atlasAppointmentWhatsappMessage'),status=document.getElementById('atlasAppointmentWhatsappStatus');
- let currentAppointment=null;
- const patientFor=appointment=>patientMaster.find(patient=>String(patient.code)===String(appointment.patientCode))||patientMaster.find(patient=>normalizeSearch(patient.name)===normalizeSearch(appointment.patient))||{};
- const normalizePhone=value=>{let phone=String(value||'').replace(/\D/g,'');if(phone.startsWith('00'))phone=phone.slice(2);if(phone.length===9&&/^[6789]/.test(phone))phone='34'+phone;return phone};
- const showTemplate=()=>{if(!currentAppointment)return;messageInput.value=window.atlasAppointmentWhatsappCopy.render(kindInput.value,currentAppointment,patientFor(currentAppointment))};
- const showStatus=(message,type='info',link='')=>{status.className=type;status.innerHTML='';status.append(document.createTextNode(message));if(link){status.append(document.createTextNode(' '));const anchor=document.createElement('a');anchor.href=link;anchor.target='_blank';anchor.rel='noopener';anchor.textContent='Abrir WhatsApp ahora';status.append(anchor)}};
+ const back=document.getElementById('atlasAppointmentWhatsappBack'),patientText=document.getElementById('atlasAppointmentWhatsappPatient'),phoneInput=document.getElementById('atlasAppointmentWhatsappPhone'),messageInput=document.getElementById('atlasAppointmentWhatsappMessage'),status=document.getElementById('atlasAppointmentWhatsappStatus');
+ let currentAppointment=null,opening=false;
+ const patientFor=appointment=>{
+  const id=String(appointment.patientRemoteId||appointment.patient_id||'').trim(),code=String(appointment.patientCode||'').trim();
+  if(id)return patientMaster.find(patient=>String(patient.remoteId||'')===id)||null;
+  if(code)return patientMaster.find(patient=>String(patient.code||'')===code)||null;
+  const name=normalizeSearch(appointment.patient||'').trim(),matches=name?patientMaster.filter(patient=>normalizeSearch(patient.name||'').trim()===name):[];
+  return matches.length===1?matches[0]:null;
+ };
+ const normalizePhone=value=>{const raw=String(value||'').trim();if(!/^[+\d\s().-]+$/.test(raw))return '';let phone=raw.replace(/\D/g,'');if(phone.startsWith('00'))phone=phone.slice(2);if(phone.length===9&&/^[6789]/.test(phone))phone='34'+phone;return /^[1-9]\d{9,14}$/.test(phone)?phone:''};
+ const showStatus=(message,type='info',link='')=>{status.className=type;status.textContent=message;if(link){status.append(document.createTextNode(' '));const anchor=document.createElement('a');anchor.href=link;anchor.target='_blank';anchor.rel='noopener';anchor.textContent='Abrir WhatsApp ahora';status.append(anchor)}};
  const close=()=>{back.classList.remove('open');currentAppointment=null;status.className='';status.textContent=''};
+ const openPrepared=reserved=>{
+  const phone=normalizePhone(phoneInput.value),message=messageInput.value.trim();
+  if(!phone){if(reserved)reserved.close();back.classList.add('open');showStatus('El teléfono falta o no es válido. Revisa el número y su prefijo internacional; los números españoles de 9 cifras llevan +34 automáticamente.','error');return}
+  const url=`https://wa.me/${phone}${message?'?text='+encodeURIComponent(message):''}`;
+  let opened=reserved;
+  try{if(opened){opened.opener=null;opened.location.href=url}else{opened=window.open(url,'_blank');if(opened)opened.opener=null}}catch(error){if(opened)opened.close();opened=null}
+  if(!opened){back.classList.add('open');showStatus('El navegador ha bloqueado la apertura. Pulsa este enlace para continuar.','error',url);return}
+  back.classList.remove('open');
+ };
  window.openAppointmentWhatsapp=async function(){
+  if(opening)return;
   const appointment=appointments.find(item=>String(item.id)===String(selectedId));
   if(!appointment){alert('No se ha encontrado la cita seleccionada. Vuelve a seleccionarla e inténtalo de nuevo.');return}
-  const patient=patientFor(appointment),phone=patient.phone||appointment.phone||'';
-  currentAppointment=appointment;patientText.textContent=`${appointment.patient||patient.name||'Paciente'} · ${appointment.date||''} a las ${appointment.start||appointment.time||''}`;phoneInput.value=phone;kindInput.value='first';showTemplate();status.className='';status.textContent='';back.classList.add('open');setTimeout(()=>phone?messageInput.focus():phoneInput.focus(),0);
-  if(!patient.remoteId||typeof window.atlasCentralRequest!=='function')return;
-  const initialText=messageInput.value;
-  try{const before=localIso(appointment.date,appointment.start||appointment.time),hasPrior=await window.atlasCentralRequest('appointments:hasPriorAttendance',{patientId:patient.remoteId,before});if(currentAppointment===appointment&&kindInput.value==='first'&&messageInput.value===initialText&&hasPrior===true){kindInput.value='returning';showTemplate()}}
-  catch(error){console.warn('No se pudo comprobar la asistencia previa para el mensaje de cita',error)}
+  opening=true;let reserved=null;
+  try{
+   let patient=patientFor(appointment);
+   const id=String(appointment.patientRemoteId||appointment.patient_id||'').trim(),code=String(appointment.patientCode||'').trim();
+   if(!patient&&(id||code)){
+    if(typeof window.atlasCentralRequest!=='function')throw new Error('No se ha podido recuperar la ficha vinculada. Vuelve a intentarlo cuando termine de cargar.');
+    reserved=window.open('about:blank','_blank');if(reserved)reserved.opener=null;
+    const row=await window.atlasCentralRequest('patients:resolve',id?{id}:{patientNumber:code});
+    if(!row||(id&&String(row.id)!==id)||(!id&&String(row.patient_number)!==code))throw new Error('No se ha encontrado la ficha vinculada a esta cita.');
+    patient=patientFromResolvedRow(row);
+   }
+   if(!patient)throw new Error('No se puede identificar al paciente de forma inequívoca. Vincula su ficha antes de abrir WhatsApp.');
+   if(String(selectedId)!==String(appointment.id)){if(reserved)reserved.close();return}
+   currentAppointment=appointment;patientText.textContent=`${patient.name||appointment.patient||'Paciente'} · ${appointment.date||''} a las ${appointment.start||appointment.time||''}`;
+   phoneInput.value=patient.phone||'';
+   messageInput.value=fillWaTokens(waConfig().manualText||waDefaultReminder,{...appointment,patient:patient.name||appointment.patient},patient);
+   status.className='';status.textContent='';openPrepared(reserved);
+  }catch(error){if(reserved)reserved.close();alert('No se ha podido abrir WhatsApp. '+error.message)}finally{opening=false}
  };
- kindInput.onchange=showTemplate;
  document.getElementById('waAppointmentBtn').onclick=event=>{event.preventDefault();window.openAppointmentWhatsapp()};
  document.getElementById('atlasAppointmentWhatsappClose').onclick=close;
  back.addEventListener('click',event=>{if(event.target===back)close()});
  document.getElementById('atlasAppointmentWhatsappCopy').onclick=async()=>{try{await navigator.clipboard.writeText(messageInput.value);showStatus('Mensaje copiado.','info')}catch(error){messageInput.select();document.execCommand('copy');showStatus('Mensaje copiado.','info')}};
- document.getElementById('atlasAppointmentWhatsappOpen').onclick=()=>{
-  if(!currentAppointment)return showStatus('La cita ya no está seleccionada. Cierra esta ventana y vuelve a abrirla.','error');
-  const phone=normalizePhone(phoneInput.value),message=messageInput.value.trim();
-  if(!phone)return showStatus('Este paciente no tiene un teléfono móvil. Añádelo aquí o en su ficha para abrir WhatsApp.','error');
-  if(phone.length<11)return showStatus('Revisa el teléfono. Debe incluir el prefijo internacional; para España ATLAS añade +34 automáticamente.','error');
-  if(!message)return showStatus('Escribe el mensaje que quieres preparar.','error');
-  const url=`https://wa.me/${phone}?text=${encodeURIComponent(message)}`,opened=window.open(url,'_blank');
-  if(!opened){showStatus('Chrome ha bloqueado la nueva ventana.','error',url);return}
-  try{opened.opener=null}catch(error){}
-  try{whatsappSent.push({id:String(Date.now()),date:new Date().toISOString(),message,phone,patient:currentAppointment.patient,type:'Manual desde cita',status:'Preparado'});persistMarketing()}catch(error){console.warn('No se pudo registrar el mensaje preparado',error)}
-  showStatus('WhatsApp se ha abierto con el mensaje preparado. Revísalo allí antes de enviarlo.','info');
- };
+ document.getElementById('atlasAppointmentWhatsappOpen').onclick=()=>{if(currentAppointment)openPrepared(null)};
 })();
 </script>
+
 <style id="atlas-v136-whatsapp-automation-style">
 #marketingNav{display:block}
 .atlas-wa-status{display:flex;align-items:center;gap:10px;padding:12px;border-radius:12px;margin-bottom:12px;border:1px solid #f0c66b;background:#fff8e6;color:#73500c}
