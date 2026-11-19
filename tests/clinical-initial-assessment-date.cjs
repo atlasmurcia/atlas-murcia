@@ -5,7 +5,7 @@ const {test}=require('node:test');
 const source=fs.readFileSync('modules/ficha.html','utf8');
 const definitions=source.slice(source.indexOf('function clinicalInitialAssessmentDate('),source.indexOf('let clinicalRecognition='));
 function fixture(history={}){
- const context={patientRecord:{clinicalHistory:history,consultations:[]},clinicalBackground:{value:'Antecedentes de prueba'},clinicalDiagnosis:{value:'Valoración de prueba'},clinicalAlerts:{value:''},clinicalGoals:{value:''},clinicalOwner:{value:'Profesional de prueba'},clinicalHistorySummary:{innerHTML:''},clinicalConsultations:{innerHTML:''},escapeHtml:s=>String(s),fmtDateTime:s=>s||'Sin registrar',writePatientRecord:()=>{},Date};
+ const context={patientRecord:{clinicalHistory:history,consultations:[]},clinicalBackground:{value:'Antecedentes de prueba'},clinicalDiagnosis:{value:'Valoración de prueba'},clinicalAlerts:{value:''},clinicalTherapy:{value:''},clinicalGoals:{value:''},clinicalOwner:{value:'Profesional de prueba'},clinicalHistorySummary:{innerHTML:''},clinicalConsultations:{innerHTML:''},escapeHtml:s=>String(s),fmtDateTime:s=>s||'Sin registrar',writePatientRecord:()=>{},Date};
  vm.createContext(context);vm.runInContext(definitions,context);return context;
 }
 test('Muestra primero la fecha de la valoración, antes de los antecedentes',()=>{
