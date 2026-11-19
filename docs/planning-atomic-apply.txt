@@ -1,0 +1,73 @@
+MURCIA: guardado completo de planes de tratamiento
+
+Problema y causa reproducida
+El planificador solo recuperaba las citas del paciente fuera de la ventana local
+de agenda. Una reserva futura de equipo/profesional podía no estar en memoria.
+Al aprobar, applyPlanningDraft incorporaba todas las filas localmente y anunciaba
+éxito sin esperar el guardado. appointments:upsertMany ejecuta escrituras separadas;
+si una falla, las anteriores no se revierten. El reintento por filas puede dejar
+un plan parcial. Prueba sintética: 62 filas, dos equipos ocupados -> 60 guardadas.
+No se afirma que exista un registro del error original de un caso clínico real.
+
+Cambio
+- Disponibilidad futura paginada de toda la clínica antes de calcular y antes
+  de aprobar. Solo horarios, recursos y profesionales: sin pacientes, contactos,
+  notas o tratamientos ajenos. Se conserva la separación por clínica/organización.
+- Nueva función de servidor atlas_apply_treatment_plan: una transacción para todo
+  el plan, con un bloqueo breve de escritura y el bloqueo de clínica existente.
+  El bloqueo de escritura cubre también los guardados antiguos de Alicante;
+  las lecturas siguen disponibles y la espera del bloqueo se limita a 5 segundos.
+  Conserva los permisos y RLS existentes; SECURITY INVOKER. No usa claves elevadas.
+- Una incidencia revierte todas las citas de esa operación. No hay alternativa
+  automática de guardado por filas si falta la función o falla el servidor.
+- Confirma cantidad e identidad de todas las citas, horario, tratamientos,
+  profesionales y ocupación antes de incorporarlas a la agenda y anunciar éxito.
+- Reintento del mismo borrador tras una respuesta perdida: devuelve las citas
+  ya creadas, sin duplicarlas. Un plan previo incompleto requiere revisión.
+- Borrador visible mientras está pendiente/rechazado; no se puede sustituir por
+  otro durante el guardado. No se anuncia que no existen citas si el resultado
+  de un envío es incierto. Se bloquean clics repetidos y respuestas incompletas.
+- Agenda con recarga planningCommit=20261119; se conserva la adaptación clínica y las reglas de planificación.
+
+Validación exclusivamente sintética
+PostgreSQL local en memoria (PGlite 0.5.17), con RLS, autenticación simulada y copia
+del control de solapamientos preexistente de esta clínica. 62 filas y dos conflictos,
+rechazo intermedio/final, fallos de trigger, márgenes entre usos, permisos,
+aislamiento de clínica y paciente, planes previos/cancelados y reintentos.
+Flujo real de planificador -> serializador -> función SQL -> confirmación ->
+decodificador -> agenda local. Cero filas parciales ante rechazo.
+Rutas reales: más de 1.000 ocupaciones, fallo de una página, campos mínimos,
+clínica impuesta por la sesión y falta de función del servidor.
+Pantalla real del borrador en Chrome con red bloqueada: espera, rechazo visible,
+doble clic, reintento y confirmación final. Regresiones de reglas clínicas.
+
+Instalación autorizada expresamente por Gely
+1. Revisar e instalar server-proposals/planning-atomic-apply/database.sql en el
+   proyecto de esta clínica. Es una función nueva, sin modificar filas, políticas,
+   roles ni controles de solapamiento existentes. Necesita los mismos permisos
+   de agenda que el usuario ya tenía. No copiar datos entre clínicas.
+2. Comprobar existencia y SECURITY INVOKER mediante metadatos, sin crear pacientes
+   ni planes reales para verificar la instalación.
+3. Fusionar la propuesta de esta clínica, esperar Pages y verificar que entrada,
+   agenda y planning-commit.js públicos coinciden con los probados.
+4. Recargar y generar borradores nuevos. No volver a aplicar planes existentes.
+Si se publicase la pantalla sin la función, la aplicación de nuevos planes se
+bloquea de forma segura: no vuelve al guardado antiguo por filas.
+La instalación solo añade la función; no modifica citas ya existentes.
+El desarrollo y las pruebas de funcionamiento utilizan únicamente datos ficticios.
+
+Compatibilidad del servidor
+Si existe atlas_resource_capacity se conserva su capacidad; si no existe,
+se usa una unidad por equipo, igual que el control actual de Alicante.
+La prueba de Alicante se ejecuta sin ese helper para comprobar esta diferencia.
+
+Pruebas reproducibles
+Instalar PGlite 0.5.17 en un entorno de pruebas aislado y ejecutar:
+node tests/planning-atomic-database.cjs
+node tests/planning-atomic-frontend.cjs
+node tests/planning-atomic-routes.cjs
+node tests/planning-atomic-integration.cjs
+node tests/planning-all-professionals.cjs
+Para PGlite fuera de node_modules se puede indicar PGLITE_PATH.
+Con Playwright y Chrome disponibles, ejecutar tests/planning-atomic-screen.cjs.
+No hay conexiones clínicas en estas pruebas. Las capturas contienen datos ficticios.
