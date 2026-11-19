@@ -1036,7 +1036,7 @@ function professionalHoldHtml(a,column=''){
  const assigned=Object.entries(a.therapists||{}).filter(([,p])=>p===column).map(([s])=>s);
  const label=assigned.length?assigned.join(' + '):(a.therapy==='BRAINS'?'Poner Brains':a.therapy);
  const forced=a.forced?' forced':'';
- let statusClass=effectiveStatus(a)==='Conflicto'?' conflict':a.status==='Pendiente'?' pending':'';
+ let statusClass=effectiveStatus(a)==='Conflicto'?' conflict':['Pendiente','En sala'].includes(a.status)?' pending':'';
  if(a.status==='Cancelada')statusClass+=' cancelled';
  return `<div class="appt${statusClass}${forced}" style="top:${appointmentTop(a)}px;height:${height}px" data-id="${a.id}" data-column="${column}">
    <b title="${a.patient}">${shortPatient(a.patient)}</b>${label}<div class="small">${a.time} · ${dur}m profesional</div>
@@ -1048,7 +1048,7 @@ function shortPatient(name){
  return p[0]+' '+p[1];
 }
 function apptHtml(a,sim,column=''){
- let st=sim?'simulated':effectiveStatus(a)==='Conflicto'?'conflict':a.status==='Pendiente'?'pending':'';
+ let st=sim?'simulated':effectiveStatus(a)==='Conflicto'?'conflict':['Pendiente','En sala'].includes(a.status)?'pending':'';
  if(a.status==='Cancelada')st+=' cancelled';if(column==='Seguimientos')st+=' followup';if(column==='Recepción')st+=' reception';
  if(a.forced) st+=' forced';
  const slots=Math.max(1,Math.ceil(a.duration/15));
