@@ -1,0 +1,35 @@
+Murcia — fijar la cita al abrir Cancelar
+
+Fallo reproducido: abrir Cancelar para A, cambiar selectedId a B antes de
+confirmar y pulsar Confirmar cancelación enviaba la cancelación de B. El
+diálogo no mostraba paciente, fecha ni hora para identificar la cita elegida.
+La operación central también aceptaba cancelar una versión posterior a la
+que recepción había revisado.
+
+Corrección: el diálogo muestra paciente, fecha, horas, servicio y profesional.
+Conserva una instantánea de la cita al abrirse. Rechaza la operación si cambia
+la selección o cualquiera de esos datos y comprueba de nuevo la instantánea
+después de esperar la sincronización. La petición conserva la versión leída;
+el puente central comprueba esa versión antes de preparar las cancelaciones
+y al actualizar cada fila. Un reintento de una cancelación ya confirmada devuelve
+la misma cita, sin escrituras ni nueva gestión de reagendación. Cerrar el diálogo descarta la intención pendiente.
+
+La investigación de un incidente motivó esta revisión. El historial acredita
+una cancelación mediante sesión de recepción, con motivo de texto libre, y
+una comunicación de reagendación creada inmediatamente después. El recordatorio
+descartado fue posterior. Las trazas disponibles no guardan la selección de
+pantalla, por lo que no permiten atribuir ese incidente concreto al fallo de
+selección reproducido. No se presenta esa hipótesis como causa demostrada.
+
+Validación: 15 casos sintéticos de selección distinta, cambio de hora/versión,
+cita ausente, intención descartada, cancelación normal, cierre y reapertura,
+espera de sincronización y cambios en ambas fases de lectura y escritura.
+Chrome ejecuta el diálogo y manejadores reales con dos citas ficticias y red
+bloqueada: resumen, selección, reapertura, texto seguro y rechazo comprobados.
+Regresiones de confirmación de guardado, ruta del detalle y los 15 escenarios
+de citas canceladas desde recordatorios. Sintaxis de 139 scripts verificada.
+
+Agenda v223. Tras publicar, recargar ATLAS Murcia. No restablece, crea ni cambia
+citas reales durante la preparación y publicación; no se envían mensajes de
+prueba ni se cambian horarios, destinatarios o plantillas de WhatsApp.
+Conserva la mejora de #175 y Ficha v144 de #176. Alicante no cambia.
