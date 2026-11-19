@@ -35,6 +35,9 @@ no una sesión clínica con datos reales.
 
 Murcia: base 2395923e7428f0090938c48b9f439729e2d8665a;
 atlas.html publicado coincide exactamente con la base comprobada.
+Se integra también main 3ef9b3f2ad0380e9ad85b73bf474485b55cc3241,
+conservando la mejora simultánea de alergias en mayúsculas (#168).
+Propuesta https://github.com/atlasmurcia/atlas-murcia/pull/169.
 Preparado en rama independiente y PR; publicación pendiente de autorización
 expresa como excepción a la prohibición Cloud del AGENTS.md del espacio.
 Recepción: después de publicar, recargar Murcia. No hay correcciones manuales.
