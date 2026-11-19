@@ -1,0 +1,12 @@
+{
+  "name": "atlas-murcia-patient-merge-candidate",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Candidato de fusión transaccional de pacientes, solo pruebas sintéticas",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "test": "node merge-controller.test.cjs && node backend.test.cjs",
+    "preview": "node preview-server.cjs"
+  },
+  "devDependencies": { "@electric-sql/pglite": "0.3.14" }
+}

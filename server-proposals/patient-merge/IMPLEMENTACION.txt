@@ -1,0 +1,134 @@
+ATLAS MURCIA — CANDIDATO DE FUSIÓN TRANSACCIONAL
+17/11/2026
+
+ESTADO
+
+Implementación de servidor y pantalla probada en PostgreSQL local con datos
+ficticios. No instalada en la clínica. No es una certificación del esquema real.
+Sustituye el estado de la demostración inicial, que solo simulaba respuestas.
+
+Esta propuesta debe permanecer en borrador. No fusionar ni publicar hasta la
+validación específica del responsable del servidor. Las reglas de CLAUDE.md
+del repositorio reservan las operaciones con datos a Rubén.
+
+IMPLEMENTADO Y PROBADO
+
+- Transacción PostgreSQL única para reasignar registros al UUID principal.
+- Comparación con recuentos completos, última cita, decisiones por campo y
+  confirmación expresa. Se conservan originales en instantáneas protegidas.
+- Revisión ligada a usuario, pareja, clínica, contenido y caducidad.
+- Bloqueo conservador de escrituras durante cada transacción.
+- Verificación de cada fila transferida, sin copiar registros ni truncar a 1000.
+- Cancelación completa si falla un trigger o se altera información inesperada.
+- Conservación de IDs, profesionales, fechas de negocio, vínculos e importes.
+- Secundaria retenida y protegida, con referencia a la principal.
+- Resolución por UUID antiguo y búsqueda por identificadores anteriores en RPC.
+- Protección de nuevas escrituras con UUID secundario en las tablas registradas.
+- Auditoría con fichas originales, manifiesto, usuario y fecha del servidor.
+- Reversión transaccional mientras los datos coincidan con el estado posfusión.
+  Cualquier actividad posterior bloquea la reversión automática y exige revisión.
+- Idempotencia de la fusión y consulta de estado tras una respuesta perdida.
+- Permiso explícito patient_merge, aislamiento por clínica y sin RPC anónima.
+- Esquema privado, RLS en tablas internas, funciones privilegiadas no expuestas
+  y control de autorización dentro del servidor; interfaz pública sin privilegios.
+- Deshabilitado por defecto. La cobertura necesita revisión y firma de esquema.
+  Cambiar columnas, funciones, triggers, índices, políticas o registro la invalida.
+
+LÍMITES IMPORTANTES ANTES DE ACTIVAR
+
+No se ha leído el esquema ni ningún dato del proyecto clínico. backend.sql es
+una propuesta para revisar, no una migración lista para aplicar a producción.
+
+El registro de tablas no se rellena automáticamente ni se habilita en la clínica.
+Las tablas con PK compuesta o ámbito indirecto necesitan adaptadores específicos.
+Las referencias incrustadas al UUID secundario detectadas en JSON bloquean.
+Los datos históricos de ingresos/deudas no se suman: valores no vacíos bloquean
+hasta validar una regla de conciliación. Los posibles duplicados exactos de filas
+con diferentes IDs bloquean hasta su revisión; no se borran ni consolidan solos.
+No hay todavía una pantalla de resolución de duplicados de registros complejos.
+Las cadenas de fusiones se bloquean; no se deshacen cadenas automáticamente.
+La detección exacta no identifica todas las duplicaciones semánticas: deben
+definirse reglas por entidad para cubrir variantes de citas/cobros/documentos.
+
+El backend permite registrar relaciones directas con PK simple, organization_id,
+clinic_id y una columna de paciente. Los vínculos indirectos conservan sus IDs.
+Antes de aprobar cobertura, verificar también tablas indirectas, efectos de
+triggers, webhooks, ficheros y datos solo locales. Los snapshots no cubren las
+tablas indirectas sin adaptador; no garantizan detectar un trigger que las cambie.
+
+No se modifica el contenido fiscal, numeración o envío de facturas. En la prueba
+se comprobó que la factura indirecta por payment_id no cambia. Esto no certifica
+triggers, funciones fiscales ni registros de VeriFactu de la clínica.
+
+Las rutas de Storage se conservan; no se han probado las políticas del servidor
+clínico ni el acceso a objetos reales. Se necesita validación en una copia sintética.
+
+Las RPC de búsqueda y resolución están implementadas; el buscador general,
+enlaces antiguos, cachés y colas de todos los módulos existentes todavía deben
+integrarse con ellas y probarse. Un enlace viejo no se redirige en la clínica
+por el simple hecho de que este paquete incluya el resolutor.
+
+La entrada de ficha y el puente son adaptadores candidatos, no están cargados
+en atlas.html ni ficha.html. Para integrarlos es necesario adaptar el cargador
+real, confirmar origen de iframe, invalidar cachés y recuperar datos editados en
+otros equipos. No deben activarse solo añadiendo los scripts antes de esa revisión.
+
+La reversión no promete deshacer automáticamente tras actividad nueva; requiere
+un flujo adicional de revisión asistida que preserve esos cambios. Las operaciones
+revertidas permanecen en auditoría. No se añade una política de borrado/retención
+automático: acordar limpieza de revisiones caducadas y retención protegida antes
+de habilitar el servidor.
+
+VALIDACIÓN REALIZADA
+
+24 pruebas de PostgreSQL: fusión de 1.206 citas, relaciones de 10 tablas,
+auditoría, permisos, aislamiento, conflictos, tokens, rollback, duplicados,
+JSON, importes históricos, idempotencia, alias y reversión.
+12 pruebas del controlador: estados, confirmación, caducidad y errores.
+Recorrido en Chrome con PostgreSQL local: buscar, comparar, resolver, confirmar,
+fusionar, deshacer y pantalla móvil. Cero errores JavaScript observados.
+Capturas: comparacion-postgresql.png, fusion-verificada.png y movil.png.
+
+Motor: @electric-sql/pglite 0.3.14, PostgreSQL local en memoria. No usa Supabase
+clínico, claves ni registros reales. No reproduce concurrencia entre conexiones,
+las extensiones, permisos ni la infraestructura del servidor clínico. Estas pruebas
+son necesarias, pero no sustituyen pruebas de integración en la copia sintética.
+
+ARCHIVOS Y EJECUCIÓN PARA REVISIÓN TÉCNICA
+
+backend.sql: propuesta de funciones/tablas; instala deshabilitado, sin registros
+de cobertura ni permisos patient_merge a usuarios. No se ha aplicado en Supabase.
+synthetic-fixture.sql: SOLO para base local vacía. Define un auth ficticio, roles
+y tablas reducidas; NO aplicar a un proyecto clínico.
+backend.test.cjs: prueba PostgreSQL íntegramente sintética.
+merge-controller.js y merge-controller.test.cjs: controlador y pruebas.
+patient-merge-panel.js y patient-merge.css: interfaz con transporte inyectable.
+atlas-merge-bridge.js y ficha-merge-entry.js: adaptadores candidatos para ATLAS.
+preview-server.cjs y database-preview.html: prueba local real, limitada a loopback,
+con lista cerrada de archivos, origen comprobado y datos inventados.
+browser.test.cjs: prueba de pantalla; necesita Chrome y Playwright disponibles.
+
+Con Node 22 o posterior, instalar las dependencias bloqueadas con npm ci y ejecutar:
+  npm test
+  npm run preview
+El servidor muestra una dirección 127.0.0.1 con puerto aleatorio.
+La prueba de navegador toma PREVIEW_URL y opcionalmente PLAYWRIGHT_MODULE.
+PGLITE_MODULE permite usar una instalación local de PGlite sin descargar paquetes.
+No se incluye el motor descargado ni ningún secreto en el código.
+
+FUENTES
+
+Repositorio de Murcia: https://github.com/atlasmurcia/atlas-murcia
+Rama candidata desde cd3db41c0be5fe784bfcd1bbecabea5532014f1b.
+Se mantiene separada de la copia aislada de Alicante.
+Documentación consultada:
+https://www.postgresql.org/docs/current/explicit-locking.html
+https://supabase.com/docs/guides/database/functions
+
+SIGUIENTE PASO NECESARIO
+
+El responsable del servidor debe proporcionar/validar una copia sintética del
+esquema completo de Murcia. Preparar adaptadores y resolver los límites indicados,
+probar concurrencia real, almacenamiento y módulos, revisar acceso y auditoría,
+y solo entonces presentar una activación concreta. No se ha realizado ninguna
+fusión de pacientes reales ni publicación en GitHub Pages o Sites.
