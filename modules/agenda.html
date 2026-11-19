@@ -220,7 +220,7 @@ header{height:58px!important;background:#fff!important;border-bottom:1px solid #
 </div>
 
 <div id="appointmentTechnicalState" hidden aria-hidden="true" style="display:none!important"><select id="mTherapy"></select><select id="mResource"></select></div>
-<div class="modalback" id="cancelBack"><div class="modal" style="max-width:520px"><h2>Cancelar cita</h2><label class="field">¿Quién cancela?<select id="cancelWho"><option>Paciente</option><option>Clínica</option></select></label><label class="field">Motivo de cancelación<textarea id="cancelReason" rows="3" placeholder="Opcional"></textarea></label><div class="actions" style="margin-top:14px"><button class="danger" id="confirmCancelBtn">Confirmar cancelación</button><button id="closeCancelBtn">Volver</button></div></div></div>
+<div class="modalback" id="cancelBack"><div class="modal" style="max-width:520px"><h2>Cancelar cita</h2><div id="cancelAppointmentSummary" class="callout" style="white-space:pre-line;margin-bottom:14px" role="status"></div><label class="field">¿Quién cancela?<select id="cancelWho"><option>Paciente</option><option>Clínica</option></select></label><label class="field">Motivo de cancelación<textarea id="cancelReason" rows="3" placeholder="Opcional"></textarea></label><div class="actions" style="margin-top:14px"><button class="danger" id="confirmCancelBtn">Confirmar cancelación</button><button id="closeCancelBtn">Volver</button></div></div></div>
 <div class="modalback" id="monthBack"><div class="modal" style="max-width:430px"><div class="actions"><button id="monthPrev">‹</button><h2 id="monthLabel" style="flex:1;text-align:center;margin:0"></h2><button id="monthNext">›</button></div><table id="miniCalendar" class="mini-calendar"></table><div class="actions" style="margin-top:12px"><button id="closeMonthBtn">Cerrar</button></div></div></div>
 <div class="modalback" id="openScheduleBack"><div class="modal" style="width:min(640px,94vw)"><h2>🔓 Abrir horario puntual</h2><div class="callout">Permite abrir la agenda de un profesional en una fecha concreta sin cambiar su horario semanal habitual.</div><div class="grid2" style="margin-top:14px"><label class="field">Fecha<input id="openScheduleDate" type="date"></label><label class="field">Profesional<select id="openScheduleProfessional"></select></label><label class="field">Desde<input id="openScheduleStart" type="time" value="08:00"></label><label class="field">Hasta<input id="openScheduleEnd" type="time" value="22:00"></label></div><div id="openScheduleState" class="small muted" style="margin-top:12px"></div><div class="actions" style="margin-top:14px"><button class="danger hidden" id="removeOpenScheduleBtn">Volver al horario habitual</button><span style="flex:1"></span><button class="primary" id="saveOpenScheduleBtn">Abrir ese horario</button><button id="closeOpenScheduleBtn">Cerrar</button></div></div></div>
 <div class="modalback" id="blockBack"><div class="modal"><h2>Bloquear agenda</h2><div class="grid2"><label class="field">Tipo<select id="blockType"><option value="day">Día completo</option><option value="partial">Columnas y horario</option></select></label><label class="field">Repetición<select id="blockRepeat"><option value="none">Sin repetición</option><option value="weekly">Todas las semanas</option></select></label><label class="field"><span id="blockDateLabel">Fecha</span><input id="blockDate" type="date"></label><label class="field blockRange">Hasta la fecha<input id="blockEndDate" type="date"></label><div class="field full blockWeekly hidden"><b>Días de la semana</b><div id="blockWeekdays" class="checkgrid"><label><input type="checkbox" value="1"> Lunes</label><label><input type="checkbox" value="2"> Martes</label><label><input type="checkbox" value="3"> Miércoles</label><label><input type="checkbox" value="4"> Jueves</label><label><input type="checkbox" value="5"> Viernes</label><label><input type="checkbox" value="6"> Sábado</label><label><input type="checkbox" value="0"> Domingo</label></div><div class="small muted" style="margin-top:6px">El mismo horario quedará bloqueado cada semana en los días seleccionados.</div></div><label class="field blockPartial">Desde<input id="blockStart" type="time" value="14:00"></label><label class="field blockPartial">Hasta<input id="blockEnd" type="time" value="16:00"></label><label class="field full">Motivo<input id="blockReason" placeholder="Reunión, mantenimiento, vacaciones…"></label><div class="field full"><b>Columnas</b><div class="small muted blockDayHint" style="margin:4px 0 6px">Marca los profesionales o equipos que no estarán ese día. Si no marcas ninguno, se cierra toda la clínica.</div><div id="blockResources" class="checkgrid"></div></div></div><div id="activeBlockDetail" class="callout hidden" style="margin-top:14px"></div><div class="actions" style="margin-top:14px"><button class="danger hidden" id="deleteBlockBtn">Eliminar bloqueo</button><span style="flex:1"></span><button class="primary" id="saveBlockBtn">Crear bloqueo</button><button id="closeBlockBtn">Cerrar</button></div></div></div>
@@ -519,6 +519,8 @@ function loadStoredAppointments(){
 let appointments = loadStoredAppointments();let atlasCamillaFdResourceMigrated=false;appointments.forEach(item=>{if(item.resource==='Camilla FD'){item.resource='Traccion';atlasCamillaFdResourceMigrated=true}if(Array.isArray(item.resources)){const next=[...new Set(item.resources.map(resource=>resource==='Camilla FD'?'Traccion':resource))];if(JSON.stringify(next)!==JSON.stringify(item.resources)){item.resources=next;atlasCamillaFdResourceMigrated=true}}});
 const atlasToday=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}; let currentDate = sessionStorage.getItem('atlasAlicanteRealDate_20260817_PATIENTS_V6__session_fallback')||localStorage.getItem('atlasAlicanteRealDate_20260817_PATIENTS_V6')||atlasToday();
 let selectedId=null, editingId=null, simulation=[], pendingModalAppointment=null;
+let pendingCancellation=null;
+function cancellationSnapshot(a){return JSON.stringify([a.id,a.centralId||null,a.centralRef||null,a.centralUpdatedAt||null,a.patientRemoteId||null,a.patientCode||null,a.patient,a.date,a.time,a.endTime,a.status,a.services||[a.therapy],a.resources||[a.resource],a.professional||null])}
 let lockedProfessionalContext='';
 let lockedEquipmentContext='';
 let selectedPatientCode='';
@@ -2096,7 +2098,7 @@ document.getElementById('moveBtn').onclick=()=>{
 }
 document.getElementById('doneBtn').onclick=()=>{let a=appointments.find(x=>x.id===selectedId);if(a){a.status='Realizada';a.history.push({at:new Date().toISOString(),user:agendaActorName(),action:'Marcada como realizada'});logAgenda('Cita marcada realizada',a);save();render();openDrawer(selectedId)}}
 document.getElementById('pendingBtn').onclick=()=>{let a=appointments.find(x=>x.id===selectedId);if(a){a.status='Pendiente';a.history.push({at:new Date().toISOString(),user:agendaActorName(),action:'Restaurada de realizada a pendiente'});logAgenda('Cita restaurada a pendiente',a);save();render();openDrawer(selectedId)}}
-document.getElementById('deleteBtn').onclick=()=>{document.getElementById('cancelWho').value='Paciente';document.getElementById('cancelReason').value='';document.getElementById('cancelBack').classList.add('open')}
+document.getElementById('deleteBtn').onclick=()=>{const a=appointments.find(item=>String(item.id)===String(selectedId));if(!a)return alert('La cita ya no está disponible. Actualiza la agenda.');pendingCancellation=Object.freeze({id:a.id,snapshot:cancellationSnapshot(a)});document.getElementById('cancelAppointmentSummary').textContent=[a.patient,[a.date,a.time+(a.endTime?'–'+a.endTime:'')].join(' · '),(a.services||[a.therapy]).filter(Boolean).join(' + '),a.professional||a.resource||''].filter(Boolean).join('\n');document.getElementById('cancelWho').value='Paciente';document.getElementById('cancelReason').value='';document.getElementById('cancelBack').classList.add('open')}
 document.getElementById('receiveBtn').onclick=receiveSelectedPatient;
 document.getElementById('waAppointmentBtn').onclick=openAppointmentWhatsapp;
 document.getElementById('waitingRoomBtn').onclick=openWaitingRoom;
@@ -2271,11 +2273,14 @@ function dropAppointmentToCell(target,time){
 
 document.getElementById('confirmCancelBtn').onclick=async()=>{
  const button=document.getElementById('confirmCancelBtn');if(button.disabled)return;
- const id=selectedId,who=document.getElementById('cancelWho').value,reason=document.getElementById('cancelReason').value.trim();
+ const target=pendingCancellation,id=target?.id,who=document.getElementById('cancelWho').value,reason=document.getElementById('cancelReason').value.trim();
  button.disabled=true;button.textContent='Guardando cancelación…';document.getElementById('closeCancelBtn').disabled=true;
  try{
+  const current=appointments.find(item=>String(item.id)===String(id));
+  if(!target||String(selectedId)!==String(id)||!current||cancellationSnapshot(current)!==target.snapshot)throw new Error('La cita seleccionada ha cambiado. Cierra esta ventana y revisa la cita antes de cancelar.');
   if(typeof window.atlasCancelAppointmentCentral!=='function')throw new Error('La agenda todavía no está preparada. Espera a que termine de cargar.');
-  const a=await window.atlasCancelAppointmentCentral(id,who,reason);
+  const a=await window.atlasCancelAppointmentCentral(id,who,reason,target.snapshot);
+  pendingCancellation=null;
   logAgenda(`Cita cancelada por ${a.cancelledBy}`,a);
   document.getElementById('cancelBack').classList.remove('open');document.getElementById('drawer').classList.remove('open');render();
   try{matchWaitlistForCancellation(a)}catch(error){console.warn('No se pudo consultar la lista de espera',error)}
@@ -2286,7 +2291,7 @@ document.getElementById('confirmCancelBtn').onclick=async()=>{
  }catch(error){alert('No se ha podido confirmar la cancelación: '+error.message+' La cita no se dará por cancelada hasta que el servidor lo confirme.');}
  finally{button.disabled=false;button.textContent='Confirmar cancelación';document.getElementById('closeCancelBtn').disabled=false;}
 };
-document.getElementById('closeCancelBtn').onclick=()=>document.getElementById('cancelBack').classList.remove('open');
+document.getElementById('closeCancelBtn').onclick=()=>{pendingCancellation=null;document.getElementById('cancelBack').classList.remove('open')};
 let cancelledShowAllDates=false;
 function renderCancelledList(){const dateInput=document.getElementById('cancelledDateFilter'),selectedDate=dateInput?.value||currentDate,all=appointments.filter(a=>a.status==='Cancelada').sort((a,b)=>(String(b.date)+String(b.time)).localeCompare(String(a.date)+String(a.time))),list=cancelledShowAllDates?all:all.filter(a=>a.date===selectedDate),count=document.getElementById('cancelledCount');if(count)count.textContent=list.length+' cita'+(list.length===1?'':'s');let lastDate='';document.getElementById('cancelledList').innerHTML=list.length?list.map(a=>{const heading=cancelledShowAllDates&&a.date!==lastDate?`<h3 class="cancelled-date-heading">${hesc(a.date)}</h3>`:'';lastDate=a.date;return heading+`<div class="route"><b>${hesc(a.patient)}</b><div>${hesc(a.date)} · ${hesc(a.time)} · ${hesc((a.services||[a.therapy]).join(' + '))}</div><div class="muted">Cancelada por ${hesc(a.cancelledBy||'—')} · ${hesc(a.cancelReason||'Sin motivo')}</div><button type="button" data-restore-cancelled="${hesc(String(a.id))}">Restablecer cita</button></div>`}).join(''):`<div class="muted">No hay citas canceladas ${cancelledShowAllDates?'':'para el '+hesc(selectedDate)}.</div>`;document.querySelectorAll('[data-restore-cancelled]').forEach(button=>button.onclick=()=>restoreCancelled(button.dataset.restoreCancelled))}
 function restoreCancelled(id){const a=appointments.find(x=>x.id===id);if(!a)return;const c=conflictsFor({...a,status:'Pendiente'},a.id);if(blockFor(a)){alert('No se puede restablecer: el horario está bloqueado.');return}if(c.length&&!confirm(`La cita restaurada se solapará con ${c.map(x=>x.patient).join(', ')}. ¿Desea continuar?`))return;a.status='Pendiente';a.conflictOverride=!!c.length;a.history.push({at:new Date().toISOString(),user:agendaActorName(),action:'Cita cancelada restablecida'});logAgenda('Cita cancelada restablecida',a);save();renderCancelledList();render()}
@@ -3377,19 +3382,19 @@ window.sendPaymentDocumentsAutomatically=function(paymentId,patientName){central
   }catch(error){tell('Cita sin reprogramar: '+error.message,'error');throw error}finally{cancelling=false;if(syncRequested)queueSync();else if(remoteRefreshPending)requestCentralRefresh(120)}
  };
  // Cancellation is a confirmed single-row operation, serialized with background writes and reads.
- window.atlasCancelAppointmentCentral=async function(id,who,reason){
+ window.atlasCancelAppointmentCentral=async function(id,who,reason,expectedSnapshot){
   if(cancelling)throw new Error('Ya hay una cancelación en curso.');
   if(!ready)throw new Error('Espera a que termine de cargar la agenda central.');
   cancelling=true;clearTimeout(syncTimer);clearTimeout(reloadTimer);syncRequested=false;
   try{
    const deadline=Date.now()+65000;
    while(syncing||loading){if(Date.now()>deadline)throw new Error('La sincronización anterior no ha terminado. Vuelve a intentarlo.');await new Promise(resolve=>setTimeout(resolve,100))}
-   const current=appointments.find(x=>same(x.id,id));if(!current)throw new Error('No se encuentra la cita seleccionada.');assertWritable(current);
+   const current=appointments.find(x=>same(x.id,id));if(!current)throw new Error('No se encuentra la cita seleccionada.');if(!expectedSnapshot||cancellationSnapshot(current)!==expectedSnapshot)throw new Error('La cita ha cambiado mientras se preparaba la cancelación. Revisa la cita y vuelve a abrir Cancelar.');assertWritable(current);
    const staleCopies=appointments.filter(item=>sameAppointmentSlot(item,current));
    for(const item of staleCopies)dirtyRefs.delete(clientRef(item));
    const row=toRow(current);if(!row)throw new Error('La cita necesita una ficha de paciente vinculada antes de guardarse.');
    tell('Guardando cancelación en la agenda central…');
-   const saved=await request('appointments:cancel',{id:current.centralId||null,clientRef:clientRef(current),who,reason,row});
+   const saved=await request('appointments:cancel',{id:current.centralId||null,clientRef:clientRef(current),expectedUpdatedAt:current.centralUpdatedAt||null,who,reason,row});
    if(!saved?.id||saved.status!=='cancelled')throw new Error('El servidor no ha confirmado la cancelación.');
    const mapped=fromRow(saved);
    appointments=appointments.filter(item=>!sameAppointmentSlot(item,mapped));appointments.push(mapped);
