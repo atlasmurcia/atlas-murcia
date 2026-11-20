@@ -34,6 +34,16 @@ assert(!html.includes('appointment-whatsapp-copy.js'));
    assert.equal(u.searchParams.get('text'),'Hola Paciente ficticio, tu cita en Fisiosport Murcia: 2026-11-20 08:30 Servicio ficticio 60 Profesional ficticio synthetic@example.invalid & prueba');
    assert.equal(await page.locator('#atlasAppointmentWhatsappBack').evaluate(e=>e.classList.contains('open')),false);
   }
+  // Generate only the local synthetic queue; never invoke the sending service.
+  const automationJobs=await page.evaluate(()=>{
+   marketingConfigs.WhatsApp={...marketingConfigs.WhatsApp,connectionStatus:'pending',instantEnabled:true,reminder24Enabled:true,confirmationTemplate:'synthetic_confirmation',reminder24Template:'atlas_recordatorio_murcia_v2',confirmationText:'Hola [CLIENTE], cita en [CENTRO] [FECHA] [HORA]',reminder24Text:'Hola [CLIENTE], recordatorio de [CENTRO] [FECHA] [HORA]'};
+   const appointment={...appointments[0],id:'synthetic-automation',date:'2099-11-20',status:'Pendiente'};
+   const jobs=window.atlasScheduleAppointmentWhatsapp(appointment);
+   return jobs.map(job=>({kind:job.kind,template:job.template,message:job.message,status:job.status,phone:job.phone}));
+  });
+  assert.equal(automationJobs.length,2);
+  for(const job of automationJobs){assert.match(job.message,/Fisiosport Murcia/);assert.doesNotMatch(job.message,/ATLAS|\[CENTRO\]/);assert.equal(job.status,'waiting_connection');assert.equal(job.phone,'34600000001');assert.match(job.message,/2099-11-20 08:30/)}
+  assert.equal(automationJobs.find(job=>job.kind==='24h').template,'atlas_recordatorio_murcia_v2');
   // Local phone formats and international prefixes, without contacting WhatsApp.
   for(const [phone,expected] of [['+34 (600) 000-001','34600000001'],['0034 600000001','34600000001'],['+44 7700 900123','447700900123']]){
    await page.evaluate(phone=>{waTestPatient.phone=phone;waTestOpened.length=0},phone);await page.locator('#waAppointmentBtn').click();
