@@ -1,0 +1,51 @@
+PLANIFICACIÓN DE BOMBAS POR ZONA — MURCIA — 20/11/2026
+
+Publicación autorizada expresamente por Gely el 20/11/2026 como excepción
+a AGENTS.md, sin modificar citas existentes.
+Base clínica main: fbee4c326228dd79d88dcbe529343096e208a8f0
+Rama separada: feature/pump-body-zones.
+
+En Planificar sesiones aparece un campo de zona para cada bomba. Las cantidades
+10 y 20 del presupuesto se interpretan como una o dos pautas independientes de
+10 sesiones; nunca se agrupan 20 sesiones para una misma zona. Admite dos
+estáticas, dos dinámicas o una de cada modalidad. Las dos zonas son obligatorias
+y diferentes. Se elige planificar ambas en paralelo o terminar la primera zona
+antes de empezar la segunda. No cambia el presupuesto ni añade tratamientos.
+
+Cada cita contiene número de bomba, zona y sesión 1–10 en las observaciones,
+en la tarjeta de agenda y en el borrador revisable. Conserva los datos de pauta
+al editar una cita. Los contadores anteriores se separan también por pauta.
+
+Separación de 4 a 7 días entre sesiones de cada pauta. Se elimina en Murcia el
+límite anterior de una bomba semanal y en ambas clínicas la mezcla de todas
+las zonas al comprobar recurrencias. Se admiten tres citas en una misma semana
+repartidas entre zonas; el mínimo de cuatro días sigue vigente para cada zona.
+Si falta disponibilidad, las sesiones quedan pendientes y no se puede aprobar
+el calendario incompleto. Las citas de otras zonas siguen respetando equipo,
+profesional, duración, horarios, festivos, solapes y reglas de espera existentes.
+
+Se comprueban también las citas del mismo paciente desde siete días antes del
+inicio y se vuelven a consultar al aprobar. Si una cita antigua no identifica
+zona, se conserva una comprobación prudente del mínimo de cuatro días; no se
+le asigna una zona ni se altera ese registro. La confirmación del guardado
+comprueba pauta, zona, número de sesión y observaciones antes de dar éxito.
+No se añade una regla nueva al servidor de base de datos: estos controles
+corresponden al planificador y a su aprobación. La agenda manual conserva su
+flujo existente. No se modifican proyectos, esquemas ni políticas.
+
+VALIDACIÓN EXCLUSIVAMENTE SINTÉTICA
+- tests/pump-planning.cjs: combinaciones, modos, 10+10, tres citas semanales,
+  cantidades/zonas inválidas, numeración, huecos <4 y >7 días, borradores
+  manipulados, confirmación con campos perdidos y cambio tardío antes de guardar.
+- tests/pump-planning-browser.cjs: formulario y función real de guardar con
+  registros ficticios en memoria, recuperación de valores, borrador de 20 citas,
+  zona visible en tarjeta y escape de texto. Chrome con red externa bloqueada.
+- Regresiones de profesionales y guardado completo del plan superadas.
+- Scripts de entrada, agenda y ficha compilados sin errores.
+
+No se han consultado pacientes ni se han creado/modificado citas reales.
+El resultado del despliegue y la comprobación pública se registran aparte
+en la evidencia de publicación. La autorización no permite alterar citas existentes.
+Capturas sintéticas en la carpeta superior, murcia-pump-form.png y
+murcia-pump-draft.png. Recargar ambas pantallas tras una futura publicación;
+las marcas anteriores se conservan y se añade pumpZones=20261120.
