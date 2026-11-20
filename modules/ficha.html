@@ -780,6 +780,7 @@ fillAppointmentSelectors();setupPatientSearch();renderAgenda();loadAdministrativ
    const filter=document.getElementById('agendaPatientFilter');if(filter)filter.value=activePatient.name;
    const rows=apps.map(a=>{const conflict=a.status==='Conflicto'||a.planConflict===true||(a.planConflict!==false&&/CONFLICTO DE PLANIFICACIÓN/i.test(String(a.notes||'')));return '<tr class="'+(conflict?'atlas-plan-conflict-row':'')+'"><td>'+esc(a.date)+'</td><td>'+esc(a.time)+'</td><td>'+esc((a.services||[a.therapy]).join(' + '))+'</td><td>'+esc((a.resources||[a.resource]).join(' + '))+'</td><td>'+(conflict?'<button type="button" class="atlas-open-plan-conflict" data-appointment-id="'+esc(a.id)+'" data-date="'+esc(a.date)+'" data-time="'+esc(a.time)+'" data-service="'+esc(a.therapy||'')+'">⚠ Modificar conflicto</button>':esc(a.status))+'</td></tr>'}).join('');
    document.getElementById('atlasAlicanteSyncAppointments').innerHTML='<b>'+apps.length+' bloques de agenda vinculados</b><div style="max-height:280px;overflow:auto;margin-top:7px"><table><tr><th>Fecha</th><th>Hora</th><th>Tratamientos</th><th>Recursos/terapeutas</th><th>Estado</th></tr>'+rows+'</table></div>';
+   parent.postMessage({type:'atlas:patient-loaded',patient:activePatient,selectionRevision:msg.selectionRevision},'*');
  });
  parent.postMessage({type:'atlas:module-ready',module:'ficha'},'*');
 })();

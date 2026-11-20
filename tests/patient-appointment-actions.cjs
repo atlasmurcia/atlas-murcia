@@ -6,7 +6,8 @@ const source=fs.readFileSync(path.join(__dirname,'../modules/agenda.html'),'utf8
 const start=source.indexOf(' // Keep only the latest navigation request active');
 const end=source.indexOf(" window.addEventListener('message',function(ev){",start+1);
 assert(start>=0&&end>start,'Exact appointment navigation must be installed');
-const handler=source.slice(start,end);
+const identity=source.slice(source.indexOf('function atlasPatientMatches('),source.indexOf('function linkedPatientForAppointment('));
+const handler=identity+source.slice(start,end);
 const patient={remoteId:'patient-test',code:'TEST-1',name:'Paciente ficticio'};
 const appointment=(id,date='2026-11-16',extra={})=>({id,date,time:'11:30',status:'Pendiente',patientRemoteId:patient.remoteId,patientCode:patient.code,patient:patient.name,...extra});
 function harness(options={}){
