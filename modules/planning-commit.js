@@ -7,6 +7,7 @@
   if(confirmed.size!==expected.length)throw new Error('La confirmación contiene citas repetidas.');
   for(const row of expected){const saved=confirmed.get(row.client_ref);
    if(!saved?.id||!saved.updated_at||saved.patient_id!==row.patient_id||new Date(saved.starts_at).getTime()!==new Date(row.starts_at).getTime()||new Date(saved.ends_at).getTime()!==new Date(row.ends_at).getTime()||saved.status!=='pending'||saved.deleted_at||!arraysEqual(saved.services,row.services)||!arraysEqual(saved.resources,row.resources)||!arraysEqual(saved.professionals,row.professionals)||String(saved.metadata?.planId)!==String(row.metadata?.planId)||Number(saved.metadata?.professional_minutes)!==Number(row.metadata?.professional_minutes))throw new Error('La confirmación no coincide con el borrador completo. Revisa la agenda antes de continuar.');
+   if(row.metadata?.pumpCourseId&&(saved.notes!==row.notes||['pumpCourseId','pumpNumber','pumpZone','pumpSession','budgetId'].some(key=>saved.metadata?.[key]!==row.metadata[key])))throw new Error('La confirmación no conserva la pauta, la zona y las observaciones de la bomba. Revisa la agenda antes de continuar.');
   }
   return expected.map(row=>confirmed.get(row.client_ref));
  }
