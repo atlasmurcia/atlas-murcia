@@ -29,10 +29,10 @@ hacen el mismo día cuando la regla local lo impide.
 2. REACTIVACIÓN MBST
 Opción independiente, habilitada cuando el presupuesto contiene MBST.
 Tres sesiones POR TARJETA, a partir de seis meses naturales de la última MBST
-del ciclo original. Tres días distintos por tarjeta, con separación de dos
-días y máximo tres por semana. No se hereda el ritmo de cinco o nueve del
+del ciclo original. Tres días distintos por tarjeta, admitiendo días consecutivos y todas
+las reactivaciones dentro de una misma semana. No se hereda el ritmo de cinco o nueve del
 ciclo inicial. Dos tarjetas pueden hacerse consecutivas, una sesión de cada
-por visita, o terminar primero una tarjeta y después la otra. Se conserva el
+por visita, y todas las visitas dentro de la misma semana. Se conserva el
 equipo y el margen de preparación. Notas y tarjetas de agenda identifican
 reactivación, tarjeta, tratamiento/zona y número de sesión.
 
@@ -112,3 +112,15 @@ El borrador solo usa la nueva disponibilidad cuando todas las consultas han
 terminado correctamente. Se conserva el límite de seguridad del contenedor.
 Regresión sintética: tests/planning-availability-periods.cjs (seis casos,
 incluido un tratamiento de treinta semanas por el manejador real del borrador).
+
+Reactivación — regla confirmada el 20/11/2026: todas las sesiones deben
+quedar dentro de UNA MISMA SEMANA natural (lunes a domingo). Son tres días
+distintos por tarjeta y se permiten días consecutivos. Dos tarjetas se
+agrupan en tres visitas, una sesión de cada tarjeta en cada visita. Si el
+inicio mínimo cae a mitad de semana y no quedan tres días posibles, se busca
+la siguiente semana completa. No se dejan citas sueltas en semanas distintas.
+Si la disponibilidad no permite esa semana completa o el paciente no puede
+hacer las dos tarjetas juntas, se avisa y no se aprueba una pauta incompatible.
+Se mantienen cierres, equipos, seis meses de referencia y aviso antes del
+reajuste. La actualización reactivation-week.sql sustituye únicamente los
+validadores de alta y reajuste; no cambia citas por sí sola.
