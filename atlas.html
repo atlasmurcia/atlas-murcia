@@ -52,7 +52,7 @@ const atlasModuleFrames={agenda:agendaFrame,ficha:fichaFrame,finance:financeFram
 const atlasLoadedModules=new Set();
 let atlasVisibleModule='';
 // Recarga del guardado completo independiente de otras versiones de módulos.
-atlasModulePaths.agenda+='&planningCommit=20261119&patientIdentity=20261120&aftercare=20261120&aftercareAvailability=20261120b';atlasModulePaths.ficha+='&aftercare=20261120';
+atlasModulePaths.agenda+='&planningCommit=20261119&patientIdentity=20261120&aftercare=20261120&aftercareAvailability=20261120b&mbstWeekly=20261120';atlasModulePaths.ficha+='&aftercare=20261120';
 atlasModulePaths.ficha+='&patientIdentity=20261120';
 function notifyAtlasModuleVisibility(){
  const agendaVisible=['agenda','configuration','split'].includes(atlasVisibleModule);
