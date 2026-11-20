@@ -84,6 +84,12 @@ window.addEventListener('message',event=>{
   selected={...selected,appointments:(msg.appointments||[]).filter(a=>atlasPatientMatches(a,selected.patient))};
   fichaFrame.contentWindow.postMessage({type:'atlas:load-patient',...selected},'*');
  }
+ // The record's back button only changes the view; it carries no patient action.
+ if(msg.type==='atlas:show-patient'&&event.source===fichaFrame.contentWindow&&Object.keys(msg).length===1){
+  mode('agenda');
+  if(selected)selected.returnToTasks=false;
+  event.stopImmediatePropagation();return;
+ }
  if(['atlas:new-appointment','atlas:show-patient','atlas:delete-patient-request'].includes(msg.type)&&event.source===fichaFrame.contentWindow&&(!selected||fichaFrame.style.visibility==='hidden'||!atlasPatientMatches(msg.patient,selected.patient))){
   event.stopImmediatePropagation();alert('La ficha está cambiando de paciente. Espera a que termine de cargar y vuelve a intentarlo.');
  }
