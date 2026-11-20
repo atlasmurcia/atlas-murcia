@@ -1,0 +1,48 @@
+REGRESO DE FICHA A AGENDA — MURCIA — 20/11/2026
+
+Estado: publicación autorizada expresamente por Gely el 20/11/2026
+como excepción a AGENTS.md, únicamente en Murcia. Pendiente de despliegue
+y comprobación con el código publicado y datos ficticios.
+Base inicial comprobada: fbee4c326228dd79d88dcbe529343096e208a8f0.
+Base integrada para publicación: 2037bc15a69270b7a8a90f2a06feb1849f2cd52d.
+Se conservan los cambios de bombas por zona y productos de #185 y #186.
+Rama: fix/murcia-agenda-return.
+
+Causa confirmada:
+El botón backToAgendaBtn de modules/ficha.html envía únicamente
+{type:'atlas:show-patient'}. El control de identidad de atlas.html exige
+msg.patient para ese tipo de mensaje. La comparación devuelve false y
+detiene el regreso incluso cuando la ficha ya ha confirmado su carga.
+Esperar no resuelve esta incompatibilidad.
+
+Los cuatro archivos públicos de entrada, contenedor, ficha y agenda se
+descargaron sin sesión, con HTTP 200 y contenido idéntico a la base.
+El fallo se reprodujo pulsando el botón real, con datos ficticios, entrando
+tanto por index.html como por atlas.html.
+
+Corrección limitada a atlas.html:
+Aceptar como navegación el mensaje con una única propiedad type, recibido
+desde la ventana de la ficha, y mostrar la agenda. No reenviar una acción
+de paciente ni cambiar la identidad seleccionada. El resto de mensajes
+mantiene el control original de identidad y de ficha en transición.
+Es compatible con fichas ya cargadas; no modifica módulos ni versiones.
+
+Validación:
+- tests/agenda-return-browser.cjs: error reproducido antes del cambio;
+  después, botón real funcional por ambas entradas, agenda del paciente
+  actual funcional, acciones antiguas o incompletas rechazadas, navegación
+  durante transición o sin selección permitida; sin errores de página.
+- tests/patient-identity-navigation.cjs: carrera de selección, respuestas
+  atrasadas, homónimos, identidades contradictorias y sintaxis de scripts.
+- tests/patient-identity-navigation-browser.cjs: selección rápida, historial
+  atrasado, clic antiguo bloqueado y cita del paciente actual correctos.
+- git diff --check correcto.
+Pruebas Chrome con servicios ficticios y todas las peticiones interceptadas.
+Sin consultas a datos personales ni modificaciones en producción.
+
+Acceso provisional:
+Abrir https://atlasmurcia.github.io/atlas-murcia/atlas.html en otra pestaña.
+Conservar la ficha abierta si hay cambios sin guardar. La aplicación inicia
+mostrando la agenda tras verificar la sesión. No hace falta borrar datos.
+
+La autorización no comprende cambios en Alicante ni en bases de datos.
