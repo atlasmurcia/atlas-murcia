@@ -113,6 +113,43 @@ terminado correctamente. Se conserva el límite de seguridad del contenedor.
 Regresión sintética: tests/planning-availability-periods.cjs (seis casos,
 incluido un tratamiento de treinta semanas por el manejador real del borrador).
 
+SELECCIÓN POR TARJETA (20/11/2026)
+La ficha muestra una casilla por tarjeta: número, tratamiento y zona/etiqueta.
+Permite una, ambas o ninguna, sin modificar la elección de seguimientos de
+Auxiliar y revisión presencial. Una tarjeta elegida recibe tres reactivaciones;
+las no elegidas no generan citas. Tarjeta 2 conserva su número aunque sea la
+única seleccionada. Los productos del presupuesto no desplazan las referencias.
+
+La configuración guarda aftercare.reactivationCards (claves de tarjetas) y
+el booleano reactivation concordante. La selección se conserva en el plan,
+en su almacenamiento central y al volver a cargarlo. Si cambian las tarjetas
+al modificar el presupuesto, se pide revisar la elección; no se marca otra
+por error. Los planes antiguos sin la lista conservan su opción de todas o
+ninguna. No se cambian ni eliminan reactivaciones previamente aplicadas.
+
+El cálculo y la aprobación verifican exclusivamente las tarjetas elegidas,
+incluido el caso de solo la segunda en modalidad secuencial. El reajuste
+tras aviso conserva la selección guardada, sin añadir las otras tarjetas.
+Se mantienen las referencias temporales y restricciones de cada clínica.
+
+Antes de publicar la ficha nueva debe instalarse el complemento específico
+server-proposals/treatment-aftercare/card-selection.sql. Sustituye únicamente
+el validador existente, conserva permisos y exige tres citas por tarjeta
+seleccionada. Rechaza claves desconocidas/duplicadas, configuraciones
+incoherentes y citas de tarjetas no elegidas. La instalación base database.sql
+se conserva como versión histórica; no volver a ejecutarla en una instalación
+existente. Para una instalación vacía, base y después complemento.
+El estado efectivo de instalación y publicación se registra en la evidencia de despliegue.
+
+Aclaración confirmada por Gely el 20/11/2026 para ambas clínicas: cuando se
+seleccionan dos tarjetas MBST para reactivación, pueden hacerse dos sesiones
+en el mismo día, UNA DE CADA TARJETA. Son tres sesiones por tarjeta: seis en
+total, agrupables en tres visitas de dos sesiones. La modalidad consecutiva
+mantiene las dos tarjetas identificadas en sus citas y observaciones. No
+significa dos sesiones de la misma tarjeta en un día. Se respetan la
+posibilidad del paciente de una visita de dos horas, sus horarios y los
+equipos; si no puede, se avisa para revisar la pauta, sin repartirla entre semanas.
+
 Reactivación — regla confirmada el 20/11/2026: todas las sesiones deben
 quedar dentro de UNA MISMA SEMANA natural (lunes a domingo). Son tres días
 distintos por tarjeta y se permiten días consecutivos. Dos tarjetas se
