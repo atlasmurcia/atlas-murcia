@@ -55,3 +55,15 @@ Cárceles y María Visitación Martínez Ruiz para el bloque manual de 60 minuto
 Se incorpora osteopatía a sus perfiles activos de Murcia una sola vez, tras
 confirmar el guardado, preservando horarios, otros perfiles y revocaciones.
 No se crean ni reactivan perfiles y no se traslada esa autorización a Alicante.
+
+MBST inicial — aclaración confirmada por Gely el 20/11/2026:
+Al elegir tres sesiones por semana se permiten días consecutivos, también
+para completar una semana con festivos o falta de huecos. Se conservan la
+disponibilidad del paciente, cierres, recursos, duración, límite semanal y
+reglas del mismo día. El informe verifica tres por semana y tarjeta durante
+el ciclo; solo la última semana admite el resto cuando termina la cantidad
+prescrita. Una semana intermedia incompleta o sin MBST bloquea la aprobación,
+aunque todas las sesiones del presupuesto estén repartidas en fechas futuras.
+La reactivación posterior conserva su cálculo independiente.
+Pruebas: tests/planning-mbst-weekly.cjs, incluidas semana con miércoles cerrado,
+días consecutivos, equipos ocupados, semana vacía, tarjetas y bloqueo real.
