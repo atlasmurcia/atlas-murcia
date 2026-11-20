@@ -38,27 +38,32 @@
   const cardList=cards(plan);
   if(o.reactivation){if(!cardList.length||!mbstAnchor)pending.push('La reactivación necesita MBST y su última sesión original planificada.');else if(cardList.length>2)pending.push('Más de dos tarjetas MBST: revisar la pauta antes de planificar la reactivación.');else{
    const mode=plan.availabilityProfile?.twoCardsMode||'not_applicable';
-   if(cardList.length===2&&!['consecutive','sequential'].includes(mode))pending.push('Elige si las dos tarjetas MBST se hacen seguidas o una después de otra.');
+   if(cardList.length===2&&mode!=='consecutive')pending.push('Para completar las dos tarjetas en una misma semana, selecciona una sesión de cada tarjeta, seguidas el mismo día. Si el paciente no puede, revisa la pauta antes de planificar.');
    else{
-    const target=addMonths(mbstAnchor,6),counts=new Map(),daysByCard=new Map();
-    const canDay=(card,day)=>{const rows=[...fixed,...created].filter(r=>r.aftercarePhase==='reactivation'&&r.aftercareCardKey===card.key);return !rows.some(r=>r.date===day)&&rows.filter(r=>monday(r.date)===monday(day)).length<3&&rows.every(r=>Math.abs((parse(r.date)-parse(day))/86400000)>=2)};
-    const pairs=mode==='consecutive'&&cardList.length===2;
-    for(const card of cardList){counts.set(card.key,0);daysByCard.set(card.key,[])}
-    for(const groupCards of pairs?[cardList]:cardList.map(c=>[c]))for(let session=1;session<=3;session++){
-     const missing=groupCards.filter(card=>!fixed.some(r=>r.aftercareKey==='reactivation-'+card.key+'-'+session));if(!missing.length)continue;
-     const group=missing.map(card=>({service:adapter.canonical(card.service),services:[adapter.canonical(card.service)],duration:60,aftercareKey:'reactivation-'+card.key+'-'+session,aftercareCardKey:card.key,aftercareCardNumber:card.number,aftercareSession:session,label:card.label}));
-     let found=false;
-     for(let offset=0;offset<112;offset++){const day=addDays(target,offset);if(day<(settings.notBefore||'')||!missing.every(card=>canDay(card,day)))continue;
-      if(!pairs&&groupCards[0].number>1&&cardList.slice(0,groupCards[0].number-1).some(card=>[...fixed,...created].filter(r=>r.aftercarePhase==='reactivation'&&r.aftercareCardKey===card.key).length<3))continue;
-      if(!pairs&&groupCards[0].number>1&&[...fixed,...created].some(r=>r.aftercarePhase==='reactivation'&&r.aftercareCardNumber<groupCards[0].number&&r.date>=day))continue;
-      const before=created.length;placeGroup(group,day,'reactivation',true);if(created.length>before){created.slice(before).forEach(r=>r.aftercareTarget=target);found=true;break}
+    const target=addMonths(mbstAnchor,6),selectedFixed=fixed.filter(r=>r.aftercarePhase==='reactivation'&&cardList.some(c=>c.key===r.aftercareCardKey)),fixedWeeks=new Set(selectedFixed.filter(active).map(r=>monday(r.date)));
+    const canDay=(card,day)=>{const rows=[...selectedFixed,...created].filter(r=>r.aftercarePhase==='reactivation'&&r.aftercareCardKey===card.key&&active(r));return !rows.some(r=>r.date===day)&&rows.filter(r=>monday(r.date)===monday(day)).length<3};
+    let complete=false;
+    for(let weekOffset=0;weekOffset<17&&!complete;weekOffset++){
+     const week=addDays(monday(target),weekOffset*7);if(fixedWeeks.size&&(fixedWeeks.size!==1||!fixedWeeks.has(week)))continue;
+     const createdBefore=created.length,placedBefore=placed.length;let okay=true;
+     for(let session=1;session<=3;session++){
+      const key=card=>'reactivation-'+card.key+'-'+session,missing=cardList.filter(card=>!selectedFixed.some(r=>r.aftercareKey===key(card))),fixedSession=selectedFixed.filter(r=>active(r)&&cardList.some(card=>r.aftercareKey===key(card)));
+      if(!missing.length)continue;
+      const group=missing.map(card=>({service:adapter.canonical(card.service),services:[adapter.canonical(card.service)],duration:60,aftercareKey:key(card),aftercareCardKey:card.key,aftercareCardNumber:card.number,aftercareSession:session,label:card.label}));
+      let found=false;
+      for(let offset=0;offset<7;offset++){
+       const day=addDays(week,offset);if(day<target||day<(settings.notBefore||'')||fixedSession.some(r=>r.date!==day)||!missing.every(card=>canDay(card,day)))continue;
+       const before=created.length;placeGroup(group,day,'reactivation',true);if(created.length>before){created.slice(before).forEach(r=>r.aftercareTarget=target);found=true;break}
+      }
+      if(!found){okay=false;break}
      }
-     if(!found)pending.push('Tarjeta '+groupCards.map(c=>c.number).join(' + ')+': sesión '+session+'/3 de reactivación pendiente.');
+     if(okay)complete=true;else{created.splice(createdBefore);placed.splice(placedBefore);}
     }
+    if(!complete)pending.push('No hay una misma semana con hueco para las tres sesiones de cada tarjeta seleccionada. Revisa disponibilidad, equipos y citas protegidas. No se reparten entre semanas.');
    }
   }}
   return{created,tasks:admin,pending:[...new Set(pending)],anchor,mbstAnchor,cards:cardList};
  }
- function validate(result,plan,clinic,adapter){const errors=[...(result.pending||[])],rows=result.created||[],o=options(plan);if(o.followups){if(result.tasks?.length!==6)errors.push('Faltan los seis seguimientos de Auxiliar.');for(const visit of ['readapt','osteo']){const row=rows.find(r=>r.aftercareVisit===visit);if(!row||row.duration!==30||row.professional!==(visit==='readapt'?plan.readaptProfessional:plan.mainProfessional))errors.push('Revisa el seguimiento presencial de '+visit+'.')}}if(o.reactivation)for(const card of result.cards||[]){const visits=rows.filter(r=>r.aftercareCardKey===card.key);if(visits.length!==3)errors.push('La tarjeta '+card.number+' necesita tres sesiones de reactivación.');for(const row of visits)if(row.date<addMonths(result.mbstAnchor,6)||!row.notes?.includes('Tarjeta '+card.number))errors.push('Fecha o identificación MBST incorrecta.')}for(const row of rows)if(row.aftercarePhase==='month1'&&row.aftercareVisit==='equipment'&&!services(row).every(s=>equipmentAllowed(s,clinic)))errors.push('Equipo excluido del seguimiento presencial.');return [...new Set(errors)]}
+ function validate(result,plan,clinic,adapter){const errors=[...(result.pending||[])],rows=result.created||[],o=options(plan);if(o.followups){if(result.tasks?.length!==6)errors.push('Faltan los seis seguimientos de Auxiliar.');for(const visit of ['readapt','osteo']){const row=rows.find(r=>r.aftercareVisit===visit);if(!row||row.duration!==30||row.professional!==(visit==='readapt'?plan.readaptProfessional:plan.mainProfessional))errors.push('Revisa el seguimiento presencial de '+visit+'.')}}if(o.reactivation)for(const card of result.cards||[]){const visits=rows.filter(r=>r.aftercareCardKey===card.key);if(visits.length!==3)errors.push('La tarjeta '+card.number+' necesita tres sesiones de reactivación.');for(const row of visits)if(row.date<addMonths(result.mbstAnchor,6)||!row.notes?.includes('Tarjeta '+card.number))errors.push('Fecha o identificación MBST incorrecta.')}const reactivated=rows.filter(row=>row.aftercarePhase==='reactivation');if(new Set(reactivated.map(row=>monday(row.date))).size>1)errors.push('Todas las reactivaciones deben quedar dentro de una misma semana.');if(o.reactivation)for(const card of cards(plan))if(new Set(reactivated.filter(row=>row.aftercareCardKey===card.key).map(row=>row.date)).size!==3)errors.push('Cada tarjeta necesita tres días distintos dentro de la misma semana.');for(const row of rows)if(row.aftercarePhase==='month1'&&row.aftercareVisit==='equipment'&&!services(row).every(s=>equipmentAllowed(s,clinic)))errors.push('Equipo excluido del seguimiento presencial.');return [...new Set(errors)]}
  const api={norm,addDays,addMonths,monday,active,done,services,mbst,options,enabled,businessDay,tasks,cards,cardForTask,equipmentAllowed,adopt,monthTasks,build,validate};root.atlasAftercare=api;if(typeof module==='object'&&module.exports)module.exports=api;
 })(typeof window==='object'?window:globalThis);
