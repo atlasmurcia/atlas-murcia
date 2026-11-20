@@ -1,0 +1,106 @@
+SEGUIMIENTOS Y REACTIVACIÓN — MURCIA
+Preparada el 20/11/2026. Instalación y publicación autorizadas por Gely en este chat.
+La publicación efectiva se registra en la evidencia de despliegue, fuera de este documento.
+Rama de desarrollo: feature/treatment-aftercare.
+
+Encargo: dos opciones independientes y desmarcadas por defecto en Planificar
+sesiones, sin alterar presupuestos ni generar comunicaciones a pacientes.
+
+1. SEGUIMIENTOS
+Al seleccionar seguimientos se crean seis tareas del área Auxiliar: Seguimiento
+15 días, Seguimiento 2º mes, Seguimiento 3º mes, Seguimiento 4º mes, Seguimiento
+5º mes y Seguimiento 6º mes. Todas parten de la última cita del tratamiento
+original, sin incluir las revisiones ni las reactivaciones. Los meses son
+naturales, ajustando los finales de mes. Fines de semana y cierres se pasan al
+siguiente día laborable. Las tareas vencen a las 09:00 de Madrid.
+
+Primer mes: una cita de Osteopatía de 30 minutos con el principal asignado y
+otra de Readaptación de 30 minutos con el readaptador asignado. Ocupan al
+profesional los 30 minutos completos. Se añade una sesión de cada equipo
+permitido del ciclo original, con sus tiempos del catálogo. Se excluyen
+bomba, iMoove, Brains Way, MBST, ondas de choque y DPA. Alicante tampoco introduce PhysicalM, inexistente allí.
+Se prefiere una visita continua; si no encajan todos los profesionales y
+equipos, se buscan días separados con las mismas disponibilidades. Se
+conservan las reglas locales de orden y ocupación. Un equipo de 15 minutos
+no genera por sí solo una visita aislada. PhysicalM dinámico en Murcia sigue
+inmediatamente a la revisión manual; DPA y readaptación en Alicante no se
+hacen el mismo día cuando la regla local lo impide.
+
+2. REACTIVACIÓN MBST
+Opción independiente, habilitada cuando el presupuesto contiene MBST.
+Tres sesiones POR TARJETA, a partir de seis meses naturales de la última MBST
+del ciclo original. Tres días distintos por tarjeta, con separación de dos
+días y máximo tres por semana. No se hereda el ritmo de cinco o nueve del
+ciclo inicial. Dos tarjetas pueden hacerse consecutivas, una sesión de cada
+por visita, o terminar primero una tarjeta y después la otra. Se conserva el
+equipo y el margen de preparación. Notas y tarjetas de agenda identifican
+reactivación, tarjeta, tratamiento/zona y número de sesión.
+
+3. REAJUSTE CON AVISO PREVIO
+Los cambios de fecha, cancelaciones, restauraciones o eliminación de una cita
+original dejan una revisión pendiente en el servidor. Funciona también si el
+cambio procede de otra pantalla o se hizo con la agenda cerrada. Al abrir la
+agenda, tras guardar cambios y cada 30 segundos con la pantalla visible se
+comprueban esos avisos. No se envían mensajes a pacientes.
+
+El aviso muestra fechas actuales y nuevas, incluidas las horas de las citas.
+Al pulsar «Confirmar aviso y reajustar fechas» se recalculan y guardan en una
+transacción las citas pendientes y las seis tareas. No hay que editar cada
+fecha. «Revisar después» conserva el aviso y no mueve nada.
+
+Una cita anulada SIN recolocar no permite adelantar seguimientos ni considerar
+terminado el tratamiento. Hay que restaurarla/reprogramarla conservando su
+vínculo. Se conservan las tareas realizadas, canceladas o con fecha manual y
+las citas realizadas, canceladas o modificadas manualmente. Si falta hueco,
+autorización profesional o identificación de una tarjeta, se deja pendiente.
+Un cambio simultáneo de otra persona o del calendario de cierres invalida la
+vista previa. Si falla un guardado no se aplica una parte del reajuste. Los
+reintentos de creación, vinculación y reajuste son idempotentes.
+
+4. TRATAMIENTOS YA PLANIFICADOS
+Desde la ficha se puede abrir Planificar sesiones para ese presupuesto y
+marcar las opciones. Si ya tiene un único plan sin estos seguimientos, el
+borrador añade SOLO seguimientos y reactivaciones: no recrea ni modifica las
+citas originales, tampoco las realizadas. El vínculo se guarda aparte.
+Se comprueban las versiones de las citas al confirmar. Si hay varios planes,
+sesiones anuladas sin resolver, seguimientos de Auxiliar antiguos sin vínculo
+o tarjetas MBST antiguas indistinguibles, se pide revisión y no se duplica.
+Los planes que ya tienen seguimientos vinculados se reajustan desde su aviso.
+
+Se respeta la disponibilidad semanal. Si se eligieron fechas concretas, NO
+se convierten en disponibilidad semanal futura: deben incluir huecos válidos
+para el primer mes y la reactivación, o se indica que faltan fechas/huecos.
+No se genera un nuevo ciclo de seguimientos a partir de una revisión o de
+una reactivación. Las opciones desmarcadas conservan el flujo anterior.
+
+5. PREPARACIÓN TÉCNICA Y LÍMITES
+Se ha añadido server-proposals/treatment-aftercare/database.sql para revisión
+separada. Requiere las tablas y funciones existentes de agenda, tareas y
+calendario central, atlas_apply_treatment_plan, y las protecciones de conflictos.
+Crea una tabla de vínculos con RLS y funciones SECURITY INVOKER. No modifica
+las políticas existentes ni evita las protecciones de citas realizadas o
+históricas. Revoca ejecución anónima. No usa credenciales ni funciones externas.
+
+ANTES DE ACTIVAR: contrastar el esquema y los permisos reales en un entorno
+aprobado de pruebas, revisar el SQL específico de esta clínica, y verificar
+las reglas de primer mes con la responsable. La revisión del servidor se limita al esquema y las políticas. No se leen ni
+modifican pacientes o citas reales para las verificaciones. Las nuevas
+opciones fallan sin guardados parciales si falta la instalación del servidor.
+Publicar la interfaz tras instalar y verificar el servidor. No generar seguimientos
+para pacientes reales durante la instalación ni la comprobación de despliegue.
+
+Pruebas reproducibles en tests/treatment-aftercare.cjs,
+tests/treatment-aftercare-workflow.cjs, tests/treatment-aftercare-database.cjs
+(PGlite en memoria) y tests/treatment-aftercare-browser.cjs (Chrome, red
+externa bloqueada). NODE_PATH debe apuntar al paquete de Playwright y
+PGLITE_PATH al paquete local de PGlite cuando no estén instalados en Node.
+AFTERCARE_PROOF_DIR permite elegir la carpeta de las capturas sintéticas.
+
+REVISIÓN DE COMPATIBILIDAD CON EL SERVIDOR
+Las pruebas reproducen los disparadores verificados de cada clínica con IDs
+sintéticos. Se conservan las citas confirmadas al moverlas, se reconocen los
+seguimientos anteriores por su vínculo y se comparan los equipos sin depender
+del orden del array. Una ausencia sin recolocar bloquea el reajuste. Se revocan
+DELETE y TRUNCATE sobre la nueva tabla de vínculos, sin alterar permisos
+existentes. Las sesiones de solo lectura pueden consultar los avisos, pero
+no aplicar cambios. Las reglas anteriores de MBST y recursos siguen activas.
