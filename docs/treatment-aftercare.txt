@@ -104,3 +104,11 @@ del orden del array. Una ausencia sin recolocar bloquea el reajuste. Se revocan
 DELETE y TRUNCATE sobre la nueva tabla de vínculos, sin alterar permisos
 existentes. Las sesiones de solo lectura pueden consultar los avisos, pero
 no aplicar cambios. Las reglas anteriores de MBST y recursos siguen activas.
+
+Corrección de disponibilidad (20/11/2026): el intervalo completo de tratamiento
+y seguimientos puede superar un año. La carga se divide en consultas contiguas
+de hasta 364 días; las reservas que cruzan el límite se conservan sin repetirlas.
+El borrador solo usa la nueva disponibilidad cuando todas las consultas han
+terminado correctamente. Se conserva el límite de seguridad del contenedor.
+Regresión sintética: tests/planning-availability-periods.cjs (seis casos,
+incluido un tratamiento de treinta semanas por el manejador real del borrador).

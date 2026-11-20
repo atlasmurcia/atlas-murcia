@@ -3035,8 +3035,18 @@ window.sendPaymentDocumentsAutomatically=function(paymentId,patientName){central
  async function loadPlanningAvailability(patient,startDate,endDate){
   const linked=patientMaster.find(x=>x.remoteId&&String(x.code)===String(patient.code||''))||patientMaster.find(x=>x.remoteId&&x.remoteId===patient.remoteId);
   if(!linked)throw new Error('El paciente no está vinculado al servidor.');
-  const from=planAddDays(startDate,-1),to=planAddDays(endDate||planAddDays(startDate,364),1),rows=await planningRequest('appointments:planningAvailability',{patientId:linked.remoteId,from:from+'T00:00:00',to:to+'T23:59:59'});
-  if(!Array.isArray(rows))throw new Error('No se pudo confirmar la disponibilidad completa.');
+  const from=new Date(planAddDays(startDate,-1)+'T00:00:00'),to=new Date(planAddDays(endDate||planAddDays(startDate,364),1)+'T23:59:59');
+  if(!Number.isFinite(from.getTime())||!Number.isFinite(to.getTime())||to<=from)throw new Error('Intervalo de disponibilidad inválido.');
+  // Followups may extend beyond one year; keep every request below the bridge limit.
+  // Publish the new snapshot only after all contiguous periods have loaded.
+  const unique=new Map(),period=364*86400000;
+  for(let cursor=from.getTime();cursor<to.getTime();){
+   const until=Math.min(cursor+period,to.getTime()),page=await planningRequest('appointments:planningAvailability',{patientId:linked.remoteId,from:new Date(cursor).toISOString(),to:new Date(until).toISOString()});
+   if(!Array.isArray(page))throw new Error('No se pudo confirmar la disponibilidad completa.');
+   for(const row of page)unique.set(row.id,row);
+   cursor=until;
+  }
+  const rows=[...unique.values()];
   const next=new Map();for(const row of rows){const mapped=window.atlasPlanningCommit.reservation(row,iso=>{const d=new Date(iso);return{date:planDate(d),time:String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0')}},resources,professionals);if(!next.has(mapped.date))next.set(mapped.date,[]);next.get(mapped.date).push(mapped);}serverPlanningAvailabilityByDate=next;
  }
  function planProfessionalBusy(candidate){const assigned=appointmentTherapists(candidate);if(!assigned.length)return false;const duration=professionalDuration(candidate);return duration>0&&planAppointmentPool([],candidate.date).some(row=>{if(row.id===candidate.id||row.status==='Cancelada'||row.date!==candidate.date||!appointmentTherapists(row).some(p=>assigned.includes(p)))return false;const occupied=row.professional_minutes===null||row.professional_minutes===undefined?professionalDuration(row):Number(row.professional_minutes);return occupied>0&&intervalsOverlap(candidate.time,duration,row.time,occupied)});}
