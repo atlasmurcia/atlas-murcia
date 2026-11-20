@@ -1,0 +1,50 @@
+SELECCIÓN SEGURA DE PACIENTE — MURCIA — 20/11/2026
+Base revisada: 9d69c1986117499a205a778f6f8893661d4ef796. Rama: fix/patient-identity-navigation.
+Estado: publicación autorizada expresamente por Gely el 20/11/2026
+como excepción a AGENTS.md; pendiente de verificación del despliegue.
+
+Causa reproducida con datos ficticios en el código anterior:
+Abrir A y después B inicia dos consultas de citas. Si B responde primero y
+A termina después, la consulta anterior emitía una nueva selección de A.
+El contenedor también reenviaba mensajes antiguos a los 100 y 300 ms para
+abrir pestañas, sin comprobar si el usuario había cambiado de paciente.
+Había rutas que elegían por nombre y podían confundir homónimos o mezclar citas.
+
+Corrección:
+- Selección inmediata de la ficha pulsada. El historial llega como una
+  actualización asociada a esa petición, sin poder abrir otro paciente.
+- La actualización solo se acepta si coinciden petición e identificador.
+- Reintentos de paneles y citas no se reenvían tras cambiar de selección.
+- Identificador central prioritario; código explícito como alternativa.
+  No se resuelve por nombre ni por igualdad de identificadores vacíos.
+- Ficha anterior oculta durante el cambio hasta recibir confirmación de
+  identidad y revisión de la nueva. Nueva cita, ver agenda y eliminación
+  rechazadas si proceden de una ficha distinta o todavía en transición.
+- Resolución pendiente del paciente de una cita no vuelve a abrir el cajón.
+- Mapa corporal pendiente descartado tras abrir otra ficha o cerrar el cajón.
+- Listas de citas y cambios de estado se filtran por identidad explícita.
+
+Validación sintética:
+node tests/patient-identity-navigation.cjs
+NODE_PATH=<paquetes> node tests/patient-identity-navigation-browser.cjs
+La segunda prueba ejecuta el contenedor real y el puente real de la ficha
+con el resto de servicios sustituidos por funciones ficticias, en Chrome.
+Todas las peticiones se interceptan; los dominios externos se bloquean.
+Comprueba cambio rápido, respuestas invertidas, panel atrasado, homónimos,
+IDs contradictorios/ausentes, clic antiguo y cita del paciente actual.
+Pruebas existentes de mapa corporal y navegación actualizadas para incluir
+el comparador compartido y comprobar invalidación de la petición pendiente.
+
+No se accedió al CRM ni a datos reales. No se modifican citas existentes ni
+se reparan atribuciones anteriores. No se cambian permisos ni bases de datos.
+La validación en la aplicación clínica requiere publicar la candidata,
+recargar los equipos y comprobar su versión; no se ha realizado publicación.
+
+Los tres archivos públicos de esta clínica (entrada, agenda y ficha) se
+compararon por contenido con la base descargada: HTTP 200 y coincidencia
+exacta. Se confirmó así que el fallo reproducido existe en el código publicado.
+Pruebas de filtros: reapertura, recarga, separación de pacientes, citas
+atrasadas y almacenamiento bloqueado superadas también en Chrome.
+
+Base integrada para publicación: 9d69c1986117499a205a778f6f8893661d4ef796.
+Se conservan los cambios simultáneos de esa base.
