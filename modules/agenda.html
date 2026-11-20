@@ -4756,10 +4756,10 @@ if(window.ATLAS_CHILD_CENTRAL_CONTEXT)apply(window.ATLAS_CHILD_CENTRAL_CONTEXT);
  const holidays={'2026-01-01':'Año Nuevo','2026-01-06':'Reyes','2026-03-19':'San José','2026-04-02':'Jueves Santo','2026-04-03':'Viernes Santo','2026-04-07':'Bando de la Huerta · Murcia','2026-05-01':'Fiesta del Trabajo','2026-06-09':'Día de la Región de Murcia','2026-08-15':'Asunción','2026-09-15':'Fiesta local · Murcia','2026-10-12':'Fiesta Nacional','2026-12-08':'Inmaculada','2026-12-25':'Navidad','2027-01-01':'Año Nuevo','2027-01-06':'Reyes','2027-03-19':'San José','2027-03-25':'Jueves Santo','2027-03-26':'Viernes Santo','2027-03-30':'Bando de la Huerta · Murcia','2027-06-09':'Día de la Región de Murcia','2027-09-14':'Romería de la Fuensanta · Murcia','2027-10-12':'Fiesta Nacional','2027-11-01':'Todos los Santos','2027-12-06':'Constitución','2027-12-08':'Inmaculada','2027-05-01':'Fiesta del Trabajo','2027-12-25':'Navidad'};
  window.atlasOpenYearCalendar=function(){const year=Number(String(currentDate).slice(0,4))||new Date().getFullYear(),configured=Object.fromEntries((window.atlasAgendaConfig?.()?.holidays||[]).map(item=>[item.date,item.name||'Festivo'])),escapeTitle=value=>String(value).replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));document.querySelector('#atlasYearCalendar h2').textContent='🗓 Calendario laboral '+year+' · Murcia';const names=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'],dow=['L','M','X','J','V','S','D'];atlasYearCalendarBody.innerHTML=names.map((name,m)=>{const first=(new Date(year,m,1).getDay()+6)%7,last=new Date(year,m+1,0).getDate();let cells='<tr>'+dow.map(x=>'<th>'+x+'</th>').join('')+'</tr><tr>'+('<td></td>'.repeat(first));for(let d=1;d<=last;d++){const iso=year+'-'+String(m+1).padStart(2,'0')+'-'+String(d).padStart(2,'0'),wd=new Date(year,m,d).getDay(),title=configured[iso]||holidays[iso]||'';cells+=`<td class="${title?'holiday':wd===0||wd===6?'weekend':''}" title="${escapeTitle(title)}">${d}</td>`;if((first+d)%7===0&&d<last)cells+='</tr><tr>'}return `<div class="atlas-month"><b>${name}</b><table>${cells}</tr></table></div>`}).join('');atlasYearCalendar.classList.add('on')};
 
- const baseOpenCharge=window.openAppointmentCharge,clubPrices={'Bomba Diamagnética':50,'Bomba Diamagnética estática':50,'Bomba Diamagnética dinámica':50,'Camilla FD':45,'Neuromodulación':10,'SIS':12,'Readaptación':17,'DPA':17,'Magnetophysio':12,'Vacu':15,'Robot':35,'Osteopatía':60,'Fisioavanzada':45,'Brains Way':80,'Onda de choque':25,'MBST Flex':120,'MBST OSTEOSPIN Artrosis':130,'MBST OSTEOSPIN Nervio':130,'MBST OSTEOSPIN Osteoporosis':130,'MBST OSTEOSPIN Postcirugía':130,'MBST OSTEOSPIN Disco':130};
+ const baseOpenCharge=window.openAppointmentCharge;
  const totalBase=window.updateChargeTotal;
  window.updateChargeTotal=function(){const subtotal=[...document.querySelectorAll('[data-charge-price]')].reduce((n,x)=>n+Number(x.value||0),0),discount=Math.min(100,Math.max(0,Number(document.getElementById('appointmentChargeDiscount')?.value||0)));document.getElementById('appointmentChargeTotal').value=(subtotal*(1-discount/100)).toFixed(2);const info=document.getElementById('appointmentChargeDiscountInfo');if(info)info.textContent='Subtotal '+money(subtotal)+' · descuento '+discount+' %'};
- window.openAppointmentCharge=function(id){baseOpenCharge(id);const a=appointments.find(x=>String(x.id)===String(id)),patient=a&&(patientByCode(a.patientCode)||patientMaster.find(p=>normalizeSearch(p.name)===normalizeSearch(a.patient))),spend=patient?lostClientSpend(patient).total:0,eligible=spend>1300;if(!document.getElementById('appointmentChargeDiscount')){const total=document.getElementById('appointmentChargeTotal').closest('label');total.insertAdjacentHTML('afterend','<label class="field">Descuento manual (%)<input id="appointmentChargeDiscount" type="number" min="0" max="100" step="1" value="0"><span id="appointmentChargeDiscountInfo" class="small muted"></span></label>');appointmentChargeDiscount.oninput=window.updateChargeTotal}appointmentChargeDiscount.value='0';if(eligible){const services=a.services||[a.therapy];document.querySelectorAll('[data-charge-price]').forEach((el,i)=>{const club=window.atlasClubPrice(services[i],clubPrices[services[i]]);if(club!==undefined)el.value=Number(club).toFixed(2)});appointmentChargeSummary.insertAdjacentHTML('beforeend','<div class="atlas-charge-club">✓ Tarifa Club de Afiliados aplicada automáticamente · facturación acumulada superior a 1.300 €</div>')}window.updateChargeTotal()};
+ window.openAppointmentCharge=function(id){baseOpenCharge(id);if(!document.getElementById('appointmentChargeDiscount')){const total=document.getElementById('appointmentChargeTotal').closest('label');total.insertAdjacentHTML('afterend','<label class="field">Descuento manual (%)<input id="appointmentChargeDiscount" type="number" min="0" max="100" step="1" value="0"><span id="appointmentChargeDiscountInfo" class="small muted"></span></label>');appointmentChargeDiscount.oninput=window.updateChargeTotal}appointmentChargeDiscount.value='0';window.updateChargeTotal()};
 
  const searchModal=document.querySelector('#cashSearchBack .modal');
  if(searchModal&&!document.getElementById('cashSearchFrom')){const filters=document.createElement('div');filters.className='atlas-sales-filter';filters.innerHTML='<label>Desde<input id="cashSearchFrom" type="date"></label><label>Hasta<input id="cashSearchTo" type="date"></label><label>Forma de pago<select id="cashSearchMethod"><option value="">Todas</option><option>Metálico</option><option>Tarjeta</option><option>Transferencia</option><option>Bizum</option><option>Financiación</option></select></label><button id="cashSearchExportV135">⬇ Exportar para Excel</button>';searchModal.querySelector('.actions').after(filters);['cashSearchFrom','cashSearchTo','cashSearchMethod'].forEach(id=>document.getElementById(id).oninput=()=>renderCashSearch());cashSearchExportV135.onclick=()=>atlasExportSalesSearch()}
@@ -5114,18 +5114,27 @@ function printInvoice(x,openedWindow){const issuer=x.issuer||{},recipient=x.reci
   document.getElementById('appointmentChargeSummary')?.insertAdjacentHTML('beforeend','<div class="atlas-charge-club">✓ Tarifa Club de Afiliados aplicada automáticamente · facturación acumulada '+money(total)+'</div>');
   window.updateChargeTotal();return true;
  }
+ let clubChargeRequest=0;
  window.openAppointmentCharge=async function(id){
+  const request=++clubChargeRequest;
   previousOpenCharge(id);
-  const appointment=appointments.find(item=>String(item.id)===String(id));if(!appointment)return;
-  const patient=patientByCode(appointment.patientCode)||patientMaster.find(item=>normalizeSearch(item.name)===normalizeSearch(appointment.patient));if(!patient)return;
+  const appointment=appointments.find(item=>String(item.id)===String(id));if(!appointment)return false;
+  // A name match cannot establish identity for automatic pricing.
+  const patient=appointment.patientCode&&patientByCode(appointment.patientCode);
+  if(!patient?.remoteId||!window.atlasCentralRequest)return false;
   const summary=document.getElementById('appointmentChargeSummary');
   if(summary)summary.insertAdjacentHTML('beforeend','<div class="atlas-charge-club-loading">Comprobando facturación acumulada…</div>');
-  let total=lostClientSpend(patient).total;
-  if(patient.remoteId&&window.atlasCentralRequest){
-   try{const rows=await window.atlasCentralRequest('payments:list',{patientId:patient.remoteId});total=(rows||[]).filter(row=>row.status==='completed').reduce((sum,row)=>sum+Number(row.amount||0),0)}catch(error){console.warn('No se pudo comprobar la facturación central del paciente',error)}
-  }
+  let total=0;
+  try{
+   const rows=await window.atlasCentralRequest('payments:list',{patientId:patient.remoteId});
+   if(!Array.isArray(rows))throw new Error('Respuesta de pagos no válida');
+   const completed=rows.filter(row=>row.status==='completed');
+   if(completed.some(row=>row.amount===null||row.amount===''||!Number.isFinite(Number(row.amount))||String(row.patient_id)!==String(patient.remoteId)))throw new Error('No se pudo verificar el total del paciente');
+   total=completed.reduce((sum,row)=>sum+Number(row.amount),0);
+  }catch(error){console.warn('No se pudo comprobar la facturación central del paciente',error)}
+  if(request!==clubChargeRequest)return false;
   document.querySelectorAll('.atlas-charge-club-loading').forEach(node=>node.remove());
-  applyClubPrices(appointment,total);
+  return applyClubPrices(appointment,total);
  };
 })();
 </script>
@@ -5780,7 +5789,7 @@ const kind=bombaKind(appointment);if(!kind)return;const nextResources=[...new Se
  const helpers=window.atlasGroupedPaymentHelpersV136;
  if(typeof previousOpenCharge!=='function'||!helpers)return;
  const clubPrices={'Bomba Diamagnética':50,'Bomba Diamagnética estática':50,'Bomba Diamagnética dinámica':50,'Camilla FD':45,'Neuromodulación':10,'SIS':12,'Readaptación':17,'DPA':17,'Magnetophysio':12,'Vacu':15,'Robot':35,'Osteopatía':60,'Fisioavanzada':45,'Brains Way':80,'Onda de choque':25,'MBST Flex':120,'MBST OSTEOSPIN Artrosis':130,'MBST OSTEOSPIN Nervio':130,'MBST OSTEOSPIN Osteoporosis':130,'MBST OSTEOSPIN Postcirugía':130,'MBST OSTEOSPIN Disco':130};
- let groupOriginId=null,groupAppointments=[],groupProducts=[],groupClub=false,jointServiceAmount=null;
+ let groupOriginId=null,groupAppointments=[],groupProducts=[],groupClub=false,jointServiceAmount=null,groupChargeRequest=0;
  const samePatient=(a,b)=>a.patientCode&&b.patientCode?String(a.patientCode)===String(b.patientCode):normalizeSearch(a.patient)===normalizeSearch(b.patient);
  const servicesFor=a=>(a.services||[a.therapy]).filter(Boolean);
  const isPaid=a=>!!window.atlasExistingPayment?.(a.id)||!!(a.centralPaymentId&&a.paymentStatus==='Cobrado');
@@ -5843,7 +5852,7 @@ const kind=bombaKind(appointment);if(!kind)return;const nextResources=[...new Se
  window.addEventListener('message',event=>{if(['atlas:central-ready','atlas:central-cash-changed','atlas:central-appointments-changed'].includes(event.data?.type))setTimeout(syncGroupedPayments,300)});setTimeout(syncGroupedPayments,1200);
  // Las citas tardan en cargar: se reintenta para que los cobros conjuntos hechos en otro ordenador queden vinculados.
  [6000,20000,45000].forEach(delay=>setTimeout(syncGroupedPayments,delay));setInterval(syncGroupedPayments,300000);
- window.openAppointmentCharge=async function(id){try{await syncGroupedPayments()}catch(error){console.warn('No se pudo comprobar el cobro en el servidor',error)}const alreadyPaid=typeof window.atlasExistingPayment==='function'?window.atlasExistingPayment(id):null;if(alreadyPaid&&!alreadyPaid.historicalCoverage){alert('Esta cita ya está cobrada'+(alreadyPaid.receiptCode?' (justificante '+alreadyPaid.receiptCode+')':'')+'. No se puede cobrar dos veces.');openDrawer(id);return}const pending=previousOpenCharge(id),button=document.getElementById('confirmAppointmentChargeBtn');if(button){button.disabled=true;button.textContent='Preparando cobro…';button.onclick=event=>{event.preventDefault();event.stopImmediatePropagation()}}await pending;const origin=appointments.find(a=>String(a.id)===String(id));if(!origin)return;const club=!!document.querySelector('#appointmentChargeSummary .atlas-charge-club');renderGroup(origin,club);document.getElementById('confirmAppointmentChargeBtn').onclick=confirmGroupCharge};
+ window.openAppointmentCharge=async function(id){const request=++groupChargeRequest;try{await syncGroupedPayments()}catch(error){console.warn('No se pudo comprobar el cobro en el servidor',error)}if(request!==groupChargeRequest)return;const alreadyPaid=typeof window.atlasExistingPayment==='function'?window.atlasExistingPayment(id):null;if(alreadyPaid&&!alreadyPaid.historicalCoverage){alert('Esta cita ya está cobrada'+(alreadyPaid.receiptCode?' (justificante '+alreadyPaid.receiptCode+')':'')+'. No se puede cobrar dos veces.');openDrawer(id);return}const pending=previousOpenCharge(id),button=document.getElementById('confirmAppointmentChargeBtn');if(button){button.disabled=true;button.textContent='Preparando cobro…';button.onclick=event=>{event.preventDefault();event.stopImmediatePropagation()}}const club=await pending;if(request!==groupChargeRequest)return;const origin=appointments.find(a=>String(a.id)===String(id));if(!origin)return;renderGroup(origin,club===true);document.getElementById('confirmAppointmentChargeBtn').onclick=confirmGroupCharge};
 })();
 </script>
 <style id="atlas-v136-accurate-service-statistics-style">
