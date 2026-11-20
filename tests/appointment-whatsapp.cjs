@@ -22,7 +22,7 @@ assert(!html.includes('appointment-whatsapp-copy.js'));
    window.waTestPatient={remoteId:'synthetic-patient-1',code:'TEST-1',name:'Paciente ficticio',phone:'600 000 001',email:'synthetic@example.invalid',active:true};
    patientMaster.splice(0,patientMaster.length,{remoteId:'other-id',code:'OTHER',name:'Paciente ficticio',phone:'600000002',email:'wrong@example.invalid'},waTestPatient);
    appointments=[{id:'synthetic-appointment',patientRemoteId:waTestPatient.remoteId,patientCode:'TEST-1',patient:waTestPatient.name,date:'2026-11-20',start:'08:30',time:'08:30',duration:60,therapy:'Servicio ficticio',services:['Servicio ficticio'],therapist:'Profesional ficticio',therapies:['Servicio ficticio'],resources:[],professionals:[],history:[],professional:'Profesional ficticio',status:'Pendiente',notes:''}];
-   selectedId='synthetic-appointment';waConfig().manualText='Hola [CLIENTE], [FECHA] [HORA] [SERVICIOS] [DURACION] [EMPLEADO] [EMAIL] & prueba';
+   selectedId='synthetic-appointment';waConfig().manualText='Hola [CLIENTE], tu cita en [CENTRO]: [FECHA] [HORA] [SERVICIOS] [DURACION] [EMPLEADO] [EMAIL] & prueba';
    openDrawer(selectedId);
   });
   const states=['Pendiente','Confirmada','Ha llegado','Realizada','No se presentó','Cancelada'];
@@ -31,7 +31,7 @@ assert(!html.includes('appointment-whatsapp-copy.js'));
    await page.locator('#waAppointmentBtn').click();
    const urls=await page.evaluate(()=>waTestOpened);
    assert.equal(urls.length,1,state);const u=new URL(urls[0]);assert.equal(u.pathname,'/34600000001');
-   assert.equal(u.searchParams.get('text'),'Hola Paciente ficticio, 2026-11-20 08:30 Servicio ficticio 60 Profesional ficticio synthetic@example.invalid & prueba');
+   assert.equal(u.searchParams.get('text'),'Hola Paciente ficticio, tu cita en Fisiosport Murcia: 2026-11-20 08:30 Servicio ficticio 60 Profesional ficticio synthetic@example.invalid & prueba');
    assert.equal(await page.locator('#atlasAppointmentWhatsappBack').evaluate(e=>e.classList.contains('open')),false);
   }
   // Local phone formats and international prefixes, without contacting WhatsApp.
