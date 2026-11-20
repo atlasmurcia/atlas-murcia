@@ -1,0 +1,38 @@
+Corrección preparada: pertenencia automática al club en el cobro — Murcia
+20/11/2026
+
+Base: main 64cbeed05d0cdf095f6de9a484b6cc963fc46111.
+Rama local: fix/verified-club-eligibility.
+
+Problema: un primer manejador aplicaba precios de club según lostClientSpend,
+que suma income y movimientos de caja locales. Una segunda comprobación de
+pagos centrales no retiraba esa aplicación si el total era inferior al mínimo.
+El cobro agrupado interpretaba el aviso que quedaba en pantalla como afiliación.
+
+Cambio: se elimina la activación provisional. Solo se aplica club al superar
+1.300 € en pagos completed de la identidad central vinculada al código de
+paciente. Se exige una respuesta válida; no se recurre al acumulado local ni
+a coincidencias de nombre. El formulario agrupado recibe el resultado verificado,
+y se descartan respuestas antiguas al abrir otra cita. Sin verificación se
+conservan los precios normales de la cita, sin activación automática del club.
+Se mantiene el umbral existente: exactamente 1.300 € no activa el club.
+No se cambian movimientos, históricos, fichas ni reglas de precios manuales.
+Agenda v226 para renovar la carga al publicar.
+
+Validación con datos exclusivamente ficticios:
+- tests/club-eligibility.cjs: 16 casos, umbral, estados, identidad, respuesta
+  inválida, desconexión y concurrencia en cálculo y formulario agrupado.
+- tests/club-eligibility-screen.cjs: Chrome, conexiones bloqueadas; código real
+  de los manejadores y del cobro agrupado, con infraestructura simulada.
+  600 € y 1.300 €: precio normal 100 €; 1.400 €: club 50 €; total y botón válidos.
+- tests/patient-sale-line-discounts.cjs, centre-presence-charge.cjs y
+  charge-total-discounts.cjs: correctos.
+- Sintaxis de scripts de Agenda y entrada, y git diff --check: correctos.
+- care-finance-flows.cjs falla en la prueba de cancelación por cita cambiada;
+  mismo fallo comprobado sin cambios en la base original. No se incluye una
+  reparación de esa prueba en este cambio.
+
+Publicación autorizada expresamente por Gely en este chat el 20/11/2026:
+«Sí, publícala en Murcia.» Validación sintética completada. Se publica
+mediante la rama clínica main y se comprobará el despliegue y los archivos
+públicos. No se ha accedido a registros reales ni comprobado el caso individual.
