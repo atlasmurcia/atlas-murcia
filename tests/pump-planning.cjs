@@ -30,3 +30,5 @@ module.exports={generate,fixture,stat,dyn};
 
 async function checkLateChange(){const r=generate([[stat,20]]),c=r.c;let readFrom='',writes=0;c.loadPatientPlanningRows=async(patient,date)=>{readFrom=date;c.appointments.push({...r.rows[0],id:'synthetic-late-change',pumpCourseId:'other-course',budgetId:'other-budget',date:'2027-01-12'});};c.loadPlanningAvailability=async()=>{};c.window.atlasPersistPlanningCentral=async()=>{writes++;return r.rows};const elements={};c.document.getElementById=id=>elements[id]||(elements[id]={disabled:false,classList:{remove(){}}});c.api.setDraft(r.draft);await c.api.applyPlanningDraft();assert.equal(readFrom,'2027-01-04');assert.equal(writes,0);assert(c.alerts.some(m=>m.includes('4–7')));console.log('PASS late change rechecks the previous seven days and prevents saving an invalid course');}
 if(require.main===module)checkLateChange().catch(e=>{console.error(e);process.exitCode=1});
+
+assert.equal(pump.definitions([['Producto ficticio',1,0,0,{kind:'product'}],[stat,20]])[0].id,'pump-0-0','Product lines must not shift course IDs before session-only plan serialization');
