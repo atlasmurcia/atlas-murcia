@@ -14,4 +14,10 @@ assert.equal(engine.progressText(0,0,engine.METRICS[4]).label,'Sin objetivo este
 assert.equal(engine.progressText(120,320,engine.METRICS[2]).missing,'Faltan 200');
 const tied=engine.rankClinics([{values:{revenue:10}},{values:{revenue:10}},{values:{revenue:5}}]);
 assert.deepEqual(tied.map(row=>row.ranks.revenue),[1,1,2]);
+const merged=engine.mergeExternalClinics({period:'2026-11-01',clinics:rows}, {period:'2026-11',generated_at:'2026-11-21T13:00:00Z',clinics:[{name:'Alicante',live:true,values:{revenue:54981.5,mbst_sessions:147,bomba_sessions:52,robot_traction_sessions:88,brains_sessions:0},targets:{revenue:65000,mbst_sessions:250,bomba_sessions:100,robot_traction_sessions:110,brains_sessions:0}}]});
+assert.equal(merged.clinics.find(row=>row.name==='Alicante').live,true);
+assert.equal(merged.clinics.find(row=>row.name==='Alicante').values.revenue,54981.5);
+assert.equal(merged.clinics.find(row=>row.name==='Murcia').values.revenue,150200);
+const ignored=engine.mergeExternalClinics({period:'2026-11-01',clinics:rows},{period:'2026-10',clinics:[{name:'Alicante',live:true,values:{revenue:1}}]});
+assert.equal(ignored.clinics.find(row=>row.name==='Alicante').values.revenue,65000);
 console.log('Objetivos: cálculo de porcentajes, faltantes y clasificaciones correcto.');

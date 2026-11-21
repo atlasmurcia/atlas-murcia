@@ -7,5 +7,6 @@ assert.match(panel,/grid-template-columns:repeat\(5/);assert.match(panel,/He vis
 assert.match(panel,/▲ Plegar/);assert.match(panel,/▼ Mostrar objetivos/);assert.match(panel,/openForNewSession/);assert.match(panel,/compact-style/);assert.match(panel,/addEventListener\('click'/);
 assert.match(panel,/atlas-objectives-title[^']+atlasObjectivesCollapse[^']+atlas-objectives-summary/);assert.match(panel,/#atlasObjectivesCollapse\{flex:0 0 auto/);
 assert.match(panel,/\.shell:has\(#atlasObjectivesPanel:not\(\[hidden\]\)\)/);
+assert.match(panel,/atlas_objectives_external_snapshot/);assert.match(panel,/mergeExternalClinics/);
 assert.match(agenda,/mNoCostGift/);assert.match(agenda,/Sesión sin coste \/ regalo/);assert.match(agenda,/noCostGiftAudit/);
 console.log('Objetivos: panel, pestaña plegable, confirmación y sonido presentes.');
