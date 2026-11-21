@@ -44,6 +44,7 @@ begin
  end if;
  return new;
 end $$;
+revoke all on function public.atlas_audit_objective_target() from public,anon,authenticated;
 drop trigger if exists management_targets_objective_audit on public.management_targets;
 create trigger management_targets_objective_audit after insert or update of target_value on public.management_targets for each row execute function public.atlas_audit_objective_target();
 
@@ -124,12 +125,36 @@ begin
   select e.*,coalesce(line->>'service',line->>'name',line#>>'{}') service_name,coalesce(nullif(line->>'quantity','')::numeric,nullif(line->>'sessions','')::numeric,1) quantity
   from month_events e cross join lateral jsonb_array_elements(case when jsonb_typeof(e.metadata->'invoice_lines')='array' then e.metadata->'invoice_lines' when jsonb_typeof(e.metadata->'services')='array' then e.metadata->'services' else '[]'::jsonb end) line where e.budget_id is null
  ), direct_units as (select c.metric,sum(case when e.signed_amount<0 then -abs(e.quantity) else abs(e.quantity) end) units from direct_lines e join catalog c on c.service_name=lower(trim(e.service_name)) where c.metric is not null group by c.metric),
- gift_lines as (
-  select a.id,a.client_ref,service#>>'{}' service_name from public.appointments a cross join lateral jsonb_array_elements(coalesce(a.services,'[]'::jsonb)) service
+ month_appointments as materialized (
+  select a.* from public.appointments a
   where a.organization_id=p_organization_id and a.clinic_id=p_clinic_id and a.deleted_at is null and a.status='completed' and a.starts_at>=v_from and a.starts_at<v_to
-   and (coalesce((a.metadata->>'no_cost_gift')::boolean,(a.metadata->>'noCostGift')::boolean,false) or (p_period=date '2026-11-01'
-    and not exists(select 1 from public.payments p where p.deleted_at is null and (p.appointment_id=a.id or coalesce(p.metadata->'group_central_appointment_ids','[]'::jsonb) @> jsonb_build_array(a.id::text) or (a.client_ref is not null and coalesce(p.metadata->'group_appointment_ids','[]'::jsonb) @> jsonb_build_array(a.client_ref))))
-    and not exists(select 1 from public.budgets b join public.budget_lines bl on bl.budget_id=b.id join public.payments p on p.budget_id=b.id and p.deleted_at is null and p.status='completed' and p.payment_type<>'refund' and p.cancelled_at is null where b.patient_id=a.patient_id and b.clinic_id=a.clinic_id and lower(trim(bl.service_name))=lower(trim(service#>>'{}')))))
+ ), paid_central_appointments as materialized (
+  select distinct p.appointment_id
+  from public.payments p
+  where p_period=date '2026-11-01' and p.organization_id=p_organization_id and p.clinic_id=p_clinic_id and p.deleted_at is null and p.appointment_id is not null
+  union
+  select distinct value::uuid
+  from public.payments p cross join lateral jsonb_array_elements_text(coalesce(p.metadata->'group_central_appointment_ids','[]'::jsonb)) value
+  where p_period=date '2026-11-01' and p.organization_id=p_organization_id and p.clinic_id=p_clinic_id and p.deleted_at is null
+   and value ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+ ), paid_client_appointments as materialized (
+  select distinct value client_ref
+  from public.payments p cross join lateral jsonb_array_elements_text(coalesce(p.metadata->'group_appointment_ids','[]'::jsonb)) value
+  where p_period=date '2026-11-01' and p.organization_id=p_organization_id and p.clinic_id=p_clinic_id and p.deleted_at is null
+ ), paid_budget_services as materialized (
+  select distinct b.patient_id,b.clinic_id,lower(trim(bl.service_name)) service_name
+  from public.budgets b join public.budget_lines bl on bl.budget_id=b.id
+  join public.payments p on p.budget_id=b.id and p.deleted_at is null and p.status='completed' and p.payment_type<>'refund' and p.cancelled_at is null
+  where p_period=date '2026-11-01' and b.organization_id=p_organization_id and b.clinic_id=p_clinic_id
+ ),
+ gift_lines as (
+  select a.id,a.client_ref,service#>>'{}' service_name
+  from month_appointments a cross join lateral jsonb_array_elements(coalesce(a.services,'[]'::jsonb)) service
+  left join paid_central_appointments pc on pc.appointment_id=a.id
+  left join paid_client_appointments pcl on pcl.client_ref=a.client_ref
+  left join paid_budget_services pbs on pbs.patient_id=a.patient_id and pbs.clinic_id=a.clinic_id and pbs.service_name=lower(trim(service#>>'{}'))
+  where coalesce((a.metadata->>'no_cost_gift')::boolean,(a.metadata->>'noCostGift')::boolean,false)
+   or (p_period=date '2026-11-01' and pc.appointment_id is null and pcl.client_ref is null and pbs.patient_id is null)
  ), gift_units as (select c.metric,count(*)::numeric units from gift_lines g join catalog c on c.service_name=lower(trim(g.service_name)) where c.metric is not null group by c.metric),
  combined as (select metric,sum(units) units from (select * from budget_units union all select * from direct_units union all select * from gift_units) x group by metric)
  select coalesce(jsonb_object_agg(metric,round(units,1)),'{}'::jsonb) into v_sessions from combined;
