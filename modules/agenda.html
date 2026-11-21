@@ -3289,11 +3289,11 @@ window.sendPaymentDocumentsAutomatically=function(paymentId,patientName){central
 <style id="atlas-central-patients-style">
 .atlas-central-state{position:fixed;right:18px;bottom:18px;z-index:9998;border-radius:999px;padding:9px 13px;background:#17313d;color:#fff;font-size:12px;font-weight:800;box-shadow:0 5px 18px #0003}.atlas-central-state.ok{background:#137a45}.atlas-central-state.error{background:#b42318}.atlas-save-toast{position:fixed;left:50%;top:22px;transform:translateX(-50%);z-index:10001;background:#137a45;color:#fff;border-radius:12px;padding:13px 20px;font-weight:900;box-shadow:0 10px 30px #0004;opacity:0;transition:opacity .2s}.atlas-save-toast.show{opacity:1}
 </style>
-<script id="atlas-central-patients-v10">
+<script id="atlas-central-patients-v11">
 (function(){
  let orgId='',clinicId='',userId='',ready=false,activationPromise=null;
  const pending=new Map();let requestSeq=0;
- function centralRequest(action,payload={}){return new Promise((resolve,reject)=>{const requestId='patient-'+Date.now()+'-'+(++requestSeq),timer=setTimeout(()=>{pending.delete(requestId);reject(new Error('La conexión central no respondió a tiempo.'))},30000);pending.set(requestId,{resolve,reject,timer});parent.postMessage({type:'atlas:central-db-request',requestId,action,payload},'*')})}
+ function centralRequest(action,payload={}){return new Promise((resolve,reject)=>{const requestId='patient-'+Date.now()+'-'+(++requestSeq),timer=setTimeout(()=>{pending.delete(requestId);reject(new Error('La conexión central no respondió a tiempo.'))},45000);pending.set(requestId,{resolve,reject,timer});parent.postMessage({type:'atlas:central-db-request',requestId,action,payload},'*')})}
  const state=document.createElement('div');state.className='atlas-central-state';state.textContent='Conectando almacenamiento central…';document.body.appendChild(state);
  const toast=document.createElement('div');toast.className='atlas-save-toast';document.body.appendChild(toast);let toastTimer;
  const clean=v=>String(v??'').trim();
@@ -3306,11 +3306,11 @@ window.sendPaymentDocumentsAutomatically=function(paymentId,patientName){central
  async function loadPatients(){
   if(!clinicId)return;
   notify('Cargando pacientes de Murcia…');
-  let data;try{data=await centralRequest('patients:list')}catch(firstError){console.warn('Primer intento de pacientes',firstError);notify('Reintentando carga de pacientes…');try{await new Promise(resolve=>setTimeout(resolve,700));data=await centralRequest('patients:list')}catch(error){console.error(error);notify('Error al cargar pacientes','error');alert('No se han podido cargar los pacientes después de reintentarlo: '+error.message);return}}
+  let data;try{data=await centralRequest('patients:list')}catch(error){console.error('No se pudo cargar el directorio de pacientes',error);notify('Pacientes no disponibles · pulsa para reintentar','error');state.tabIndex=0;state.setAttribute('role','button');state.onclick=()=>{state.onclick=null;state.removeAttribute('role');state.removeAttribute('tabindex');loadPatients()};state.onkeydown=event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();state.click()}};return}
   patientMaster.splice(0,patientMaster.length,...(data||[]).map(mapPatient));customPatients=[];deletedPatientCodes.clear();
   const filter=document.getElementById('patientFilter');if(filter){const current=filter.value;filter.innerHTML='<option value="">Todos los pacientes</option>';patientMaster.forEach(p=>filter.add(new Option(p.name,p.name)));if([...filter.options].some(o=>o.value===current))filter.value=current}
   try{renderPatientsTable();render()}catch(e){console.warn('Refresco parcial',e)}
-  ready=true;window.dispatchEvent(new Event('atlas:central-patients-loaded'));notify(patientMaster.length+' pacientes · almacenamiento central','ok');
+  ready=true;state.onclick=null;state.onkeydown=null;state.removeAttribute('role');state.removeAttribute('tabindex');window.dispatchEvent(new Event('atlas:central-patients-loaded'));notify(patientMaster.length+' pacientes · almacenamiento central','ok');
   if(document.getElementById('drawer')?.classList.contains('open')&&selectedId)openDrawer(selectedId);
  }
  function formValue(id){return document.getElementById(id)?.value||''}
