@@ -7,6 +7,7 @@ const start=atlas.indexOf(' async function chatRequest(action,payload={}){');
 const end=atlas.indexOf('\n window.atlasInternalChatRequestV136=chatRequest;',start);
 assert(start>=0&&end>start,'No se encontró el puente del chat interno');
 const chatRequestSource=atlas.slice(start,end).trim();
+const chatStart=atlas.indexOf('<script id="atlas-v136-internal-chat">'),chatEnd=atlas.indexOf('</script>',chatStart),identitySource=atlas.slice(chatStart,chatEnd).split('\n').filter(line=>/^\s*const (normalize|personKey|samePerson)=/.test(line)).join('\n');
 function fixture(directory=[{user_id:'synthetic-recipient',full_name:'Auxiliar de prueba'}]){
  const inserted=[];
  const client={
@@ -25,4 +26,9 @@ test('Envía un mensaje de chat a la cuenta asignada sin incluir el detalle de l
 test('No crea mensajes para destinatarios fuera del directorio de la clínica ni para uno mismo',async()=>{
  const outside=fixture([]);await assert.rejects(outside.chatRequest('internal-chat:task-assigned',{recipientId:'synthetic-outside',area:'fisio'}),/no está disponible en el chat interno/);assert.equal(outside.inserted.length,0);
  const self=fixture();const result=await self.chatRequest('internal-chat:task-assigned',{recipientId:'synthetic-sender',area:'fisio'});assert.equal(result,null);assert.equal(self.inserted.length,0);
+});
+test('La cuenta de Gerencia Murcia se muestra como Rubén y conserva el destinatario real',()=>{
+ const fallbackUsers=[['Rubén Soler','Propietario']],profile={user_id:'synthetic-gerencia',full_name:'Gerencia FisioSport Murcia',role:'Gestión'};
+ const mapped=vm.runInNewContext('(()=>{'+identitySource+'const known=fallbackUsers.find(([expected])=>samePerson(expected,profile.full_name));return {same:samePerson("Rubén Soler",profile.full_name),user:known?{id:profile.user_id,name:known[0],role:known[1]}:profile}})()', {fallbackUsers,profile});
+ assert.equal(mapped.same,true);assert.deepEqual(JSON.parse(JSON.stringify(mapped.user)),{id:'synthetic-gerencia',name:'Rubén Soler',role:'Propietario'});
 });
