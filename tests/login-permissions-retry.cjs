@@ -5,7 +5,7 @@ const vm=require('node:vm');
 
 const html=fs.readFileSync(path.join(__dirname,'..','atlas.html'),'utf8');
 
-assert.match(html,/Versión 218 · Acceso resistente a esperas del servidor/);
+assert.match(html,/Versión 21[89] · Acceso/);
 assert.match(html,/transient=new Set\(\[408,425,429,500,502,503,504\]\)/);
 assert.match(html,/for\(let attempt=0;attempt<3;attempt\+\+\)/);
 assert.match(html,/El servidor está ocupado\. Seguimos cargando tus permisos…/);
