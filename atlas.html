@@ -47,7 +47,7 @@
 })();
 </script><script>
 const agendaFrame=document.getElementById('agendaFrame'),fichaFrame=document.getElementById('fichaFrame'),financeFrame=document.getElementById('financeFrame'),commissionsFrame=document.getElementById('commissionsFrame'),marketingFrame=document.getElementById('marketingFrame'),stage=document.getElementById('stage');
-const atlasModulePaths={agenda:'./modules/agenda.html?v=228&holidayCalendar=20261120&menuNotice=20261117&flowSave=20261118&pumpZones=20261120b&waCentre=20261120b',ficha:'./modules/ficha.html?bulkCitas=20261124-history&v=148&pumpZones=20261120b',finance:'./modules/finance.html?v=100',commissions:'./modules/commissions.html?v=99',marketing:'./modules/marketing.html?v=3'};
+const atlasModulePaths={agenda:'./modules/agenda.html?v=228&sessionPolicy=20261125&holidayCalendar=20261120&menuNotice=20261117&flowSave=20261118&pumpZones=20261120b&waCentre=20261120b',ficha:'./modules/ficha.html?bulkCitas=20261124-history&v=148&pumpZones=20261120b',finance:'./modules/finance.html?v=100',commissions:'./modules/commissions.html?v=99',marketing:'./modules/marketing.html?v=3'};
 const atlasModuleFrames={agenda:agendaFrame,ficha:fichaFrame,finance:financeFrame,commissions:commissionsFrame,marketing:marketingFrame};
 const atlasLoadedModules=new Set();
 let atlasVisibleModule='';
@@ -835,7 +835,10 @@ const loadAll=async makeQuery=>{const data=[],size=1000,parallel=8;for(let offse
  restoreAtlasSession();
 })();
 </script>
-<script id="atlas-security-lock-v125">window.addEventListener('message',event=>{if(event.data?.type==='atlas:security-lock')document.getElementById('atlasLogout')?.click()});</script><style id="atlas-flowatlas-bridge-v70-styles">
+<script id="atlas-session-policy-v1">
+// Sin cierre por inactividad. Ignora también los avisos del temporizador de agendas antiguas en caché.
+// El botón Cerrar sesión y la validación real de la sesión siguen activos.
+</script><style id="atlas-flowatlas-bridge-v70-styles">
 .atlas-capture-launcher{position:fixed;left:14px;bottom:14px;z-index:8500;border:0;border-radius:12px;padding:11px 15px;background:#315cff;color:#fff;font-weight:800;box-shadow:0 10px 28px #162d8066;cursor:pointer}
 .atlas-capture-back{display:none;position:fixed;left:14px;top:14px;z-index:8500;border:0;border-radius:10px;padding:9px 13px;background:#101725;color:#fff;font-weight:800;cursor:pointer}
 .atlas-capture-mode .atlas-capture-launcher{display:none}
