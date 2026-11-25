@@ -36,26 +36,15 @@ por visita, y todas las visitas dentro de la misma semana. Se conserva el
 equipo y el margen de preparación. Notas y tarjetas de agenda identifican
 reactivación, tarjeta, tratamiento/zona y número de sesión.
 
-3. REAJUSTE CON AVISO PREVIO
-Los cambios de fecha, cancelaciones, restauraciones o eliminación de una cita
-original dejan una revisión pendiente en el servidor. Funciona también si el
-cambio procede de otra pantalla o se hizo con la agenda cerrada. Al abrir la
-agenda, tras guardar cambios y cada 30 segundos con la pantalla visible se
-comprueban esos avisos. No se envían mensajes a pacientes.
-
-El aviso muestra fechas actuales y nuevas, incluidas las horas de las citas.
-Al pulsar «Confirmar aviso y reajustar fechas» se recalculan y guardan en una
-transacción las citas pendientes y las seis tareas. No hay que editar cada
-fecha. «Revisar después» conserva el aviso y no mueve nada.
-
-Una cita anulada SIN recolocar no permite adelantar seguimientos ni considerar
-terminado el tratamiento. Hay que restaurarla/reprogramarla conservando su
-vínculo. Se conservan las tareas realizadas, canceladas o con fecha manual y
-las citas realizadas, canceladas o modificadas manualmente. Si falta hueco,
-autorización profesional o identificación de una tarjeta, se deja pendiente.
-Un cambio simultáneo de otra persona o del calendario de cierres invalida la
-vista previa. Si falla un guardado no se aplica una parte del reajuste. Los
-reintentos de creación, vinculación y reajuste son idempotentes.
+3. REAJUSTES PENDIENTES — AVISO RETIRADO EL 25/11/2026
+A petición de la clínica se retira de la agenda el aviso de reajuste y su
+ventana de confirmación, que impedían continuar trabajando.
+La interfaz ya no consulta ni confirma los reajustes pendientes. Se mantiene
+la compatibilidad de refresh/open con las llamadas existentes de la agenda.
+No se borran revisiones pendientes en el servidor, ni se alteran tareas,
+citas o fechas. Las reglas y protecciones del servidor siguen vigentes.
+Los seguimientos que dependan de una revisión pendiente requieren gestión
+por el responsable de la clínica; no se adelantan ni confirman automáticamente.
 
 4. TRATAMIENTOS YA PLANIFICADOS
 Desde la ficha se puede abrir Planificar sesiones para ese presupuesto y
@@ -65,7 +54,7 @@ citas originales, tampoco las realizadas. El vínculo se guarda aparte.
 Se comprueban las versiones de las citas al confirmar. Si hay varios planes,
 sesiones anuladas sin resolver, seguimientos de Auxiliar antiguos sin vínculo
 o tarjetas MBST antiguas indistinguibles, se pide revisión y no se duplica.
-Los planes que ya tienen seguimientos vinculados se reajustan desde su aviso.
+Los planes que ya tienen seguimientos vinculados conservan su revisión pendiente; el aviso de agenda está retirado.
 
 Se respeta la disponibilidad semanal. Si se eligieron fechas concretas, NO
 se convierten en disponibilidad semanal futura: deben incluir huecos válidos
