@@ -3386,7 +3386,7 @@ window.sendPaymentDocumentsAutomatically=function(paymentId,patientName){central
  const pending=new Map(),remoteByRef=new Map(),dirtyRefs=new Set();let seq=0,ready=false,loading=false,syncing=false,reloadTimer=null,syncTimer=null,loadedWindowStart='',loadedWindowEnd='',cancelling=false,syncRequested=false,remoteRefreshPending=false,lastCentralRefreshAt=0,lastCentralSignature='',moduleVisible=false;
  const originalLocalSave=save,baseSave=()=>{try{return originalLocalSave()}catch(error){if(error?.name!=='QuotaExceededError'&&error?.code!==22&&error?.code!==1014)throw error;console.warn('Copia local llena; se continúa el guardado central de la agenda.')}},state=document.createElement('div');state.className='atlas-agenda-sync';state.textContent='Preparando agenda central…';document.body.appendChild(state);
  const same=(a,b)=>String(a??'')===String(b??''),norm=v=>String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]/g,''),pad=n=>String(n).padStart(2,'0');
- function tell(text,type=''){state.textContent=text;state.className='atlas-agenda-sync'+(type?' '+type:'')}
+ function tell(text,type=''){if(text==='Agenda actualizada con los cambios de otros usuarios'){state.hidden=true;parent.postMessage({type:'atlas:agenda-sync-toast',text},'*');return}state.hidden=false;state.textContent=text;state.className='atlas-agenda-sync'+(type?' '+type:'')}
  // Las citas migradas (metadata.historico) son de solo lectura: la agenda nunca las reescribe.
  const isHistoric=a=>a?.historico===true||a?.metadata?.historico===true;
  function assertWritable(a){if(isHistoric(a))throw new Error('Esta cita es histórica (migrada) y no se puede modificar desde la agenda.')}
