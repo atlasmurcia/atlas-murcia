@@ -1,0 +1,27 @@
+// Interfaz aislada: no usa almacenamiento ni datos del servidor.
+const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
+const source=fs.readFileSync('modules/patient-drafts.js','utf8');
+function fixture(){const nodes=new Map(),listeners={window:{},document:{}},model={history:'Servidor A',diagnosis:'Diagnóstico A'},roots={historia:{id:'historia'},evolucion:{id:'evolucion'},datos:{id:'datos'},modal:{id:'clinicalEvolutionEditBack',dataset:{editRef:'record-one'}}};
+ function field(id,root,type='TEXTAREA'){const n={id,tagName:type,type:'text',value:'',isConnected:true,disabled:false,readOnly:false,closest(selector){if(selector.includes('clinicalEvolutionEditBack'))return root===roots.modal?root:null;return root},getAttribute(){return null},hasAttribute(){return false}};nodes.set(id,n);return n}
+ field('clinicalBackground',roots.historia);field('clinicalDiagnosis',roots.historia);field('evolutionText',roots.evolucion);field('patientAdminNotes',roots.datos);field('clinicalEvolutionEditText',roots.modal);
+ const doc={readyState:'complete',body:{},querySelectorAll:selector=>[...nodes.values()].filter(n=>n.tagName),getElementById:id=>nodes.get(id)||null,createElement:()=>({style:{},setAttribute(){},textContent:''}),addEventListener:(t,f)=>(listeners.document[t]||=[]).push(f)};
+ const win={addEventListener:(t,f)=>(listeners.window[t]||=[]).push(f),dispatchEvent:e=>{for(const f of listeners.window[e.type]||[])f(e)},renderClinicalHistory(){nodes.get('clinicalBackground').value=model.history;nodes.get('clinicalDiagnosis').value=model.diagnosis},renderClinicalEvolutions(){},loadAdministrativeData(){}};
+ const ctx={window:win,document:doc,Map,WeakMap,Set,String,Object,Event,queueMicrotask,MutationObserver:class{observe(){}},localStorage:{setItem(){throw Error('No debe persistir datos clínicos')}},sessionStorage:{setItem(){throw Error('No debe persistir datos clínicos')}}};vm.createContext(ctx);vm.runInContext(source,ctx);
+ const emit=(where,type,event)=>{for(const f of listeners[where][type]||[])f(event)};
+ async function settle(){await Promise.resolve();await Promise.resolve()}
+ async function auth(user='user-one'){emit('window','message',{data:{type:'atlas:central-ready',organizationId:'org',clinicId:'clinic',userId:user}});await settle()}
+ async function select(id){emit('window','message',{data:{type:'atlas:load-patient',patient:{remoteId:id}}});model.history=id==='patient-A'?'Servidor A':'Servidor B';model.diagnosis=id==='patient-A'?'Diagnóstico A':'Diagnóstico B';win.renderClinicalHistory();await settle()}
+ async function write(id,value){const n=nodes.get(id);emit('document','focusin',{target:n});n.value=value;emit('document','input',{target:n});await settle()}
+ return{nodes,model,win,emit,auth,select,write,settle,roots};
+}
+(async()=>{const f=fixture();await f.auth();await f.select('patient-A');await f.write('clinicalBackground','Texto pendiente A');await f.write('evolutionText','Nueva evolución A');await f.write('patientAdminNotes','Nota administrativa A');
+ f.win.renderClinicalHistory();assert.equal(f.nodes.get('clinicalBackground').value,'Texto pendiente A','Cambiar de pestaña no borra el borrador');assert(f.win.AtlasPatientDrafts.hasDraft());
+ await f.select('patient-B');assert.equal(f.nodes.get('clinicalBackground').value,'Servidor B');assert.equal(f.nodes.get('evolutionText').value,'');assert.equal(f.nodes.get('patientAdminNotes').value,'');await f.write('clinicalBackground','Texto pendiente B');
+ await f.select('patient-A');assert.equal(f.nodes.get('clinicalBackground').value,'Texto pendiente A');assert.equal(f.nodes.get('evolutionText').value,'Nueva evolución A');assert.equal(f.nodes.get('patientAdminNotes').value,'Nota administrativa A');
+ f.model.diagnosis='Actualizado en servidor';f.win.renderClinicalHistory();assert.equal(f.nodes.get('clinicalDiagnosis').value,'Actualizado en servidor','Los campos sin modificar siguen actualizándose');assert.equal(f.nodes.get('clinicalBackground').value,'Texto pendiente A');
+ await f.write('clinicalBackground','');f.win.renderClinicalHistory();assert.equal(f.nodes.get('clinicalBackground').value,'','Un borrador vacío también se conserva');
+ f.nodes.get('evolutionText').value='';f.win.renderClinicalEvolutions();await f.select('patient-B');await f.select('patient-A');assert.equal(f.nodes.get('evolutionText').value,'','No reaparece un formulario ya limpiado al guardar');
+ await f.write('clinicalEvolutionEditText','Corrección uno');f.roots.modal.dataset.editRef='record-two';f.nodes.get('clinicalEvolutionEditText').value='Original dos';f.win.AtlasPatientDrafts.restore();assert.equal(f.nodes.get('clinicalEvolutionEditText').value,'Original dos','No mezcla revisiones de dos evoluciones');f.roots.modal.dataset.editRef='record-one';f.win.AtlasPatientDrafts.restore();assert.equal(f.nodes.get('clinicalEvolutionEditText').value,'Corrección uno');
+ let prevented=false;f.emit('window','beforeunload',{preventDefault(){prevented=true}});assert(prevented,'Avisa antes de recargar con borradores');
+ await f.auth('other-user');await f.select('patient-A');assert.equal(f.nodes.get('clinicalBackground').value,'Servidor A');assert.equal(f.win.AtlasPatientDrafts.hasDraft(),false,'No comparte borradores entre usuarios');
+ console.log('OK: pestañas, dos pacientes, datos administrativos, evolución, campo vacío, refresco, formularios limpiados, revisiones distintas, aviso de salida y cambio de usuario.');})().catch(e=>{console.error(e);process.exitCode=1});
