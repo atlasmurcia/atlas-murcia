@@ -1043,7 +1043,7 @@ function appointmentStartSlot(a){return Math.floor(mins(a.time)/15)*15}
 function appointmentTop(a){return 3+(mins(a.time)-appointmentStartSlot(a))*32/15}
 function professionalHoldHtml(a,column=''){
  const dur=professionalDuration(a);
- const height=Math.max(1,Number(dur)||15)*32/15-4;
+ const height=Math.max(4,(Number(dur)||15)*32/15-4);
  const assigned=Object.entries(a.therapists||{}).filter(([,p])=>p===column).map(([s])=>s);
  const label=assigned.length?assigned.join(' + '):(a.therapy==='BRAINS'?'Poner Brains':a.therapy);
  const forced=a.forced?' forced':'';
@@ -1062,7 +1062,7 @@ function apptHtml(a,sim,column=''){
  let st=sim?'simulated':effectiveStatus(a)==='Conflicto'?'conflict':['Pendiente','En sala'].includes(a.status)?'pending':'';
  if(a.status==='Cancelada')st+=' cancelled';if(column==='Seguimientos')st+=' followup';if(column==='Recepción')st+=' reception';
  if(a.forced) st+=' forced';
- const height=Math.max(1,Number(a.duration)||15)*32/15-4;
+ const height=Math.max(4,(Number(a.duration)||15)*32/15-4);
  const forcedMark=a.forced?'<div class="small">⚠ FORZADA</div>':'';
  const services=Array.isArray(a.services)&&a.services.length?a.services:[a.therapy];const summary=services.length>2?`${services[0]} + ${services.length-1} más`:services.join(' + ');const ficha=patientByCode(a.patientCode);const phone=ficha?.phone||'';
  return `<div class="appt ${st}" tabindex="0" style="top:${appointmentTop(a)}px;height:${height}px" data-id="${sim?'':a.id}" data-column="${column}"><b class="${appointmentPaymentClass(a)}" title="${a.patient}">${shortPatient(a.patient)}</b><span title="${summary}">${summary}</span><div class="small">${a.time} · ${a.duration}m</div>${a.aftercarePhase==='month1'?'<div class="small atlas-aftercare-label">Seguimiento presencial 1er mes</div>':a.aftercarePhase==='reactivation'?'<div class="small atlas-aftercare-label">MBST reactivación · Tarjeta '+Number(a.aftercareCardNumber)+'</div>':''}${a.pumpCourseId?'<div class="small atlas-pump-zone">'+window.atlasPumpPlanning.label(a).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))+'</div>':''}${services.length>1?`<span class="multi-badge">＋${services.length}</span>`:''}${forcedMark}<div class="appt-tooltip" role="tooltip"><b>${a.patient}</b><div>${phone||'Sin teléfono'}</div><div>${services.join(' · ')}</div><div>${String(a.notes||'Sin observaciones').slice(0,180).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}${(a.notes||'').length>180?'…':''}</div></div></div>`;
