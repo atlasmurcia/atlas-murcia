@@ -196,6 +196,7 @@ header{height:58px!important;background:#fff!important;border-bottom:1px solid #
   <span id="selectedPatientInfo" class="small muted">Escribe al menos 2 caracteres.</span>
 </label>
       <div class="field full"><b>Terapias y servicios incluidos</b><details id="mServices" class="multi-dropdown"><summary>Seleccionar terapias y servicios <span id="mServicesSummary" class="small muted"></span></summary><div id="mServicesOptions" class="checkgrid"></div></details><span class="small muted">Selecciona uno o varios tratamientos para esta cita.</span></div>
+      <label class="field full hidden" id="mRobotZoneField">Zona de tratamiento · Robot<select id="mRobotZone"><option value="">Seleccionar cervical o lumbar</option><option value="cervical">Cervical</option><option value="lumbar">Lumbar</option></select></label>
       <div class="field full" id="mTherapistsField"><b>Terapeuta de cada tratamiento</b><div id="mTherapists"></div><span class="small muted">Solo se muestran profesionales habilitados para cada servicio. Los equipos sin intervención clínica no necesitan terapeuta.</span></div>
       <div class="field full"><b>Columnas y recursos reservados</b><details id="mResources" class="multi-dropdown"><summary>Seleccionar columnas y recursos <span id="mResourcesSummary" class="small muted"></span></summary><div id="mResourcesOptions" class="checkgrid"></div></details><span class="small muted">Desmarcar un equipo también quitará de esta cita los tratamientos que lo necesitan; podrás reagendarlos manualmente.</span></div>
       <label class="field">Profesional disponible<select id="mProfessional"></select><span class="small muted">Si entras desde la agenda de un fisio, queda fijado ese profesional</span></label>
@@ -766,6 +767,9 @@ function removeServicesForDeselectedEquipment(resource){
 }
 buildMultiSelectors();refreshResourceOptionsForTherapy(therapies[0],false);updateMultiSummaries();
 
+function isRobotService(service){return /^robot(?:\s|$)/.test(normalizeSearch(service).trim())}
+function refreshRobotZone(){const field=document.getElementById('mRobotZoneField');if(field)field.classList.toggle('hidden',!checkedValues('#mServices input').some(isRobotService))}
+function robotAppointmentFields(services,old){if(services.some(isRobotService)){const zone=document.getElementById('mRobotZone')?.value||'';return {robotZone:['cervical','lumbar'].includes(zone)?zone:''}}return old&&Object.prototype.hasOwnProperty.call(old,'robotZone')?{robotZone:''}:{}}
 function serviceCompetency(service){
  const physicalm=physicalmMode(service);if(physicalm)return physicalm==='dynamic'?'poner Physicalm':'';
  const s=normalizeSearch(service);
@@ -786,7 +790,7 @@ function qualifiedProfessionals(service){
 }
 function therapyNeedsManualTherapist(service){
  const s=normalizeSearch(service);
- return s.includes('onda de choque')||s.includes('bomba')||s.includes('camilla fd')||s.includes('traccion')||s.includes('readaptacion');
+ return isRobotService(service)||s.includes('onda de choque')||s.includes('bomba')||s.includes('camilla fd')||s.includes('traccion')||s.includes('readaptacion');
 }
 function renderTherapistSelectors(assignments={}){
  const field=document.getElementById('mTherapistsField'),box=document.getElementById('mTherapists'),previous={};
@@ -1697,6 +1701,7 @@ function openDrawer(id){
  document.getElementById('dTherapy').textContent=(a.services||[a.therapy]).join(' · ');
  const therapistDetail=Object.entries(a.therapists||{}).map(([s,p])=>`${s}: ${p}`).join(' · ');
  document.getElementById('dResource').innerHTML=`Recursos: ${(a.resources||[a.resource]).join(' · ')}${therapistDetail?' · Terapeutas: '+therapistDetail:(a.professional?' · Fisio: '+a.professional:'')}`+
+ (['cervical','lumbar'].includes(a.robotZone)&&(a.services||[a.therapy]).some(isRobotService)?`<br><span class="small"><b>Zona Robot:</b> ${a.robotZone==='cervical'?'Cervical':'Lumbar'}</span>`:'')+
  (a.notes?`<br><span class="small"><b>Obs.:</b> ${hesc(a.notes)}</span>`:'')+
  (a.forced?`<br><b>⚠ CITA FORZADA FUERA DE HORARIO</b><br><span class="small">Motivo: ${a.forceReason||'Sin motivo'}</span>`:'')+
  ((a.history||[]).length?`<br><br><b>Historial</b><div class="history-list">${a.history.slice().reverse().map(h=>`<div class="history-row">${new Date(h.at).toLocaleString('es-ES')} · ${h.user||'Usuario'} · ${h.action}</div>`).join('')}</div>`:'');
@@ -1910,13 +1915,13 @@ function openModalFromCell(resource,time){
  refreshForceWarning();
 }
 let leadBookingContext=null,reprogrammingAppointment=null,reschedulingCancelledAppointment=null;
-function resetCancelledRescheduleMode(){reschedulingCancelledAppointment=null;document.getElementById('mEditScope').innerHTML='<b>Edición completa de esta cita</b><br>Puedes cambiar el servicio, el profesional, los recursos, la fecha y la hora. Los cambios se aplicarán únicamente a esta cita.';document.querySelectorAll('#mPatient,#mServices input,#mTherapists select,#mResources input,#mProfessional,#mEndTime,#mDuration,#mStatus,#mNotes').forEach(input=>input.disabled=false);document.querySelectorAll('#mServices,#mResources').forEach(details=>details.classList.remove('atlas-reschedule-readonly'))}
-function beginCancelledRescheduleMode(a){const services=(a.services||[a.therapy]).filter(Boolean).join(' + ')||'Sin tratamiento',assigned=[a.professional,...Object.values(a.therapists||{}),...(a.professionals||[])].filter(Boolean),professional=[...new Set(assigned)].join(' + ')||'Sin profesional asignado';reschedulingCancelledAppointment=a;document.getElementById('modalTitle').textContent='Reprogramar cita';document.getElementById('saveBtn').textContent='Guardar reprogramación';document.getElementById('mStatus').value='Pendiente';document.getElementById('mEditScope').innerHTML='<b>Información de la cita original</b><br><b>Paciente:</b> '+hesc(a.patient||'')+'<br><b>Tratamiento:</b> '+hesc(services)+'<br><b>Profesional:</b> '+hesc(professional)+'<br><b>Fecha y hora:</b> '+hesc(a.date||'')+' · '+hesc(a.time||a.start||'')+'<br><span class="small">Selecciona únicamente la nueva fecha y hora. La cita pasará a Pendiente sin crear una copia.</span>';document.getElementById('mEditScope').classList.remove('hidden');document.querySelectorAll('#mPatient,#mServices input,#mTherapists select,#mResources input,#mProfessional,#mEndTime,#mDuration,#mStatus,#mNotes').forEach(input=>input.disabled=true);document.querySelectorAll('#mServices,#mResources').forEach(details=>{details.open=false;details.classList.add('atlas-reschedule-readonly')});document.getElementById('mDate').disabled=false;document.getElementById('mTime').disabled=false;document.getElementById('mDate').focus()}
+function resetCancelledRescheduleMode(){reschedulingCancelledAppointment=null;document.getElementById('mEditScope').innerHTML='<b>Edición completa de esta cita</b><br>Puedes cambiar el servicio, el profesional, los recursos, la fecha y la hora. Los cambios se aplicarán únicamente a esta cita.';document.querySelectorAll('#mPatient,#mServices input,#mTherapists select,#mResources input,#mProfessional,#mEndTime,#mDuration,#mStatus,#mNotes,#mRobotZone').forEach(input=>input.disabled=false);document.querySelectorAll('#mServices,#mResources').forEach(details=>details.classList.remove('atlas-reschedule-readonly'))}
+function beginCancelledRescheduleMode(a){const services=(a.services||[a.therapy]).filter(Boolean).join(' + ')||'Sin tratamiento',assigned=[a.professional,...Object.values(a.therapists||{}),...(a.professionals||[])].filter(Boolean),professional=[...new Set(assigned)].join(' + ')||'Sin profesional asignado';reschedulingCancelledAppointment=a;document.getElementById('modalTitle').textContent='Reprogramar cita';document.getElementById('saveBtn').textContent='Guardar reprogramación';document.getElementById('mStatus').value='Pendiente';document.getElementById('mEditScope').innerHTML='<b>Información de la cita original</b><br><b>Paciente:</b> '+hesc(a.patient||'')+'<br><b>Tratamiento:</b> '+hesc(services)+'<br><b>Profesional:</b> '+hesc(professional)+'<br><b>Fecha y hora:</b> '+hesc(a.date||'')+' · '+hesc(a.time||a.start||'')+'<br><span class="small">Selecciona únicamente la nueva fecha y hora. La cita pasará a Pendiente sin crear una copia.</span>';document.getElementById('mEditScope').classList.remove('hidden');document.querySelectorAll('#mPatient,#mServices input,#mTherapists select,#mResources input,#mProfessional,#mEndTime,#mDuration,#mStatus,#mNotes,#mRobotZone').forEach(input=>input.disabled=true);document.querySelectorAll('#mServices,#mResources').forEach(details=>{details.open=false;details.classList.add('atlas-reschedule-readonly')});document.getElementById('mDate').disabled=false;document.getElementById('mTime').disabled=false;document.getElementById('mDate').focus()}
 function openModal(a=null){
  resetCancelledRescheduleMode();
  if(!patientMaster.some(p=>p.remoteId)){alert('El directorio de pacientes sigue cargando. Espera unos segundos antes de crear o modificar una cita.');return}
  pendingModalAppointment=null;
- editingId=a?a.id:null; document.getElementById('modalTitle').textContent=a?'Editar cita aislada':'Nueva cita';document.getElementById('mEditScope').classList.toggle('hidden',!a);document.getElementById('saveBtn').textContent=a?'Guardar cambios de esta cita':'Guardar cita';
+ editingId=a?a.id:null;document.querySelectorAll('#mTherapists select[data-service]').forEach(select=>{if(isRobotService(select.dataset.service))select.remove()});document.getElementById('mRobotZone').value=['cervical','lumbar'].includes(a?.robotZone)?a.robotZone:''; document.getElementById('modalTitle').textContent=a?'Editar cita aislada':'Nueva cita';document.getElementById('mEditScope').classList.toggle('hidden',!a);document.getElementById('saveBtn').textContent=a?'Guardar cambios de esta cita':'Guardar cita';
  const today=currentDate;
  const linked=a?.patientCode?patientByCode(a.patientCode):null;
  if(linked) setSelectedPatient(linked);
@@ -1957,12 +1962,12 @@ function openModal(a=null){
 }
 function readModal(){
  const services=checkedValues('#mServices input');const selectedResources=checkedValues('#mResources input');const old=appointments.find(x=>x.id===editingId);
- const hasServiceOptions=!!document.querySelector('#mServices input'),hasResourceOptions=!!document.querySelector('#mResources input');const selectedServices=hasServiceOptions?services:(mTherapy.value?[mTherapy.value]:(old?.services||[old?.therapy]).filter(Boolean));const needsProfessional=selectedServices.some(service=>!therapiesWithoutProfessional.has(service));
+ const hasServiceOptions=!!document.querySelector('#mServices input'),hasResourceOptions=!!document.querySelector('#mResources input');const selectedServices=hasServiceOptions?services:(mTherapy.value?[mTherapy.value]:(old?.services||[old?.therapy]).filter(Boolean));const needsProfessional=selectedServices.some(service=>!therapiesWithoutProfessional.has(service)),requiresProfessional=selectedServices.some(service=>!isRobotService(service)&&!therapiesWithoutProfessional.has(service)),robotOnlyOptional=selectedServices.some(isRobotService)&&!requiresProfessional;
  const knownProfessionals=typeof professionals==='undefined'?[]:professionals;const existingProfessionalColumn=(old?.resources||[old?.resource]).find(resource=>knownProfessionals.includes(resource))||'';const noticeProfessional=!needsProfessional&&selectedServices.includes('Aviso')?((typeof lockedProfessionalContext!=='undefined'&&knownProfessionals.includes(lockedProfessionalContext)?lockedProfessionalContext:'')||existingProfessionalColumn||''):'';
- const therapists=needsProfessional?readTherapistAssignments():{};const therapistNames=[...new Set(Object.values(therapists))];const equipmentResources=selectedServices.flatMap(service=>resourcesForTherapy(service).filter(resource=>equipment.includes(resource)));const selectedColumns=(hasResourceOptions?selectedResources:(mResource.value?[mResource.value]:[])).filter(resource=>(!noticeProfessional||resource!=='Seguimientos')&&(needsProfessional||!knownProfessionals.includes(resource)||resource===noticeProfessional));const allResources=[...new Set([...selectedColumns,...equipmentResources,noticeProfessional].filter(Boolean))];
+ const therapists=needsProfessional?readTherapistAssignments():{};selectedServices.filter(isRobotService).forEach(service=>{const select=[...document.querySelectorAll('#mTherapists select[data-service]')].find(node=>node.dataset.service===service);if(select){if(select.value)therapists[service]=select.value;else delete therapists[service]}});const therapistNames=[...new Set(Object.values(therapists))];const equipmentResources=selectedServices.flatMap(service=>resourcesForTherapy(service).filter(resource=>equipment.includes(resource)));const selectedColumns=(hasResourceOptions?selectedResources:(mResource.value?[mResource.value]:[])).filter(resource=>(!robotOnlyOptional||!knownProfessionals.includes(resource)||therapistNames.includes(resource))&&(!noticeProfessional||resource!=='Seguimientos')&&(needsProfessional||!knownProfessionals.includes(resource)||resource===noticeProfessional));const allResources=[...new Set([...selectedColumns,...equipmentResources,noticeProfessional].filter(Boolean))];
  const noCostGift=document.getElementById('mNoCostGift').checked,oldGift=old?.noCostGift===true||old?.metadata?.no_cost_gift===true||old?.metadata?.noCostGift===true,giftChanged=noCostGift!==oldGift,giftAudit=giftChanged?{at:new Date().toISOString(),user:agendaActorName(),value:noCostGift}:old?.noCostGiftAudit;
- return {...old,id:editingId||Date.now(),patient:mPatient.value.trim(),patientCode:document.getElementById('mPatientCode').value||selectedPatientCode,
- therapy:selectedServices[0],services:selectedServices,resource:allResources[0]||'',resources:allResources,professional:needsProfessional?(therapistNames[0]||mProfessional.value):noticeProfessional,therapists,
+ return {...old,...robotAppointmentFields(selectedServices,old),id:editingId||Date.now(),patient:mPatient.value.trim(),patientCode:document.getElementById('mPatientCode').value||selectedPatientCode,
+ therapy:selectedServices[0],services:selectedServices,resource:allResources[0]||'',resources:allResources,professional:needsProfessional?(therapistNames[0]||(requiresProfessional?mProfessional.value:'')):noticeProfessional,therapists,
  date:mDate.value,time:mTime.value,duration:Number(mDuration.value),endTime:timeStr(mins(mTime.value)+Number(mDuration.value)),status:mStatus.value,notes:mNotes.value,noCostGift,noCostGiftAudit:giftAudit,history:[...(old?.history||[])],forced:old?.forced||false,forceReason:old?.forceReason||'',conflictOverride:old?.conflictOverride||false,leadContext:old?.leadContext||leadBookingContext||null,reprogrammedFrom:old?.reprogrammedFrom||(reprogrammingAppointment?{id:reprogrammingAppointment.centralId||reprogrammingAppointment.id,date:reprogrammingAppointment.date,time:reprogrammingAppointment.time||reprogrammingAppointment.start}:null),planId:old?.planId||'',budgetId:old?.budgetId||'',pumpCourseId:old?.pumpCourseId||'',pumpNumber:old?.pumpNumber||0,pumpZone:old?.pumpZone||'',pumpSession:old?.pumpSession||0,planConflict:false,_serverSavePending:false,_serverSaveError:''};
 }
 function appointmentWithinProfessionalSchedule(a){
@@ -1992,7 +1997,7 @@ function refreshProfessionalReservationInfo(){
  const selected=checkedValues('#mServices input'),services=selected.length?selected:[document.getElementById('mTherapy').value];
  const lines=services.map(therapy=>{
   const equipmentResource=resourcesForTherapy(therapy).find(resource=>equipment.includes(resource));
-  const prof=[...document.querySelectorAll('#mTherapists select[data-service]')].find(select=>select.dataset.service===therapy)?.value||document.getElementById('mProfessional').value;
+  const prof=[...document.querySelectorAll('#mTherapists select[data-service]')].find(select=>select.dataset.service===therapy)?.value||(!isRobotService(therapy)?document.getElementById('mProfessional').value:'');
   const minutes=therapyProfessionalDurations[therapy]??Number(document.getElementById('mDuration').value||0);
   const label=therapy==='Tracción'?'Poner tracción':therapy;
   const professionalLine=!therapiesWithoutProfessional.has(therapy)&&prof&&minutes>0?`${hesc(prof)} ${start}–${timeStr(mins(start)+minutes)} · ${hesc(label)}`:'';
@@ -2024,7 +2029,7 @@ function refreshForceWarning(){
 function validateModal(a){
  const blocked=blockFor(a);const w=document.getElementById('modalWarning');if(!a.patientCode||!patientByCode(a.patientCode)){w.innerHTML='<b>Falta asignar el paciente.</b><br>Busca por nombre, código o teléfono y selecciona una ficha de los resultados.';w.classList.remove('hidden');return false}
  if(!(a.services||[]).length){w.innerHTML='<b>Falta seleccionar un tratamiento.</b><br>La cita debe conservar al menos un servicio.';w.classList.remove('hidden');return false}
- const missing=(a.services||[]).filter(s=>serviceCompetency(s)&&!a.therapists?.[s]);
+ const missing=(a.services||[]).filter(s=>!isRobotService(s)&&serviceCompetency(s)&&!a.therapists?.[s]);
  if(missing.length){w.innerHTML=`<b>Falta seleccionar terapeuta.</b><br>${missing.join(', ')}`;w.classList.remove('hidden');return false}
  if(blocked){w.innerHTML=`<b>Horario bloqueado.</b><br>${blocked.reason||'No se pueden crear citas en este tramo.'}`;w.classList.remove('hidden');return false}
  const c=conflictsFor(a,editingId);
@@ -4920,9 +4925,9 @@ function printInvoice(x,openedWindow){const issuer=x.issuer||{},recipient=x.reci
 
  renderTherapistSelectors=function(assignments={}){
   const field=document.getElementById('mTherapistsField'),box=document.getElementById('mTherapists'),previous={};
-  const syncNonBlockingTherapistColumns=()=>{const selectedServices=checkedValues('#mServices input');if(!selectedServices.some(service=>service==='Tracción'||therapyCompetencyRequirement[service]==='poner camilla FD'))return;const selectedProfessionals=[...document.querySelectorAll('#mTherapists select[data-service]')].map(select=>select.value).filter(Boolean);document.querySelectorAll('#mResources input').forEach(input=>{if(professionals.includes(input.value))input.checked=selectedProfessionals.includes(input.value)});updateMultiSummaries()};
+  const syncNonBlockingTherapistColumns=()=>{const selectedServices=checkedValues('#mServices input');if(!selectedServices.some(service=>isRobotService(service)||service==='Tracción'||therapyCompetencyRequirement[service]==='poner camilla FD'))return;const selectedProfessionals=[...document.querySelectorAll('#mTherapists select[data-service]')].map(select=>select.value).filter(Boolean);document.querySelectorAll('#mResources input').forEach(input=>{if(professionals.includes(input.value))input.checked=selectedProfessionals.includes(input.value)});updateMultiSummaries()};
   box.querySelectorAll('select[data-service]').forEach(select=>previous[select.dataset.service]=select.value);
-  const selected=checkedValues('#mServices input').filter(service=>serviceCompetency(service)&&!therapiesWithoutProfessional.has(service));
+  const selected=checkedValues('#mServices input').filter(service=>serviceCompetency(service)&&!therapiesWithoutProfessional.has(service));refreshRobotZone();
   if(!selected.length){field.classList.add('hidden');box.innerHTML='';if(professionalSelect)professionalSelect.value='';return}
   field.classList.remove('hidden');
   field.querySelector('b').textContent='Terapeutas disponibles';
@@ -4932,11 +4937,11 @@ function printInvoice(x,openedWindow){const issuer=x.issuer||{},recipient=x.reci
    let options=qualifiedProfessionals(service).filter(professional=>physicalmDynamic||professionalAvailableForService(professional,service));
    const primaryService=service===document.getElementById('mTherapy').value;
    if(lockedProfessionalContext&&primaryService&&!physicalmDynamic)options=options.filter(professional=>professional===lockedProfessionalContext);
-   const original=primaryService&&normalizeSearch(service).includes('masaje')?appointments.find(appointment=>String(appointment.id)===String(editingId)):null;
-   const retained=original?.professional||Object.values(original?.therapists||{}).filter(Boolean)[0]||'';
-   const requested=assignments[service]||previous[service]||(primaryService?lockedProfessionalContext:'')||retained,chosen=options.includes(requested)?requested:'';
+   const original=primaryService&&(isRobotService(service)||normalizeSearch(service).includes('masaje'))?appointments.find(appointment=>String(appointment.id)===String(editingId)):null;
+   const retained=isRobotService(service)?(original?.therapists?.[service]||(!Object.values(original?.therapists||{}).some(Boolean)?original?.professional:'')||''):(original?.professional||Object.values(original?.therapists||{}).filter(Boolean)[0]||'');
+   const requested=isRobotService(service)?(Object.prototype.hasOwnProperty.call(assignments,service)?assignments[service]:Object.prototype.hasOwnProperty.call(previous,service)?previous[service]:(primaryService?lockedProfessionalContext:'')||retained):(assignments[service]||previous[service]||(primaryService?lockedProfessionalContext:'')||retained),chosen=options.includes(requested)?requested:'';
    const duration=therapyProfessionalDurations[service]??Number(document.getElementById('mDuration').value||0);
-   return `<label class="therapist-row"><span><b>${service}</b><br><span class="atlas-therapist-availability">${options.length?options.length+(physicalmDynamic?' profesionales · ':' terapeuta(s) disponible(s) · ')+(duration>0?'reserva de '+duration+' min':'no bloquea la agenda del fisio'):'No hay terapeutas disponibles en este horario'}</span></span><select data-service="${service}"><option value="">Seleccionar terapeuta disponible</option>${options.map(professional=>`<option value="${professional}" ${professional===chosen?'selected':''}>${professional}</option>`).join('')}</select></label>`;
+   return `<label class="therapist-row"><span><b>${service}</b><br><span class="atlas-therapist-availability">${isRobotService(service)?'Profesional opcional · ':''}${options.length?options.length+(physicalmDynamic?' profesionales · ':' terapeuta(s) disponible(s) · ')+(duration>0?'reserva de '+duration+' min':'no bloquea la agenda del fisio'):'No hay terapeutas disponibles en este horario'}</span></span><select data-service="${service}"><option value="">${isRobotService(service)?'Sin profesional (opcional)':'Seleccionar terapeuta disponible'}</option>${options.map(professional=>`<option value="${professional}" ${professional===chosen?'selected':''}>${professional}</option>`).join('')}</select></label>`;
   }).join('');
   box.querySelectorAll('select').forEach(select=>select.addEventListener('change',()=>{if(professionalSelect)professionalSelect.value=select.value;syncNonBlockingTherapistColumns();refreshProfessionalReservationInfo();refreshForceWarning()}));
   syncNonBlockingTherapistColumns();
@@ -6158,7 +6163,7 @@ const kind=bombaKind(appointment);if(!kind)return;const nextResources=[...new Se
  readTherapistAssignments=function(){
   const assignments=baseReadTherapistAssignments();
   checkedValues('#mServices input').filter(item=>serviceCompetency(item)).forEach(item=>{
-   if(!assignments[item]){
+   if(!assignments[item]&&!isRobotService(item)){
     const professional=selectedProfessionalFor(item);
     if(professional)assignments[item]=professional;
    }
@@ -6172,7 +6177,7 @@ const kind=bombaKind(appointment);if(!kind)return;const nextResources=[...new Se
   const selected=checkedValues('#mResources input').filter(resource=>professionals.includes(resource));
   if(selected.length!==1)return;
   document.querySelectorAll('#mTherapists select[data-service]').forEach(select=>{
-   if(!select.value&&qualifiedProfessionals(select.dataset.service).includes(selected[0]))select.value=selected[0];
+   if(!isRobotService(select.dataset.service)&&!select.value&&qualifiedProfessionals(select.dataset.service).includes(selected[0]))select.value=selected[0];
   });
   const hiddenProfessional=document.getElementById('mProfessional');
   if(hiddenProfessional)hiddenProfessional.value=selected[0];
