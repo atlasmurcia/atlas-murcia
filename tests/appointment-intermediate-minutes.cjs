@@ -15,10 +15,10 @@ function test(){
  for(let minute=0;minute<60;minute++){const time='14:'+String(minute).padStart(2,'0'),{output}=render([appointment('minute',time)]);assert.equal((output.match(/data-id="minute"/g)||[]).length,1,time);assert.ok(output.includes(time+' · 30m'));const top=Number(output.match(/style="top:([\d.]+)px;height/)[1]);assert.ok(Math.abs(top-((minute%15)*32/15))<1e-9,time+' posición exacta');}
  // Citas simultáneas y solapadas en un profesional usan carriles legibles.
  let overlap=render([appointment('same-a','14:00'),appointment('same-b','14:00')]);
- assert.ok(overlap.output.includes('Lisardo 1/2')&&overlap.output.includes('Lisardo 2/2'),'Citas con igual inicio ocupan dos carriles');
+ assert.ok(overlap.output.includes('Lisardo Esteve Montava 1/2')&&overlap.output.includes('Lisardo Esteve Montava 2/2'),'Citas con igual inicio ocupan dos carriles');
  for(const id of ['same-a','same-b'])assert.equal((overlap.output.match(new RegExp('data-id="'+id+'"','g'))||[]).length,1,'Visible una vez: '+id);
  overlap=render([appointment('stagger-a','14:00',professionals[0],{duration:45}),appointment('stagger-b','14:15',professionals[0],{duration:30})]);
- assert.ok(overlap.output.includes('Lisardo 1/2')&&overlap.output.includes('Lisardo 2/2'),'Inicios distintos que se cruzan ocupan dos carriles');
+ assert.ok(overlap.output.includes('Lisardo Esteve Montava 1/2')&&overlap.output.includes('Lisardo Esteve Montava 2/2'),'Inicios distintos que se cruzan ocupan dos carriles');
  for(const [id,height] of [['duration-15',32],['duration-30',64],['duration-45',96]]){const minutes=Number(id.split('-')[1]),{output}=render([appointment(id,'14:00',professionals[0],{duration:minutes})]),match=output.match(new RegExp('data-id="'+id+'"[^>]*style="top:[^;]+;height:([\\d.]+)px'));assert.ok(match,id);assert.equal(Number(match[1]),height,'Altura exacta: '+minutes+'m')}
  // Recursos antiguos sin array, reserva de terapeuta y equipos con dos unidades.
  assert.ok(render([appointment('legacy','14:05',professionals[0],{resources:undefined})]).output.includes('data-id="legacy"'));
