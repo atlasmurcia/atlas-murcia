@@ -13,14 +13,23 @@ function test(){
  const original=[appointment('off-grid','14:05'),appointment('aligned','13:30',professionals[1])],before=JSON.stringify(original);
  let r=render(original);assert.ok(r.output.includes('data-id="off-grid"'),'La cita de las 14:05 debe aparecer');assert.ok(r.output.includes('data-id="aligned"'));assert.equal(JSON.stringify(original),before,'El render no modifica citas');
  for(let minute=0;minute<60;minute++){const time='14:'+String(minute).padStart(2,'0'),{output}=render([appointment('minute',time)]);assert.equal((output.match(/data-id="minute"/g)||[]).length,1,time);assert.ok(output.includes(time+' · 30m'));const top=Number(output.match(/style="top:([\d.]+)px;height/)[1]);assert.ok(Math.abs(top-((minute%15)*32/15))<1e-9,time+' posición exacta');}
- // Citas simultáneas y solapadas en un profesional usan carriles legibles.
+ // Las citas coincidentes se separan dentro de una sola columna profesional.
  let overlap=render([appointment('same-a','14:00'),appointment('same-b','14:00')]);
- assert.ok(overlap.output.includes('Lisardo Esteve Montava 1/2')&&overlap.output.includes('Lisardo Esteve Montava 2/2'),'Citas con igual inicio ocupan dos carriles');
+ assert.equal((overlap.output.match(/<div class="head" title="Lisardo Esteve Montava">/g)||[]).length,1,'El profesional conserva una sola columna');
+ assert.ok(overlap.output.includes('width:calc(50% - 4px)'),'Citas con igual inicio se reparten el ancho');
+ assert.ok(overlap.fields.cal.style.gridTemplateColumns.includes('224px'),'La columna gana ancho para que ambas tarjetas sigan legibles');
  for(const id of ['same-a','same-b'])assert.equal((overlap.output.match(new RegExp('data-id="'+id+'"','g'))||[]).length,1,'Visible una vez: '+id);
  overlap=render([appointment('stagger-a','14:00',professionals[0],{duration:45}),appointment('stagger-b','14:15',professionals[0],{duration:30})]);
- assert.ok(overlap.output.includes('Lisardo Esteve Montava 1/2')&&overlap.output.includes('Lisardo Esteve Montava 2/2'),'Inicios distintos que se cruzan ocupan dos carriles');
+ assert.equal((overlap.output.match(/<div class="head" title="Lisardo Esteve Montava">/g)||[]).length,1,'Un inicio cruzado tampoco duplica el profesional');
+ assert.ok(overlap.output.includes('width:calc(50% - 4px)'),'Inicios distintos que se cruzan se reparten el ancho');
  for(const [id,height] of [['duration-15',32],['duration-30',64],['duration-45',96]]){const minutes=Number(id.split('-')[1]),{output}=render([appointment(id,'14:00',professionals[0],{duration:minutes})]),match=output.match(new RegExp('style="top:[^;]+;height:([\\d.]+)px" data-id="'+id+'"'));assert.ok(match,id);assert.equal(Number(match[1]),height,'Altura exacta: '+minutes+'m')}
  // Recursos antiguos sin array, reserva de terapeuta y equipos con dos unidades.
+ let holds=render([
+  appointment('hold-a','14:00','Equipo de prueba',{professional:professionals[0],therapists:{'Servicio de prueba':professionals[0]},duration:30}),
+  appointment('hold-b','14:15','Equipo de prueba',{professional:professionals[0],therapists:{'Servicio de prueba':professionals[0]},duration:30})
+ ]);
+ assert.equal((holds.output.match(/<div class="head" title="Lisardo Esteve Montava">/g)||[]).length,1,'Las reservas profesionales conservan una columna');
+ assert.equal((holds.output.match(/style="left:calc\(/g)||[]).length,2,'Las reservas profesionales simultáneas también se distribuyen');
  assert.ok(render([appointment('legacy','14:05',professionals[0],{resources:undefined})]).output.includes('data-id="legacy"'));
  r=render([appointment('hold','14:05','Equipo de prueba',{professional:professionals[0],therapists:{'Servicio de prueba':professionals[0]}})]);assert.equal((r.output.match(/data-id="hold"/g)||[]).length,2);assert.ok(r.output.includes('14:05 · 30m profesional'));
  r=render([appointment('unit1','14:05','Equipo de prueba',{professional:''}),appointment('unit2','14:05','Equipo de prueba',{professional:''})]);for(const id of ['unit1','unit2'])assert.equal((r.output.match(new RegExp('data-id="'+id+'"','g'))||[]).length,1);
