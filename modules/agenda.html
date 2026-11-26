@@ -974,48 +974,53 @@ function render(){
  const columnRank=r=>{const i=columnOrder.indexOf(r);return i<0?columnOrder.length:i};
  shownResources=[...shownResources].sort((x,y)=>(specialColumns.includes(y)-specialColumns.includes(x))||columnRank(x)-columnRank(y));
  const cal=document.getElementById('cal');
- // Equipos con varias unidades (2 OsteoSpin): una columna por unidad y cada cita en la primera libre. Solo es visual.
- const columns=shownResources.flatMap(r=>{const units=equipment.includes(r)?equipmentUnits(r):1;return Array.from({length:units},(_,lane)=>({r,lane,units}))});
- // «Ver todo»: las columnas se reparten el ancho de la pantalla en lugar de medir 112 px cada una.
- const fit=document.getElementById('fitView')?.getAttribute('aria-pressed')==='true';
- cal.classList.toggle('fit',fit);
- cal.style.gridTemplateColumns=fit?`52px repeat(${columns.length},minmax(0,1fr))`:`52px repeat(${columns.length},112px)`;
- cal.style.minWidth=fit?'0':(52+columns.length*112)+'px';
- const headLabel=r=>{if(r==='Traccion')return'Camilla';if(!fit||!professionals.includes(r))return r;const p=r.split(/\s+/);return p.length>1?p[0]+' '+p[1][0]+'.':r};
- const weekday=new Date(currentDate+'T12:00:00').getDay();
- let calendarHtml='<div class="head">Hora</div>'+columns.map(({r,lane,units})=>{
-   const ints=professionals.includes(r)?professionalIntervalsForDate(r,currentDate):(schedules[r]?.[weekday]||[]);
-   const shift=ints.length?ints.map(x=>timeStr(x[0])+'–'+timeStr(x[1])).join(' · '):(professionals.includes(r)?'No trabaja':'08:00–22:00');
-   return `<div class="head" title="${r}">${headLabel(r)}${units>1?' '+(lane+1):''}<div class="shiftlabel">${shift}</div></div>`;
- }).join('');
  const patientFilter=document.getElementById('patientFilter');
- // The patient filter is kept only for legacy shortcuts. Once hidden it must
- // never keep filtering the visible clinic agenda after a global search.
+ // El filtro se conserva solo para accesos antiguos; oculto no debe filtrar la agenda.
  const pfilter=patientFilter&&!patientFilter.hidden?patientFilter.value:'';
  const sfilter=document.getElementById('statusFilter').value;
  let dayApps=appointments.filter(a=>a.date===currentDate && (!pfilter||a.patient===pfilter) && (sfilter?effectiveStatus(a)===sfilter:a.status!=='Cancelada'));
- const laneOf=new Map();
- columns.filter(c=>c.units>1&&c.lane===0).forEach(({r,units})=>{const ends=Array(units).fill(-1);dayApps.filter(a=>(Array.isArray(a.resources)?a.resources:[a.resource]).includes(r)).sort((x,y)=>mins(x.time)-mins(y.time)).forEach(a=>{const start=mins(a.time);let lane=ends.findIndex(end=>end<=start);if(lane<0)lane=ends.indexOf(Math.min(...ends));ends[lane]=start+Number(a.duration||30);laneOf.set(r+'|'+a.id,lane)})});
+ const simulationForDay=simulation.filter(a=>a.date===currentDate);
+ const laneOf=new Map(),laneCounts=new Map();
+ shownResources.forEach(r=>{
+   const events=[];
+   dayApps.filter(a=>(Array.isArray(a.resources)?a.resources:[a.resource]).includes(r)).forEach(a=>events.push({kind:'appt',id:a.id,time:a.time,duration:professionals.includes(r)?professionalDuration(a):Number(a.duration||30)}));
+   if(professionals.includes(r))dayApps.filter(a=>appointmentTherapists(a).includes(r)&&!(a.resources||[a.resource]).includes(r)&&professionalDuration(a)>0).forEach(a=>events.push({kind:'hold',id:a.id,time:a.time,duration:professionalDuration(a)}));
+   simulationForDay.filter(a=>(Array.isArray(a.resources)?a.resources:[a.resource]).includes(r)).forEach(a=>events.push({kind:'sim',id:a.id,time:a.time,duration:professionals.includes(r)?professionalDuration(a):Number(a.duration||30)}));
+   events.sort((a,b)=>mins(a.time)-mins(b.time)||String(a.id).localeCompare(String(b.id)));
+   const ends=[];
+   events.forEach(event=>{
+     const start=mins(event.time),duration=Math.max(1,Number(event.duration)||30);
+     let lane=ends.findIndex(end=>end<=start);
+     if(lane<0)lane=ends.length;
+     ends[lane]=start+duration;
+     laneOf.set(r+'|'+event.kind+'|'+event.id,lane);
+   });
+   laneCounts.set(r,Math.max(equipment.includes(r)?equipmentUnits(r):1,ends.length,1));
+ });
+ // Un carril independiente por cada cita simultánea, incluidos los fisios y las reservas profesionales.
+ const columns=shownResources.flatMap(r=>{const count=laneCounts.get(r)||1;return Array.from({length:count},(_,lane)=>({r,lane,count}))});
+ const fit=document.getElementById('fitView')?.getAttribute('aria-pressed')==='true';
+ cal.classList.toggle('fit',fit);
+ cal.style.gridTemplateColumns=fit?`52px repeat(${columns.length},minmax(84px,1fr))`:`52px repeat(${columns.length},112px)`;
+ cal.style.minWidth=fit?(52+columns.length*84)+'px':(52+columns.length*112)+'px';
+ const headLabel=r=>{if(r==='Traccion')return'Camilla';if(!fit||!professionals.includes(r))return r;const p=r.split(/\s+/);return p.length>1?p[0]+' '+p[1][0]+'.':r};
+ const weekday=new Date(currentDate+'T12:00:00').getDay();
+ let calendarHtml='<div class="head">Hora</div>'+columns.map(({r,lane,count})=>{
+   const ints=professionals.includes(r)?professionalIntervalsForDate(r,currentDate):(schedules[r]?.[weekday]||[]);
+   const shift=ints.length?ints.map(x=>timeStr(x[0])+'–'+timeStr(x[1])).join(' · '):(professionals.includes(r)?'No trabaja':'08:00–22:00');
+   return `<div class="head" title="${r}">${headLabel(r)}${count>1?' '+(lane+1)+'/'+count:''}<div class="shiftlabel">${shift}</div></div>`;
+ }).join('');
  for(let m=8*60;m<22*60;m+=15){
    const t=timeStr(m); calendarHtml+=`<div class="cell time">${t}</div>`;
    columns.forEach(({r,lane,units})=>{
-     let arr=dayApps.filter(a=>(Array.isArray(a.resources)?a.resources:[a.resource]).includes(r) && appointmentStartSlot(a)===m && (units<=1||laneOf.get(r+'|'+a.id)===lane));
+     let arr=dayApps.filter(a=>(Array.isArray(a.resources)?a.resources:[a.resource]).includes(r) && appointmentStartSlot(a)===m && laneOf.get(r+'|appt|'+a.id)===lane);
      let proHolds=professionals.includes(r)
-       ? dayApps.filter(a=>appointmentTherapists(a).includes(r) && !(a.resources||[a.resource]).includes(r) && appointmentStartSlot(a)===m && professionalDuration(a)>0)
+       ? dayApps.filter(a=>appointmentTherapists(a).includes(r) && !(a.resources||[a.resource]).includes(r) && appointmentStartSlot(a)===m && professionalDuration(a)>0 && laneOf.get(r+'|hold|'+a.id)===lane)
        : [];
-     let sim=simulation.filter(a=>a.date===currentDate&&(Array.isArray(a.resources)?a.resources:[a.resource]).includes(r)&&appointmentStartSlot(a)===m&&lane===0);
+     let sim=simulationForDay.filter(a=>(Array.isArray(a.resources)?a.resources:[a.resource]).includes(r)&&appointmentStartSlot(a)===m&&laneOf.get(r+'|sim|'+a.id)===lane);
      let html='';
      const allAtStart=[...arr.map(a=>({a,kind:'appt'})),...proHolds.map(a=>({a,kind:'hold'}))];
-     const n=allAtStart.length;
-     allAtStart.forEach((item,idx)=>{
-       let block=item.kind==='hold'?professionalHoldHtml(item.a,r):apptHtml(item.a,false,r);
-       if(n>1){
-         const width=(100/n);
-         block=block.replace('class="appt ',`class="appt multi `)
-                    .replace('style="',`style="left:calc(${idx*width}% + 2px);right:auto;width:calc(${width}% - 4px);`);
-       }
-       html+=block;
-     });
+     allAtStart.forEach(item=>html+=item.kind==='hold'?professionalHoldHtml(item.a,r):apptHtml(item.a,false,r));
      sim.forEach(a=>html+=apptHtml(a,true,r));
      let cls='cell',slotAvailable=true;
      if(professionals.includes(r)){
@@ -1039,11 +1044,10 @@ const renderWithoutPatientIndex=render;render=function(){if(patientCodeIndex)ret
 function effectiveStatus(a){return a.status==='Cancelada'?'Cancelada':conflictsFor(a,a.id).length?'Conflicto':a.status==='Conflicto'?'Pendiente':a.status}
 // La cuadrícula usa cuartos de hora; la cita conserva su hora exacta.
 function appointmentStartSlot(a){return Math.floor(mins(a.time)/15)*15}
-function appointmentTop(a){return 3+(mins(a.time)-appointmentStartSlot(a))*32/15}
+function appointmentTop(a){return (mins(a.time)-appointmentStartSlot(a))*32/15}
 function professionalHoldHtml(a,column=''){
  const dur=professionalDuration(a);
- const slots=Math.max(1,Math.ceil(dur/15));
- const height=(slots*32)-4;
+ const height=(Number(dur)||15)*32/15;
  const assigned=Object.entries(a.therapists||{}).filter(([,p])=>p===column).map(([s])=>s);
  const label=assigned.length?assigned.join(' + '):(a.therapy==='BRAINS'?'Poner Brains':a.therapy);
  const forced=a.forced?' forced':'';
@@ -1062,8 +1066,7 @@ function apptHtml(a,sim,column=''){
  let st=sim?'simulated':effectiveStatus(a)==='Conflicto'?'conflict':['Pendiente','En sala'].includes(a.status)?'pending':'';
  if(a.status==='Cancelada')st+=' cancelled';if(column==='Seguimientos')st+=' followup';if(column==='Recepción')st+=' reception';
  if(a.forced) st+=' forced';
- const slots=Math.max(1,Math.ceil(a.duration/15));
- const height=(slots*32)-4;
+ const height=(Number(a.duration)||15)*32/15;
  const forcedMark=a.forced?'<div class="small">⚠ FORZADA</div>':'';
  const services=Array.isArray(a.services)&&a.services.length?a.services:[a.therapy];const summary=services.length>2?`${services[0]} + ${services.length-1} más`:services.join(' + ');const ficha=patientByCode(a.patientCode);const phone=ficha?.phone||'';
  return `<div class="appt ${st}" tabindex="0" style="top:${appointmentTop(a)}px;height:${height}px" data-id="${sim?'':a.id}" data-column="${column}"><b class="${appointmentPaymentClass(a)}" title="${a.patient}">${shortPatient(a.patient)}</b><span title="${summary}">${summary}</span><div class="small">${a.time} · ${a.duration}m</div>${a.aftercarePhase==='month1'?'<div class="small atlas-aftercare-label">Seguimiento presencial 1er mes</div>':a.aftercarePhase==='reactivation'?'<div class="small atlas-aftercare-label">MBST reactivación · Tarjeta '+Number(a.aftercareCardNumber)+'</div>':''}${a.pumpCourseId?'<div class="small atlas-pump-zone">'+window.atlasPumpPlanning.label(a).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))+'</div>':''}${services.length>1?`<span class="multi-badge">＋${services.length}</span>`:''}${forcedMark}<div class="appt-tooltip" role="tooltip"><b>${a.patient}</b><div>${phone||'Sin teléfono'}</div><div>${services.join(' · ')}</div><div>${String(a.notes||'Sin observaciones').slice(0,180).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}${(a.notes||'').length>180?'…':''}</div></div></div>`;
