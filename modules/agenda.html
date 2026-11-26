@@ -975,53 +975,91 @@ function render(){
  shownResources=[...shownResources].sort((x,y)=>(specialColumns.includes(y)-specialColumns.includes(x))||columnRank(x)-columnRank(y));
  const cal=document.getElementById('cal');
  const patientFilter=document.getElementById('patientFilter');
- // El filtro se conserva solo para accesos antiguos; oculto no debe filtrar la agenda.
+ // El filtro oculto no debe seguir filtrando las citas visibles.
  const pfilter=patientFilter&&!patientFilter.hidden?patientFilter.value:'';
  const sfilter=document.getElementById('statusFilter').value;
  let dayApps=appointments.filter(a=>a.date===currentDate && (!pfilter||a.patient===pfilter) && (sfilter?effectiveStatus(a)===sfilter:a.status!=='Cancelada'));
  const simulationForDay=simulation.filter(a=>a.date===currentDate);
- const laneOf=new Map(),laneCounts=new Map();
+ const physicalLaneOf=new Map(),visualLayout=new Map(),visualWidths=new Map();
  shownResources.forEach(r=>{
    const events=[];
-   dayApps.filter(a=>(Array.isArray(a.resources)?a.resources:[a.resource]).includes(r)).forEach(a=>events.push({kind:'appt',id:a.id,time:a.time,duration:professionals.includes(r)?professionalDuration(a):Number(a.duration||30)}));
+   dayApps.filter(a=>(Array.isArray(a.resources)?a.resources:[a.resource]).includes(r)).forEach(a=>events.push({kind:'appt',id:a.id,time:a.time,duration:Number(a.duration||30)}));
    if(professionals.includes(r))dayApps.filter(a=>appointmentTherapists(a).includes(r)&&!(a.resources||[a.resource]).includes(r)&&professionalDuration(a)>0).forEach(a=>events.push({kind:'hold',id:a.id,time:a.time,duration:professionalDuration(a)}));
-   simulationForDay.filter(a=>(Array.isArray(a.resources)?a.resources:[a.resource]).includes(r)).forEach(a=>events.push({kind:'sim',id:a.id,time:a.time,duration:professionals.includes(r)?professionalDuration(a):Number(a.duration||30)}));
+   simulationForDay.filter(a=>(Array.isArray(a.resources)?a.resources:[a.resource]).includes(r)).forEach(a=>events.push({kind:'sim',id:a.id,time:a.time,duration:Number(a.duration||30)}));
    events.sort((a,b)=>mins(a.time)-mins(b.time)||String(a.id).localeCompare(String(b.id)));
-   const ends=[];
+   const unitCount=equipment.includes(r)?equipmentUnits(r):1;
+   const unitEnds=Array(unitCount).fill(-1),byUnit=Array.from({length:unitCount},()=>[]);
    events.forEach(event=>{
      const start=mins(event.time),duration=Math.max(1,Number(event.duration)||30);
-     let lane=ends.findIndex(end=>end<=start);
-     if(lane<0)lane=ends.length;
-     ends[lane]=start+duration;
-     laneOf.set(r+'|'+event.kind+'|'+event.id,lane);
+     let unit=unitEnds.findIndex(end=>end<=start);
+     if(unit<0)unit=unitEnds.indexOf(Math.min(...unitEnds));
+     unitEnds[unit]=Math.max(unitEnds[unit],start+duration);
+     event.unit=unit;byUnit[unit].push(event);
+     physicalLaneOf.set(r+'|'+event.kind+'|'+event.id,unit);
    });
-   laneCounts.set(r,Math.max(equipment.includes(r)?equipmentUnits(r):1,ends.length,1));
+   byUnit.forEach((items,unit)=>{
+     items.sort((a,b)=>mins(a.time)-mins(b.time)||String(a.id).localeCompare(String(b.id)));
+     let group=[],groupEnd=-1;
+     const layoutGroup=()=>{
+       if(!group.length)return;
+       const ends=[];
+       group.forEach(event=>{
+         const start=mins(event.time),duration=Math.max(1,Number(event.duration)||30);
+         let lane=ends.findIndex(end=>end<=start);
+         if(lane<0)lane=ends.length;
+         ends[lane]=start+duration;
+         event.visualLane=lane;
+       });
+       const count=Math.max(1,ends.length);
+       group.forEach(event=>visualLayout.set(r+'|'+event.kind+'|'+event.id,{lane:event.visualLane,count}));
+       const key=r+'|'+unit;
+       visualWidths.set(key,Math.max(visualWidths.get(key)||1,count));
+       group=[];
+     };
+     items.forEach(event=>{
+       const start=mins(event.time),end=start+Math.max(1,Number(event.duration)||30);
+       if(group.length&&start>=groupEnd)layoutGroup();
+       group.push(event);groupEnd=group.length===1?end:Math.max(groupEnd,end);
+     });
+     layoutGroup();
+   });
  });
- // Un carril independiente por cada cita simultánea, incluidos los fisios y las reservas profesionales.
- const columns=shownResources.flatMap(r=>{const count=laneCounts.get(r)||1;return Array.from({length:count},(_,lane)=>({r,lane,count}))});
+ // Se conserva una sola columna por recurso y solo se separan las unidades físicas existentes.
+ const columns=shownResources.flatMap(r=>{const units=equipment.includes(r)?equipmentUnits(r):1;return Array.from({length:units},(_,lane)=>({r,lane,units}))});
  const fit=document.getElementById('fitView')?.getAttribute('aria-pressed')==='true';
  cal.classList.toggle('fit',fit);
- cal.style.gridTemplateColumns=fit?`52px repeat(${columns.length},minmax(84px,1fr))`:`52px repeat(${columns.length},112px)`;
- cal.style.minWidth=fit?(52+columns.length*84)+'px':(52+columns.length*112)+'px';
+ const columnWidths=columns.map(({r,lane})=>(visualWidths.get(r+'|'+lane)||1)*(fit?84:112));
+ cal.style.gridTemplateColumns='52px '+columnWidths.map(width=>fit?`minmax(${width}px,1fr)`:`${width}px`).join(' ');
+ cal.style.minWidth=(52+columnWidths.reduce((sum,width)=>sum+width,0))+'px';
  const headLabel=r=>{if(r==='Traccion')return'Camilla';if(!fit||!professionals.includes(r))return r;const p=r.split(/\s+/);return p.length>1?p[0]+' '+p[1][0]+'.':r};
  const weekday=new Date(currentDate+'T12:00:00').getDay();
- let calendarHtml='<div class="head">Hora</div>'+columns.map(({r,lane,count})=>{
+ let calendarHtml='<div class="head">Hora</div>'+columns.map(({r,lane,units})=>{
    const ints=professionals.includes(r)?professionalIntervalsForDate(r,currentDate):(schedules[r]?.[weekday]||[]);
    const shift=ints.length?ints.map(x=>timeStr(x[0])+'–'+timeStr(x[1])).join(' · '):(professionals.includes(r)?'No trabaja':'08:00–22:00');
-   return `<div class="head" title="${r}">${headLabel(r)}${count>1?' '+(lane+1)+'/'+count:''}<div class="shiftlabel">${shift}</div></div>`;
+   return `<div class="head" title="${r}">${headLabel(r)}${units>1?' '+(lane+1):''}<div class="shiftlabel">${shift}</div></div>`;
  }).join('');
  for(let m=8*60;m<22*60;m+=15){
    const t=timeStr(m); calendarHtml+=`<div class="cell time">${t}</div>`;
    columns.forEach(({r,lane,units})=>{
-     let arr=dayApps.filter(a=>(Array.isArray(a.resources)?a.resources:[a.resource]).includes(r) && appointmentStartSlot(a)===m && laneOf.get(r+'|appt|'+a.id)===lane);
+     let arr=dayApps.filter(a=>(Array.isArray(a.resources)?a.resources:[a.resource]).includes(r) && appointmentStartSlot(a)===m && physicalLaneOf.get(r+'|appt|'+a.id)===lane);
      let proHolds=professionals.includes(r)
-       ? dayApps.filter(a=>appointmentTherapists(a).includes(r) && !(a.resources||[a.resource]).includes(r) && appointmentStartSlot(a)===m && professionalDuration(a)>0 && laneOf.get(r+'|hold|'+a.id)===lane)
+       ? dayApps.filter(a=>appointmentTherapists(a).includes(r) && !(a.resources||[a.resource]).includes(r) && appointmentStartSlot(a)===m && professionalDuration(a)>0 && physicalLaneOf.get(r+'|hold|'+a.id)===lane)
        : [];
-     let sim=simulationForDay.filter(a=>(Array.isArray(a.resources)?a.resources:[a.resource]).includes(r)&&appointmentStartSlot(a)===m&&laneOf.get(r+'|sim|'+a.id)===lane);
+     let sim=simulationForDay.filter(a=>(Array.isArray(a.resources)?a.resources:[a.resource]).includes(r)&&appointmentStartSlot(a)===m&&physicalLaneOf.get(r+'|sim|'+a.id)===lane);
      let html='';
      const allAtStart=[...arr.map(a=>({a,kind:'appt'})),...proHolds.map(a=>({a,kind:'hold'}))];
-     allAtStart.forEach(item=>html+=item.kind==='hold'?professionalHoldHtml(item.a,r):apptHtml(item.a,false,r));
-     sim.forEach(a=>html+=apptHtml(a,true,r));
+     allAtStart.forEach(item=>{
+       const kind=item.kind==='hold'?'hold':'appt',placement=visualLayout.get(r+'|'+kind+'|'+item.a.id);
+       let block=item.kind==='hold'?professionalHoldHtml(item.a,r):apptHtml(item.a,false,r);
+       if(placement?.count>1)block=block.replace('class="appt ',`class="appt multi `).replace('style="',`style="left:calc(${placement.lane*100/placement.count}% + 2px);right:auto;width:calc(${100/placement.count}% - 4px);`);
+       html+=block;
+     });
+     sim.forEach(a=>{
+       const placement=visualLayout.get(r+'|sim|'+a.id);
+       let block=apptHtml(a,true,r);
+       if(placement?.count>1)block=block.replace('class="appt ',`class="appt multi `).replace('style="',`style="left:calc(${placement.lane*100/placement.count}% + 2px);right:auto;width:calc(${100/placement.count}% - 4px);`);
+       html+=block;
+     });
      let cls='cell',slotAvailable=true;
      if(professionals.includes(r)){
        const wd=new Date(currentDate+'T12:00:00').getDay();
@@ -1053,7 +1091,7 @@ function professionalHoldHtml(a,column=''){
  const forced=a.forced?' forced':'';
  let statusClass=effectiveStatus(a)==='Conflicto'?' conflict':['Pendiente','En sala'].includes(a.status)?' pending':'';
  if(a.status==='Cancelada')statusClass+=' cancelled';
- return `<div class="appt${statusClass}${forced}" style="top:${appointmentTop(a)}px;height:${height}px" data-id="${a.id}" data-column="${column}">
+ return `<div class="appt ${statusClass.trim()}${forced}" style="top:${appointmentTop(a)}px;height:${height}px" data-id="${a.id}" data-column="${column}">
    <b class="${appointmentPaymentClass(a)}" title="${a.patient}">${shortPatient(a.patient)}</b>${label}<div class="small">${a.time} · ${dur}m profesional</div>
  </div>`;
 }
