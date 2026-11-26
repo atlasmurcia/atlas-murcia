@@ -980,7 +980,7 @@ function render(){
  const sfilter=document.getElementById('statusFilter').value;
  let dayApps=appointments.filter(a=>a.date===currentDate && (!pfilter||a.patient===pfilter) && (sfilter?effectiveStatus(a)===sfilter:a.status!=='Cancelada'));
  const simulationForDay=simulation.filter(a=>a.date===currentDate);
- const physicalLaneOf=new Map(),visualLayout=new Map(),visualWidths=new Map();
+ const physicalLaneOf=new Map(),visualLayout=new Map();
  shownResources.forEach(r=>{
    const events=[];
    dayApps.filter(a=>(Array.isArray(a.resources)?a.resources:[a.resource]).includes(r)).forEach(a=>events.push({kind:'appt',id:a.id,time:a.time,duration:Number(a.duration||30)}));
@@ -1012,8 +1012,6 @@ function render(){
        });
        const count=Math.max(1,ends.length);
        group.forEach(event=>visualLayout.set(r+'|'+event.kind+'|'+event.id,{lane:event.visualLane,count}));
-       const key=r+'|'+unit;
-       visualWidths.set(key,Math.max(visualWidths.get(key)||1,count));
        group=[];
      };
      items.forEach(event=>{
@@ -1028,9 +1026,8 @@ function render(){
  const columns=shownResources.flatMap(r=>{const units=equipment.includes(r)?equipmentUnits(r):1;return Array.from({length:units},(_,lane)=>({r,lane,units}))});
  const fit=document.getElementById('fitView')?.getAttribute('aria-pressed')==='true';
  cal.classList.toggle('fit',fit);
- const columnWidths=columns.map(({r,lane})=>(visualWidths.get(r+'|'+lane)||1)*(fit?84:112));
- cal.style.gridTemplateColumns='52px '+columnWidths.map(width=>fit?`minmax(${width}px,1fr)`:`${width}px`).join(' ');
- cal.style.minWidth=(52+columnWidths.reduce((sum,width)=>sum+width,0))+'px';
+ cal.style.gridTemplateColumns=fit?`52px repeat(${columns.length},minmax(84px,1fr))`:`52px repeat(${columns.length},112px)`;
+ cal.style.minWidth=fit?(52+columns.length*84)+'px':(52+columns.length*112)+'px';
  const headLabel=r=>{if(r==='Traccion')return'Camilla';if(!fit||!professionals.includes(r))return r;const p=r.split(/\s+/);return p.length>1?p[0]+' '+p[1][0]+'.':r};
  const weekday=new Date(currentDate+'T12:00:00').getDay();
  let calendarHtml='<div class="head">Hora</div>'+columns.map(({r,lane,units})=>{
