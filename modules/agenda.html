@@ -2103,13 +2103,23 @@ function validateModal(a){
 }
 document.getElementById('saveBtn').onclick=async function(){
  const a=readModal(); if(!validateModal(a)) return;
- const wasEditing=!!editingId,wasRescheduling=!!reschedulingCancelledAppointment,editedId=editingId,button=this,previousText=button.textContent;
- if(!wasEditing&&pendingModalAppointment){a.id=pendingModalAppointment.id;a.centralRef=pendingModalAppointment.centralRef;a.history=pendingModalAppointment.history}else a.history.push({at:new Date().toISOString(),user:agendaActorName(),action:wasEditing?'Cita actualizada':'Cita creada'});
+ const wasEditing=!!editingId,wasRescheduling=!!reschedulingCancelledAppointment,editedId=editingId,button=this,previousText=button.textContent,originalAppointment=wasEditing?appointments.find(x=>String(x.id)===String(editedId)):null,wasRestoringCancelled=!!originalAppointment&&originalAppointment.status==='Cancelada'&&a.status==='Pendiente';
+ if(wasRestoringCancelled){const blocked=blockFor(a),conflicts=conflictsFor({...a,status:'Pendiente'},editedId);if(blocked){alert('No se puede recuperar: el horario está bloqueado. Modifica la fecha o la hora antes de guardar.');return}if(conflicts.length){alert('No se puede recuperar la cita en su horario original porque coincide con '+conflicts.map(x=>x.patient).join(', ')+'. Modifica la fecha o la hora antes de guardar.');return}}
+ if(!wasEditing&&pendingModalAppointment){a.id=pendingModalAppointment.id;a.centralRef=pendingModalAppointment.centralRef;a.history=pendingModalAppointment.history}else a.history.push({at:new Date().toISOString(),user:agendaActorName(),action:wasRestoringCancelled?'Cita cancelada restablecida':wasEditing?'Cita actualizada':'Cita creada'});
  if(!wasEditing)pendingModalAppointment=a;
  button.disabled=true;button.textContent='Guardando en servidor…';
  try{
   if(typeof window.atlasPersistAppointmentCentral!=='function')throw new Error('La agenda central todavía no está preparada. Espera unos segundos y vuelve a pulsar Guardar.');
-  const confirmed=wasRescheduling?await window.atlasRescheduleCancelledAppointmentCentral(a):await window.atlasPersistAppointmentCentral(a);if(wasRescheduling&&confirmed)Object.assign(a,confirmed);
+  let confirmed;
+  if(wasRescheduling){confirmed=await window.atlasRescheduleCancelledAppointmentCentral(a);if(confirmed)Object.assign(a,confirmed)}
+  else if(wasRestoringCancelled){
+   if(typeof window.atlasRestoreAppointmentCentral!=='function')throw new Error('La agenda todavía no está preparada para recuperar la cita.');
+   const candidate={...a},changedFields=['patient','patientCode','date','time','duration','endTime','therapy','services','professional','therapists','resource','resources','notes','noCostGift','noCostGiftAudit','robotZone','forced','forceReason'];
+   const needsUpdate=changedFields.some(key=>JSON.stringify(candidate[key])!==JSON.stringify(originalAppointment[key]));
+   const restored=await window.atlasRestoreAppointmentCentral(editedId,false);
+   Object.assign(a,restored,candidate,{centralId:restored.centralId,centralRef:restored.centralRef,centralUpdatedAt:restored.centralUpdatedAt,status:'Pendiente',history:restored.history||candidate.history});
+   if(needsUpdate)await window.atlasPersistAppointmentCentral(a);
+  }else confirmed=await window.atlasPersistAppointmentCentral(a);
   logAgenda(wasRescheduling?'Cita reprogramada':wasEditing?'Cita actualizada':'Cita creada',a);
   if(wasEditing){appointments=appointments.map(x=>x.id===editedId?a:x)}else{const existing=appointments.findIndex(x=>String(x.centralRef||x.id)===String(a.centralRef||a.id));if(existing>=0)appointments[existing]=a;else appointments.push(a)}
   save();document.getElementById('modalBack').classList.remove('open');render();
@@ -2966,7 +2976,7 @@ authUsers();
 
  const originalRender=render;render=function(){originalRender();document.querySelectorAll('.cell.blocked').forEach(cell=>{const resource=cell.dataset.resource,time=cell.dataset.time,block=agendaBlocks.find(b=>blockAppliesOnDate(b,currentDate)&&(b.resources.includes('*')||b.resources.includes(resource))&&(b.type==='day'||(mins(time)<mins(b.end)&&mins(time)+15>mins(b.start))));if(block){cell.dataset.blockId=block.id;cell.title=(block.reason||'Bloqueado')+' · Haz clic para gestionar';cell.onclick=e=>{e.stopPropagation();openAgendaBlock(block.id)}}})};render();
 
- restoreCancelled=async function(id){const a=appointments.find(x=>sameId(x.id,id));if(!a)return;if(!confirm('¿Restablecer esta cita cancelada? Volverá al estado Pendiente conservando todos sus datos.'))return;const candidate={...a,status:'Pendiente'},c=conflictsFor(candidate,a.id);if(blockFor(candidate)){alert('No se puede restablecer: el horario está bloqueado.');return}if(c.length&&!confirm('El horario está ocupado por otra cita real. ¿Deseas restablecerla igualmente como conflicto?'))return;try{if(typeof window.atlasRestoreAppointmentCentral!=='function')throw new Error('La agenda todavía no está preparada. Espera a que termine de cargar.');await window.atlasRestoreAppointmentCentral(id,!!c.length);renderCancelledList();render();alert('Cita restablecida correctamente.')}catch(error){alert('No se ha podido restablecer la cita: '+error.message)}};
+ restoreCancelled=async function(id){const a=appointments.find(x=>sameId(x.id,id));if(!a)return;if(!confirm('¿Restablecer esta cita cancelada? Volverá al estado Pendiente conservando todos sus datos.'))return;const candidate={...a,status:'Pendiente'},c=conflictsFor(candidate,a.id);if(blockFor(candidate)){alert('No se puede restablecer: el horario está bloqueado.');return}if(c.length){alert('No se puede recuperar la cita en ese horario porque coincide con '+c.map(x=>x.patient).join(', ')+'. Modifica el horario antes de recuperarla.');return}try{if(typeof window.atlasRestoreAppointmentCentral!=='function')throw new Error('La agenda todavía no está preparada. Espera a que termine de cargar.');await window.atlasRestoreAppointmentCentral(id,false);renderCancelledList();render();alert('Cita restablecida correctamente.')}catch(error){alert('No se ha podido restablecer la cita: '+error.message)}};
 })();
 </script><script id="atlas-readaptation-resource-migration">
 (()=>{let changed=false;appointments.forEach(a=>{const services=a.services||[a.therapy||''],isReadaptation=services.some(s=>normalizeSearch(s).includes('readaptacion')),rs=Array.isArray(a.resources)?a.resources:[a.resource].filter(Boolean);if(!isReadaptation&&!rs.includes('Readaptación'))return;const professional=a.professional||Object.values(a.therapists||{})[0]||'Aitor Inglés Barrena';a.professional=professional;a.resource=professional;a.resources=[...new Set(rs.filter(r=>r!=='Readaptación').filter(r=>professionals.includes(r)).concat(professional))];a.therapists={...(a.therapists||{}),...Object.fromEntries(services.filter(s=>normalizeSearch(s).includes('readaptacion')).map(s=>[s,professional]))};changed=true});if(changed){save();render()}})();
