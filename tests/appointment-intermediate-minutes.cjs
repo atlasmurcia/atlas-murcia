@@ -17,11 +17,11 @@ function test(){
  let overlap=render([appointment('same-a','14:00'),appointment('same-b','14:00')]);
  assert.equal((overlap.output.match(/<div class="head" title="Lisardo Esteve Montava">/g)||[]).length,1,'El profesional conserva una sola columna');
  assert.ok(overlap.output.includes('width:calc(50% - 4px)'),'Citas con igual inicio se reparten el ancho');
- assert.ok(overlap.fields.cal.style.gridTemplateColumns.includes('224px'),'La columna gana ancho para que ambas tarjetas sigan legibles');
+ assert.equal(overlap.fields.cal.style.gridTemplateColumns,'52px repeat(4,112px)','Todas las columnas mantienen el mismo ancho cuando se solapan citas');
  for(const id of ['same-a','same-b'])assert.equal((overlap.output.match(new RegExp('data-id="'+id+'"','g'))||[]).length,1,'Visible una vez: '+id);
  overlap=render([appointment('triple-a','14:00'),appointment('triple-b','14:00'),appointment('triple-c','14:00')]);
  assert.equal((overlap.output.match(/<div class="head" title="Lisardo Esteve Montava">/g)||[]).length,1,'Tres citas tampoco duplican la columna profesional');
- assert.ok(overlap.fields.cal.style.gridTemplateColumns.includes('336px'),'La columna da espacio a tres citas legibles');
+ assert.equal(overlap.fields.cal.style.gridTemplateColumns,'52px repeat(4,112px)','Tres citas no ensanchan la columna del profesional');
  assert.ok(overlap.output.includes('width:calc(33.333333333333336% - 4px)'),'Tres tarjetas se separan dentro de la columna');
  for(const id of ['triple-a','triple-b','triple-c'])assert.equal((overlap.output.match(new RegExp('data-id="'+id+'"','g'))||[]).length,1,'Visible una vez: '+id);
  overlap=render([appointment('stagger-a','14:00',professionals[0],{duration:45}),appointment('stagger-b','14:15',professionals[0],{duration:30})]);
