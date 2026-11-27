@@ -1071,7 +1071,51 @@ const loadAll=async makeQuery=>{const data=[],size=1000,parallel=8;for(let offse
   throw new Error('Acción de chat desconocida.');
  }
  window.atlasInternalChatRequestV136=chatRequest;
- async function start(){if(started||!me()||!centralDb())return;started=true;launcher.hidden=false;historyButton.hidden=!isAdministrator();await Promise.allSettled([loadUsers(),loadMessages(false)]);pollTimer=setInterval(()=>{if(!document.hidden)loadMessages(true)},15000)}
+ // Realtime only invalidates the local list; the authenticated query remains
+ // the source of truth for receipts and messages. Keep periodic polling as backup.
+ let chatRealtimeClient=null,chatRealtimeKey='',chatRealtimeTimer=null,chatRealtimePending=false;
+ function stopChatRealtime(){
+  clearTimeout(chatRealtimeTimer);chatRealtimeTimer=null;chatRealtimePending=false;
+  const previous=channel,client=chatRealtimeClient;channel=null;chatRealtimeClient=null;chatRealtimeKey='';
+  if(previous&&client?.removeChannel)try{Promise.resolve(client.removeChannel(previous)).catch(()=>{})}catch(error){}
+ }
+ function requestChatRealtimeRefresh(){
+  chatRealtimePending=true;
+  if(chatRealtimeTimer!==null)return;
+  chatRealtimeTimer=setTimeout(flushChatRealtimeRefresh,0);
+ }
+ function flushChatRealtimeRefresh(){
+  chatRealtimeTimer=null;
+  if(!chatRealtimePending||document.hidden)return;
+  if(!me()||!channel){chatRealtimePending=false;return}
+  if(loading||markingRead||markingUnread){chatRealtimeTimer=setTimeout(flushChatRealtimeRefresh,50);return}
+  chatRealtimePending=false;void loadMessages(true);
+ }
+ function startChatRealtime(){
+  const client=centralDb(),context=me();
+  if(!context?.userId||!context?.organizationId||!context?.clinicId||!client?.channel){stopChatRealtime();return}
+  const key=[context.organizationId,context.clinicId,context.userId].map(String).join(':');
+  if(channel&&chatRealtimeClient===client&&chatRealtimeKey===key)return;
+  stopChatRealtime();chatRealtimeClient=client;chatRealtimeKey=key;
+  try{
+   const next=client.channel('atlas-internal-chat-live:'+key);channel=next;
+   const changed=payload=>{
+    if(channel!==next||chatRealtimeKey!==key||[me()?.organizationId,me()?.clinicId,me()?.userId].map(String).join(':')!==key)return;
+    const row=payload?.new;
+    if(!row||String(row.organization_id)!==String(context.organizationId)||String(row.clinic_id)!==String(context.clinicId))return;
+    if(String(row.sender_user_id)!==String(context.userId)&&String(row.recipient_user_id)!==String(context.userId))return;
+    requestChatRealtimeRefresh();
+   };
+   for(const field of ['sender_user_id','recipient_user_id'])next.on('postgres_changes',{event:'*',schema:'public',table:'internal_chat_messages',filter:field+'=eq.'+context.userId},changed);
+   next.subscribe(state=>{if(channel===next&&state==='SUBSCRIBED')requestChatRealtimeRefresh()});
+  }catch(error){stopChatRealtime();console.warn('El chat mantiene la actualización periódica mientras recupera la conexión en directo.')}
+ }
+ window.addEventListener('online',()=>{startChatRealtime();requestChatRealtimeRefresh()});
+ window.addEventListener('focus',()=>{startChatRealtime();requestChatRealtimeRefresh()});
+ window.addEventListener('pagehide',stopChatRealtime);
+ window.addEventListener('pageshow',()=>{if(started)startChatRealtime()});
+ document.addEventListener('visibilitychange',()=>{if(!document.hidden){startChatRealtime();requestChatRealtimeRefresh()}});
+ async function start(){if(started||!me()||!centralDb())return;started=true;startChatRealtime();launcher.hidden=false;historyButton.hidden=!isAdministrator();await Promise.allSettled([loadUsers(),loadMessages(false)]);pollTimer=setInterval(()=>{if(!document.hidden)loadMessages(true)},15000)}
  launcher.onclick=()=>{enableAlerts();panel.classList.add('on');launcher.style.display='none';launcher.classList.remove('atlas-chat-alert');document.title=originalTitle;if(!selected&&users.length&&allUnread()===0){const first=users.find(item=>item.id?String(item.id)!==currentUserId():!samePerson(item.name,currentName()));if(first)selectUser(first)}loadMessages(false)};
  document.getElementById('atlasInternalChatClose').onclick=()=>{panel.classList.remove('on');launcher.style.display='';if(selected){saveRead(selected);renderUsers()}};
  historyButton.onclick=()=>{if(!isAdministrator())return;auditMode=true;selected='';selectedId='';historyButton.classList.add('active');textBox.disabled=true;send.disabled=true;renderUsers();renderMessages()};
