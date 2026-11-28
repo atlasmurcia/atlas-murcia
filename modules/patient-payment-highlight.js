@@ -5,7 +5,11 @@
   if(document.hidden||typeof window.atlasCentralRequest!=='function')return;
   if(busy){again=true;return}busy=true;
   try{
-   const rows=await window.atlasCentralRequest('patients:list'),byId=new Map((rows||[]).map(row=>[String(row.id),row]));
+   const ids=new Set(),today=typeof currentDate==='string'?currentDate:'';
+   for(const appointment of appointments||[]){if(today&&appointment.date!==today)continue;const patient=linkedPatientForAppointment(appointment);if(patient?.remoteId)ids.add(String(patient.remoteId));if(ids.size>=100)break}
+   if(document.getElementById('patientsBack')?.classList.contains('open'))for(const row of document.querySelectorAll('#patientsTableBody tr[data-code]')){const patient=patientMaster.find(item=>String(item.code)===String(row.dataset.code));if(patient?.remoteId)ids.add(String(patient.remoteId));if(ids.size>=100)break}
+   if(!ids.size)return;
+   const rows=await window.atlasCentralRequest('patients:payment-totals',{patientIds:[...ids]}),byId=new Map((rows||[]).map(row=>[String(row.id),row]));
    let changed=false;
    for(const patient of patientMaster){const row=byId.get(String(patient.remoteId||''));if(!row)continue;const income=Number(row.income);if(Number.isFinite(income)&&patientPaymentTotals.get(String(patient.remoteId))!==income){patientPaymentTotals.set(String(patient.remoteId),income);changed=true}}
    if(changed){renderPatientsTable();render();const name=document.getElementById('dName'),appointment=appointments.find(a=>String(a.id)===String(selectedId));if(name&&appointment)name.classList.toggle('patient-payment-highlight',patientPaymentHighlight(linkedPatientForAppointment(appointment)))}
